@@ -42,3 +42,4 @@ docker compose up --build
 - Do not commit `.env`
 - The backend connects to PostgreSQL using `DATABASE_URL`
 - Alembic is configured for future schema migrations
+- CB-207の種別1～3の正式な初期値は資料上で未確定です。現在の初期値は維持し、業務担当者の確認後に別途更新します。

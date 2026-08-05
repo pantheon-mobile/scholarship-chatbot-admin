@@ -1,0 +1,32 @@
+.error {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #efb4b4;
+  background: #fff2f2;
+  color: #b01818;
+  font-size: 14px;
+}
+
+.loading { margin: 28px 12px; color: #555; }
+.typeList { padding-top: 1px; }
+.typeSection { margin-bottom: 12px; }
+.fixedName { white-space: nowrap; }
+.labelField { display: inline-block !important; width: min(510px, 68%) !important; }
+.labelInput { height: 34px !important; }
+.valueField { width: 100%; }
+.valueRow:last-child td { border-bottom: 0; }
+.valueRow td { height: 49px; }
+.handleCell { width: 58px; padding: 0 0 0 12px !important; text-align: center; }
+.valueCell { padding: 0 !important; }
+.actionCell { width: 208px; padding: 0 17px 0 8px !important; text-align: right !important; white-space: nowrap; }
+.dangerAction { color: #e43725 !important; border-color: #f0aaa2 !important; }
+.dragHandle { width: 31px; padding: 0; border: 0; background: transparent; color: #090909; font-size: 29px; line-height: 1; cursor: grab; touch-action: none; }
+.dragHandle:active { cursor: grabbing; }
+.dragging { position: relative; z-index: 2; opacity: .62; background: #edf4ff; box-shadow: 0 3px 10px rgb(0 0 0 / 16%); }
+.valueInput { height: 35px !important; }
+.addingRow { background: #eaf2ff; }
+.addButton { margin: 10px 0 13px; }
+
+@media (max-width: 680px) {
+  .actionCell { width: 150px; padding-right: 9px !important; }
+}

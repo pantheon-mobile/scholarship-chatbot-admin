@@ -1,0 +1,61 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { AdminIcon } from "../components/admin/AdminIcon";
+import { AdminLayout } from "../components/admin/AdminLayout";
+import styles from "../components/admin/admin.module.css";
+
+afterEach(cleanup);
+
+describe("AdminLayout", () => {
+  it("既定ではコンテンツを中央配置する", () => {
+    render(<AdminLayout activeMenu="dashboard" onNavigate={() => undefined}>本文</AdminLayout>);
+
+    expect(screen.getByText("本文").classList.contains(styles.contentAlignCenter)).toBe(true);
+  });
+
+  it("幅variantを維持したまま左寄せを選択できる", () => {
+    render(<AdminLayout activeMenu="data-sources" contentWidth="default" contentAlign="start" onNavigate={() => undefined}>本文</AdminLayout>);
+
+    const content = screen.getByText("本文");
+    expect(content.classList.contains(styles.contentDefault)).toBe(true);
+    expect(content.classList.contains(styles.contentAlignStart)).toBe(true);
+  });
+
+  it.each(["default", "wide", "full"] as const)("%s幅variantを適用できる", (contentWidth) => {
+    render(<AdminLayout activeMenu="dashboard" contentWidth={contentWidth} onNavigate={() => undefined}>{contentWidth}</AdminLayout>);
+
+    const content = screen.getByText(contentWidth);
+    const widthClass = styles[`content${contentWidth[0].toUpperCase()}${contentWidth.slice(1)}`];
+    expect(content.classList.contains(widthClass)).toBe(true);
+  });
+
+  it("HeaderとSidebarのアイコンを共通仕様で描画する", () => {
+    const { container } = render(<AdminLayout activeMenu="data-sources" onNavigate={() => undefined}>本文</AdminLayout>);
+    const icons = Array.from(container.querySelectorAll("svg"));
+
+    expect(icons).toHaveLength(8);
+    for (const icon of icons) {
+      expect(icon.getAttribute("viewBox")).toBe("0 0 24 24");
+      expect(icon.getAttribute("stroke")).toBe("currentColor");
+      expect(icon.getAttribute("stroke-width")).toBe("1.9");
+      expect(icon.getAttribute("stroke-linecap")).toBe("round");
+      expect(icon.getAttribute("stroke-linejoin")).toBe("round");
+      expect(icon.getAttribute("aria-hidden")).toBe("true");
+    }
+
+    const activeMenu = screen.getByRole("button", { name: "データソース管理" });
+    expect(activeMenu.classList.contains(styles.activeMenu)).toBe(true);
+    expect(activeMenu.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("ダッシュボードを半円メーターと右上向きの針で描画する", () => {
+    const { container } = render(<AdminIcon name="dashboard" />);
+    const paths = Array.from(container.querySelectorAll("path"));
+
+    expect(paths.map((path) => path.getAttribute("d"))).toEqual([
+      "M4 18a8 8 0 0 1 16 0",
+      "m7 14-1.5-1M12 11V9m5 5 1.5-1M12 18l4.5-5.5",
+    ]);
+    expect(container.querySelector('circle[cx="12"][cy="18"]')).not.toBeNull();
+  });
+});
