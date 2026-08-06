@@ -48,14 +48,14 @@ describe("AdminLayout", () => {
     expect(activeMenu.getAttribute("aria-current")).toBe("page");
   });
 
-  it("ダッシュボードを半円メーターと右上向きの針で描画する", () => {
+  it("ダッシュボードを円形メーターと丸い目盛り、右上向きの針で描画する", () => {
     const { container } = render(<AdminIcon name="dashboard" />);
     const paths = Array.from(container.querySelectorAll("path"));
+    const circles = Array.from(container.querySelectorAll("circle"));
 
-    expect(paths.map((path) => path.getAttribute("d"))).toEqual([
-      "M4 18a8 8 0 0 1 16 0",
-      "m7 14-1.5-1M12 11V9m5 5 1.5-1M12 18l4.5-5.5",
-    ]);
-    expect(container.querySelector('circle[cx="12"][cy="18"]')).not.toBeNull();
+    expect(paths.map((path) => path.getAttribute("d"))).toEqual(["m11 16.5 4.8-7.1"]);
+    expect(circles).toHaveLength(6);
+    expect(container.querySelector('circle[cx="12"][cy="12"][r="9"]')).not.toBeNull();
+    expect(container.querySelector('circle[cx="11"][cy="16.5"][r="1.25"]')).not.toBeNull();
   });
 });

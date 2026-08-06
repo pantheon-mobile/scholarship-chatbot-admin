@@ -11,7 +11,7 @@ export function AdminIcon({ name, size = 24, ...props }: AdminIconProps) {
   const paths: Record<AdminIconName, React.ReactNode> = {
     university: <><path d="M3 8.5 12 3l9 5.5H3Z"/><path d="M5 20.5h14M3.5 22h17M6.5 8.5v12m3.7-12v12m3.6-12v12m3.7-12v12"/></>,
     menu: <path d="M3.5 6h17M3.5 12h17M3.5 18h17"/>,
-    dashboard: <><path d="M4 18a8 8 0 0 1 16 0"/><path d="m7 14-1.5-1M12 11V9m5 5 1.5-1M12 18l4.5-5.5"/><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none"/></>,
+    dashboard: <><circle cx="12" cy="12" r="9"/><circle cx="6.7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="8.7" cy="6.8" r="1" fill="currentColor" stroke="none"/><circle cx="12.4" cy="5.6" r="1" fill="currentColor" stroke="none"/><circle cx="16.2" cy="7.2" r="1" fill="currentColor" stroke="none"/><path d="m11 16.5 4.8-7.1"/><circle cx="11" cy="16.5" r="1.25" fill="currentColor" stroke="none"/></>,
     database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></>,
     help: <><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 3.4 2.5c-.7.3-.9.9-.9 1.7M12 17.2h.01"/></>,
     list: <><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></>,
