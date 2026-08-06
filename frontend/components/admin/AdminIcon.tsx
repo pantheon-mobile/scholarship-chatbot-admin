@@ -2,7 +2,7 @@ import { SVGProps } from "react";
 
 export type AdminIconName =
   | "university" | "menu" | "dashboard" | "database" | "help" | "list"
-  | "chat" | "chart" | "back" | "download" | "plus" | "edit" | "trash" | "grip";
+  | "chat" | "chart" | "back" | "download" | "plus" | "edit" | "trash" | "grip" | "search";
 
 type AdminIconProps = SVGProps<SVGSVGElement> & { name: AdminIconName; size?: number };
 
@@ -23,6 +23,7 @@ export function AdminIcon({ name, size = 24, ...props }: AdminIconProps) {
     edit: <><path d="m4 20 4.2-1 10.9-10.9a2.1 2.1 0 0 0-3-3L5.2 16 4 20ZM14.5 6.5l3 3"/></>,
     trash: <><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></>,
     grip: <><circle cx="9" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="19" r="1" fill="currentColor" stroke="none"/></>,
+    search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></>,
   };
 
   return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...common} {...props}>{paths[name]}</svg>;

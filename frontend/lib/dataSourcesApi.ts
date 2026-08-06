@@ -1,0 +1,67 @@
+import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError } from "@/types/dataSource";
+
+const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+function queryString(filters: DataSourceFilters, includePage = true) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (!includePage && (key === "page" || key === "page_size")) continue;
+    if (value !== "" && value !== null && value !== undefined) params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+async function parseError(response: Response, fallback: string): Promise<never> {
+  let message = fallback;
+  let code: string | undefined;
+  try {
+    const body = await response.json();
+    if (typeof body.detail === "string") message = body.detail;
+    else if (body.detail) {
+      message = body.detail.message ?? fallback;
+      code = body.detail.code;
+    }
+  } catch {}
+  throw new DataSourcesApiError(message, response.status, code);
+}
+
+export async function fetchDataSources(filters: DataSourceFilters): Promise<DataSourceListResponse> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources?${queryString(filters)}`, { cache: "no-store" });
+  if (!response.ok) return parseError(response, "データソース一覧の取得に失敗しました。");
+  return response.json();
+}
+
+export async function updateAnswerSource(id: number, enabled: boolean, version: number): Promise<DataSource> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/${id}/answer-source`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled, version }),
+  });
+  if (!response.ok) return parseError(response, "回答ソースの更新に失敗しました。");
+  return response.json();
+}
+
+export async function updateReferenceLink(id: number, visible: boolean, version: number): Promise<DataSource> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/${id}/reference-link`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visible, version }),
+  });
+  if (!response.ok) return parseError(response, "参照リンクの更新に失敗しました。");
+  return response.json();
+}
+
+export async function deleteDataSource(id: number, version: number): Promise<void> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/${id}?version=${version}`, { method: "DELETE" });
+  if (!response.ok) return parseError(response, "データソースの削除に失敗しました。");
+}
+
+export async function bulkDeleteDataSources(items: Array<{ id: number; version: number }>): Promise<number> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/bulk-delete`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+  });
+  if (!response.ok) return parseError(response, "選択したデータソースの削除に失敗しました。");
+  return (await response.json()).deleted_count;
+}
+
+export async function exportDataSources(filters: DataSourceFilters): Promise<Blob> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/export?${queryString(filters, false)}`);
+  if (!response.ok) return parseError(response, "一覧のダウンロードに失敗しました。");
+  return response.blob();
+}

@@ -154,6 +154,41 @@
 .input:focus { border-color: #397fc8; box-shadow: 0 0 0 3px rgb(0 112 235 / 14%), inset 0 1px 2px rgb(0 0 0 / 7%); }
 .input[aria-invalid="true"] { border-color: #d94a3a; }
 
+.selectField { display: grid; gap: 7px; color: #191919; }
+.select {
+  width: 100%;
+  height: 38px;
+  padding: 5px 34px 5px 11px;
+  border: 1px solid #aeb4ba;
+  border-radius: 5px;
+  appearance: none;
+  background: #fff linear-gradient(45deg, transparent 50%, #161616 50%) calc(100% - 15px) 16px / 6px 6px no-repeat;
+  color: #202020;
+  font: inherit;
+  font-size: 15px;
+}
+.select:focus-visible { border-color: #397fc8; outline: 2px solid rgb(61 90 254 / 18%); outline-offset: 1px; }
+.toggleSwitch { min-width: 82px; display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.toggleSwitch:focus-visible { outline: 2px solid rgb(61 90 254 / 22%); outline-offset: 2px; border-radius: 12px; }
+.toggleSwitch:disabled { opacity: .5; cursor: default; }
+.toggleTrack { width: 34px; height: 19px; position: relative; flex: 0 0 34px; border: 1px solid #adb3b8; border-radius: 10px; background: #f5f5f5; }
+.toggleThumb { width: 13px; height: 13px; position: absolute; left: 3px; top: 2px; border-radius: 50%; background: #777; transition: transform .15s, background-color .15s; }
+.toggleChecked .toggleThumb { transform: translateX(14px); background: #2e9b45; }
+.sortableHeader { width: 100%; min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-align: left; cursor: pointer; }
+.sortableHeader:focus-visible { outline: 2px solid rgb(61 90 254 / 22%); outline-offset: 1px; }
+.sortArrows { display: grid; color: #999; font-size: 9px; line-height: .85; }
+.sortActive { color: #176ee5; }
+.statusBadge { display: inline-block; font-weight: 700; white-space: nowrap; }
+.statusNeutral { color: #555; }
+.statusInfo { color: #176ee5; }
+.statusSuccess { color: #00a229; }
+.statusDanger { color: #ed0000; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 10px; color: #555; font-size: 14px; }
+.pageButton { min-width: 54px !important; height: 34px !important; min-height: 34px !important; padding: 0 10px !important; font-size: 14px !important; }
+.pageInputForm { display: flex; align-items: center; gap: 6px; }
+.pageInputForm input { width: 58px; height: 34px; padding: 3px 6px; border: 1px solid #aeb4ba; border-radius: 4px; font: inherit; text-align: center; }
+.pageInputForm input:focus-visible { outline: 2px solid rgb(61 90 254 / 20%); outline-offset: 1px; }
+
 .modalBackdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 50%); }
 .modal { width: min(520px, calc(100vw - 40px)); max-height: min(720px, calc(100vh - 40px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #c8ccd0; border-radius: 6px; background: #fff; box-shadow: 0 12px 30px rgb(0 0 0 / 24%); }
 .modalHeader { flex: 0 0 auto; padding: 20px; border-bottom: 1px solid #d7dade; background: #fff; }

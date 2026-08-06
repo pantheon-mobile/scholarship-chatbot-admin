@@ -344,7 +344,7 @@ export default function DataSourceTypesPage() {
         title="種別設定"
         actions={
           <>
-            <Button variant="secondary" onClick={() => navigateWithConfirmation("/")} icon={<AdminIcon name="back" size={19} />}>一覧に戻る</Button>
+            <Button variant="secondary" onClick={() => navigateWithConfirmation("/data-sources")} icon={<AdminIcon name="back" size={19} />}>一覧に戻る</Button>
             <Button variant="download" onClick={exportList} disabled={saving} icon={<AdminIcon name="download" size={20} />}>一覧をダウンロード</Button>
           </>
         }
