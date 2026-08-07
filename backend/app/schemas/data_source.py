@@ -114,3 +114,8 @@ class BulkDeleteResponse(BaseModel):
 class ClassificationAssignment(BaseModel):
     classification_type_id: int
     classification_value_id: int
+
+
+class FileUploadResponse(BaseModel):
+    items: list[DataSourceResponse]
+    created_count: int

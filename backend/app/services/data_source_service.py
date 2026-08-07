@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from fastapi import UploadFile
 from openpyxl import Workbook
 
 from app.models.data_source import DataSource
@@ -17,6 +19,8 @@ from app.schemas.data_source import (
     DataSourceResponse,
     DataSourceWebsiteResponse,
 )
+from app.services.file_upload_validation import FileUploadValidationError, validate_uploads
+from app.storage.base import StorageAdapter
 
 
 class DataSourceNotFoundError(Exception):
@@ -33,6 +37,13 @@ class PageNotFoundError(Exception):
 
 class ClassificationMismatchError(Exception):
     pass
+
+
+class FileUploadError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class DataSourceService:
@@ -126,6 +137,88 @@ class DataSourceService:
                 assignment.classification_value_id,
             ):
                 raise ClassificationMismatchError("種別値と種別の組み合わせが不正です。")
+
+    async def create_file_sources(
+        self,
+        files: list[UploadFile],
+        storage: StorageAdapter,
+        *,
+        title: str | None,
+        type_1_value_id: int | None,
+        type_2_value_id: int | None,
+        type_3_value_id: int | None,
+        priority: str,
+        answer_source_enabled: bool,
+        reference_link_visible: bool,
+    ) -> list[DataSourceResponse]:
+        try:
+            validated = validate_uploads(files)
+        except FileUploadValidationError as exc:
+            raise FileUploadError(exc.code, exc.message) from exc
+
+        normalized_title = (title or "").strip()
+        if len(validated) > 1 and normalized_title:
+            raise FileUploadError("TITLE_NOT_ALLOWED", "複数ファイルを選択した場合はタイトルを指定できません。")
+        if len(normalized_title) > 500:
+            raise FileUploadError("INVALID_TITLE", "タイトルは500文字以内で入力してください。")
+        if priority not in {"HIGH", "MEDIUM", "LOW"}:
+            raise FileUploadError("INVALID_PRIORITY", "回答利用の優先度が不正です。")
+
+        classification_pairs: list[tuple[int, int]] = []
+        for type_code, value_id in (
+            ("TYPE_1", type_1_value_id),
+            ("TYPE_2", type_2_value_id),
+            ("TYPE_3", type_3_value_id),
+        ):
+            if value_id is None:
+                continue
+            pair = await self.repository.resolve_classification_value(type_code, value_id)
+            if pair is None:
+                raise FileUploadError("INVALID_CLASSIFICATION", "種別値と種別の組み合わせが不正です。")
+            classification_pairs.append(pair)
+
+        staged: list[tuple[Path, str]] = []
+        finalized_keys: list[str] = []
+        records: list[dict] = []
+        try:
+            for item in validated:
+                storage_key = storage.create_storage_key(item.extension)
+                temporary_path = storage.save_temporary(item.upload.file)
+                staged.append((temporary_path, storage_key))
+                records.append({
+                    "title": normalized_title if len(validated) == 1 and normalized_title else item.file_name,
+                    "file_name": item.file_name,
+                    "storage_key": storage_key,
+                    "extension": item.extension,
+                    "size_bytes": item.size_bytes,
+                    "content_type": item.content_type,
+                })
+
+            ids = await self.repository.create_file_sources(
+                records,
+                priority=priority,
+                answer_source_enabled=answer_source_enabled,
+                reference_link_visible=reference_link_visible,
+                classifications=classification_pairs,
+            )
+            for temporary_path, storage_key in staged:
+                storage.finalize(temporary_path, storage_key)
+                finalized_keys.append(storage_key)
+            await self.repository.commit()
+        except Exception as exc:
+            await self.repository.rollback()
+            for temporary_path, _ in staged:
+                storage.delete_temporary(temporary_path)
+            for storage_key in finalized_keys:
+                storage.delete(storage_key)
+            if isinstance(exc, FileUploadError):
+                raise
+            raise FileUploadError("FILE_SAVE_FAILED", "ファイルの追加に失敗しました。") from exc
+
+        result: list[DataSourceResponse] = []
+        for data_source_id in ids:
+            result.append(self.serialize(await self._get(data_source_id)))
+        return result
 
     async def export_excel(self, filters: DataSourceFilters) -> bytes:
         export_filters = filters.model_copy(update={"page": 1, "page_size": 100})

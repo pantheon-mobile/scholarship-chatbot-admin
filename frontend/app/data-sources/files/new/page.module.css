@@ -1,0 +1,22 @@
+.page { width: 100%; min-width: 1020px; }
+.topRow { min-height: 58px; display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; }
+.uploadSection h1 { margin: 0 0 7px; font-size: 17px; line-height: 1.4; }
+.uploadNotes { display: grid; gap: 2px; margin-top: 7px; font-size: 13px; line-height: 1.35; }
+.uploadSection + section { margin-top: 17px; }
+.error { margin: 10px 0; padding: 9px 13px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 14px; }
+.divider { height: 1px; margin: 10px 0 14px; background: #b7bbc0; }
+.formRows { display: grid; gap: 10px; }
+.formRow { min-height: 34px; display: flex; align-items: flex-start; gap: 12px; }
+.rowLabel { flex: 0 0 auto; padding-top: 7px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+.toggleRow { align-items: center; }
+.toggleRow .rowLabel { width: 318px; padding-top: 0; }
+.titleField { width: 525px; }
+.mediumField { width: 305px; }
+.categoryField { display: grid; gap: 3px; }
+.categoryNote { margin: 0; font-size: 13px; line-height: 1.35; }
+.priorityField { width: 135px; }
+.classificationRow { align-items: flex-start; }
+.classificationFields { display: grid; gap: 8px; }
+.classificationField { display: grid; grid-template-columns: 54px 235px; align-items: center; gap: 12px; font-size: 15px; }
+.actions { display: flex; justify-content: center; gap: 35px; margin-top: 18px; }
+.actions button { min-width: 200px; min-height: 48px; }

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.schemas.data_source import (
     DataSourceFilters,
     DataSourceListResponse,
     DataSourceResponse,
+    FileUploadResponse,
     ToggleAnswerSourceRequest,
     ToggleReferenceLinkRequest,
 )
@@ -19,8 +20,10 @@ from app.services.data_source_service import (
     DataSourceNotFoundError,
     DataSourceService,
     DataSourceVersionConflictError,
+    FileUploadError,
     PageNotFoundError,
 )
+from app.storage import LocalStorage
 
 
 router = APIRouter()
@@ -28,6 +31,10 @@ router = APIRouter()
 
 def get_service(session: AsyncSession = Depends(get_db)) -> DataSourceService:
     return DataSourceService(DataSourceRepository(session))
+
+
+def get_storage() -> LocalStorage:
+    return LocalStorage()
 
 
 def get_filters(
@@ -75,6 +82,40 @@ async def export_data_sources(filters: DataSourceFilters = Depends(get_filters),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/data-sources/files", response_model=FileUploadResponse, status_code=201)
+async def create_file_data_sources(
+    files: list[UploadFile] = File(default=[]),
+    title: str | None = Form(default=None),
+    category_name: str | None = Form(default=None),
+    type_1_value_id: int | None = Form(default=None),
+    type_2_value_id: int | None = Form(default=None),
+    type_3_value_id: int | None = Form(default=None),
+    priority: str = Form(default="MEDIUM"),
+    answer_source_enabled: bool = Form(default=True),
+    reference_link_visible: bool = Form(default=True),
+    service: DataSourceService = Depends(get_service),
+    storage: LocalStorage = Depends(get_storage),
+):
+    if category_name and category_name.strip():
+        raise HTTPException(status_code=422, detail={"code": "CATEGORY_NOT_SUPPORTED", "message": "カテゴリは現在選択できません。"})
+    try:
+        items = await service.create_file_sources(
+            files,
+            storage,
+            title=title,
+            type_1_value_id=type_1_value_id,
+            type_2_value_id=type_2_value_id,
+            type_3_value_id=type_3_value_id,
+            priority=priority,
+            answer_source_enabled=answer_source_enabled,
+            reference_link_visible=reference_link_visible,
+        )
+        return FileUploadResponse(items=items, created_count=len(items))
+    except FileUploadError as exc:
+        status_code = 500 if exc.code == "FILE_SAVE_FAILED" else 422
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
 
 
 @router.patch("/data-sources/{data_source_id}/answer-source", response_model=DataSourceResponse)

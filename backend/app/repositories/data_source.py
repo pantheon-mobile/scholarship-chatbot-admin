@@ -7,7 +7,7 @@ from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.classification import ClassificationValue
+from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
 from app.schemas.data_source import DataSourceFilters, DeleteTarget
 
@@ -128,3 +128,61 @@ class DataSourceRepository:
             ClassificationValue.classification_type_id == type_id,
         )
         return (await self.session.execute(stmt)).scalar_one() == 1
+
+    async def resolve_classification_value(self, type_code: str, value_id: int) -> tuple[int, int] | None:
+        stmt = (
+            select(ClassificationType.id, ClassificationValue.id)
+            .join(ClassificationValue, ClassificationValue.classification_type_id == ClassificationType.id)
+            .where(ClassificationType.type_code == type_code, ClassificationValue.id == value_id)
+        )
+        row = (await self.session.execute(stmt)).one_or_none()
+        return (int(row[0]), int(row[1])) if row else None
+
+    async def create_file_sources(
+        self,
+        files: list[dict],
+        *,
+        priority: str,
+        answer_source_enabled: bool,
+        reference_link_visible: bool,
+        classifications: list[tuple[int, int]],
+    ) -> list[int]:
+        now = datetime.now(timezone.utc)
+        rows: list[DataSource] = []
+        for item in files:
+            row = DataSource(
+                source_type="FILE",
+                title=item["title"],
+                format=item["extension"],
+                status="PREPARING",
+                category_name=None,
+                size_bytes=item["size_bytes"],
+                character_count=None,
+                answer_source_enabled=answer_source_enabled,
+                priority=priority,
+                reference_link_visible=reference_link_visible,
+                updated_at=now,
+                version=1,
+                file=DataSourceFile(
+                    file_name=item["file_name"],
+                    storage_key=item["storage_key"],
+                    mime_type=item["content_type"] or None,
+                ),
+                classification_links=[
+                    DataSourceClassificationValue(
+                        classification_type_id=type_id,
+                        classification_value_id=value_id,
+                    )
+                    for type_id, value_id in classifications
+                ],
+            )
+            self.session.add(row)
+            rows.append(row)
+        await self.session.flush()
+        return [int(row.id) for row in rows]
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()

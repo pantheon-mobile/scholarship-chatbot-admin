@@ -54,4 +54,15 @@ docker compose up --build
 - 一覧Excelは検索結果の確認用であり、未確定の一括更新用フォーマットではありません。一括更新機能はMVP対象外です。
 - `data_source_classification_values`は既存CB-207テーブルへの複合一意制約追加を避け、単純な外部キーで構成します。種別値が指定種別に属することは`DataSourceService.validate_classification_assignments`で必ず検証します。
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
-- 実ファイル保存・ダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-203～CB-206本画面は未実装です。
+- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-204～CB-206本画面は未実装です。
+
+## CB-203 local file upload MVP
+
+- MVPの実ファイルは`UPLOAD_DIR`（Docker Composeでは`/app/storage/uploads`）へ保存し、named volumeでコンテナ再起動後も保持します。ストレージ処理はAdapterへ分離し、将来S3 Adapterへ交換できる構成です。
+- 新規登録時の状態は`PREPARING`です。Bedrock Knowledge Base同期と`PREPARING`以降の自動状態遷移は実装していません。
+- 正式カテゴリは未実装のため、CB-203ではカテゴリを選択できず、`category_name`は常にNULLです。
+- 既存データソースと同じ元ファイル名でも別データソースとして新規登録します。UUIDベースの`storage_key`により保存済みファイルを上書きしません。
+- タイトルを省略した場合は拡張子を含む元ファイル名を登録します。複数ファイルでは個別の元ファイル名をタイトルにします。
+- 複数ファイル登録は全件成功または全件失敗です。失敗時はDBをロールバックし、そのリクエストで保存した一時ファイル・確定ファイルを削除します。
+- 拡張子、Content-Type、基本シグネチャ、件数、合計容量、0バイト、同一リクエスト内の同名を検証します。正式なウイルススキャンは未実装です。
+- 登録内容はseedではなくユーザー登録データとして`data_sources`、`data_source_files`、`data_source_classification_values`へ保存します。
