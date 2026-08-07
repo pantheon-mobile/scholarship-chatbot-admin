@@ -12,6 +12,7 @@ from app.schemas.data_source import (
     DataSourceFilters,
     DataSourceListResponse,
     DataSourceResponse,
+    FileDataSourceUpdateRequest,
     FileUploadResponse,
     ToggleAnswerSourceRequest,
     ToggleReferenceLinkRequest,
@@ -20,7 +21,10 @@ from app.services.data_source_service import (
     DataSourceNotFoundError,
     DataSourceService,
     DataSourceVersionConflictError,
+    DataSourceUpdateError,
     FileUploadError,
+    FileDataSourceRequiredError,
+    ClassificationMismatchError,
     PageNotFoundError,
 )
 from app.storage import LocalStorage
@@ -116,6 +120,34 @@ async def create_file_data_sources(
     except FileUploadError as exc:
         status_code = 500 if exc.code == "FILE_SAVE_FAILED" else 422
         raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
+
+
+@router.get("/data-sources/{data_source_id}", response_model=DataSourceResponse)
+async def get_data_source(data_source_id: int, service: DataSourceService = Depends(get_service)):
+    try:
+        return await service.get(data_source_id)
+    except DataSourceNotFoundError:
+        raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None
+
+
+@router.put("/data-sources/{data_source_id}", response_model=DataSourceResponse)
+async def update_file_data_source(
+    data_source_id: int,
+    payload: FileDataSourceUpdateRequest,
+    service: DataSourceService = Depends(get_service),
+):
+    try:
+        return await service.update_file_attributes(data_source_id, payload)
+    except DataSourceNotFoundError:
+        raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None
+    except FileDataSourceRequiredError:
+        raise HTTPException(status_code=422, detail={"code": "FILE_DATA_SOURCE_REQUIRED", "message": "ファイル編集の対象ではありません。"}) from None
+    except ClassificationMismatchError as exc:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_CLASSIFICATION", "message": str(exc)}) from None
+    except DataSourceVersionConflictError:
+        raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "message": "他の操作で情報が更新されています。再読み込みしてください。"}) from None
+    except DataSourceUpdateError:
+        raise HTTPException(status_code=500, detail={"code": "UPDATE_FAILED", "message": "データソースの更新に失敗しました。"}) from None
 
 
 @router.patch("/data-sources/{data_source_id}/answer-source", response_model=DataSourceResponse)

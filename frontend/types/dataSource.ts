@@ -58,6 +58,17 @@ export type DataSourceListResponse = {
   order: SortOrder;
 };
 
+export type FileDataSourceUpdate = {
+  title: string;
+  type_1_value_id: number | null;
+  type_2_value_id: number | null;
+  type_3_value_id: number | null;
+  priority: Priority;
+  answer_source_enabled: boolean;
+  reference_link_visible: boolean;
+  version: number;
+};
+
 export class DataSourcesApiError extends Error {
   constructor(message: string, public status: number, public code?: string) {
     super(message);

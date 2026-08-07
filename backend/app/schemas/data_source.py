@@ -119,3 +119,14 @@ class ClassificationAssignment(BaseModel):
 class FileUploadResponse(BaseModel):
     items: list[DataSourceResponse]
     created_count: int
+
+
+class FileDataSourceUpdateRequest(BaseModel):
+    title: str = Field(max_length=500)
+    type_1_value_id: int | None = Field(default=None, ge=1)
+    type_2_value_id: int | None = Field(default=None, ge=1)
+    type_3_value_id: int | None = Field(default=None, ge=1)
+    priority: Priority
+    answer_source_enabled: bool
+    reference_link_visible: bool
+    version: int = Field(ge=1)

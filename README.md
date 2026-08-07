@@ -54,7 +54,7 @@ docker compose up --build
 - 一覧Excelは検索結果の確認用であり、未確定の一括更新用フォーマットではありません。一括更新機能はMVP対象外です。
 - `data_source_classification_values`は既存CB-207テーブルへの複合一意制約追加を避け、単純な外部キーで構成します。種別値が指定種別に属することは`DataSourceService.validate_classification_assignments`で必ず検証します。
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
-- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-204～CB-206本画面は未実装です。
+- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-205～CB-206本画面は未実装です。
 
 ## CB-203 local file upload MVP
 
@@ -66,3 +66,11 @@ docker compose up --build
 - 複数ファイル登録は全件成功または全件失敗です。失敗時はDBをロールバックし、そのリクエストで保存した一時ファイル・確定ファイルを削除します。
 - 拡張子、Content-Type、基本シグネチャ、件数、合計容量、0バイト、同一リクエスト内の同名を検証します。正式なウイルススキャンは未実装です。
 - 登録内容はseedではなくユーザー登録データとして`data_sources`、`data_source_files`、`data_source_classification_values`へ保存します。
+
+## CB-204 file attribute edit MVP
+
+- CB-204は既存FILEデータソースの属性編集のみを行い、ファイル差し替え、再アップロード、`file_name`、`storage_key`、`mime_type`、`size_bytes`の変更は行いません。Storage Adapterも使用しません。
+- タイトルが空文字または空白のみの場合は、CB-203と同様に既存のファイル名をタイトルとして保存します。
+- 正式カテゴリ機能は未実装のため、`category_name`は現在値をdisabled表示するだけで更新対象に含めません。
+- dirty状態は入力操作の有無ではなく、タイトル、種別1～3、優先度、回答ソース、参照リンクの初期値との差分で判定します。差分がない場合は更新ボタンを無効化します。
+- 属性更新では現在の`status`を維持し、Bedrock同期・再学習を行いません。更新対象と種別関連、`version`、`updated_at`だけを1トランザクションで更新します。

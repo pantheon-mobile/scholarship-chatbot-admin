@@ -18,6 +18,7 @@ from app.schemas.data_source import (
     DataSourceListResponse,
     DataSourceResponse,
     DataSourceWebsiteResponse,
+    FileDataSourceUpdateRequest,
 )
 from app.services.file_upload_validation import FileUploadValidationError, validate_uploads
 from app.storage.base import StorageAdapter
@@ -36,6 +37,14 @@ class PageNotFoundError(Exception):
 
 
 class ClassificationMismatchError(Exception):
+    pass
+
+
+class FileDataSourceRequiredError(Exception):
+    pass
+
+
+class DataSourceUpdateError(Exception):
     pass
 
 
@@ -98,6 +107,43 @@ class DataSourceService:
         if row is None:
             raise DataSourceNotFoundError()
         return row
+
+    async def get(self, data_source_id: int) -> DataSourceResponse:
+        return self.serialize(await self._get(data_source_id))
+
+    async def update_file_attributes(
+        self,
+        data_source_id: int,
+        payload: FileDataSourceUpdateRequest,
+    ) -> DataSourceResponse:
+        row = await self._get(data_source_id)
+        if row.source_type != "FILE" or row.file is None:
+            raise FileDataSourceRequiredError()
+
+        title = payload.title.strip() or row.file.file_name
+        classifications: list[tuple[int, int]] = []
+        for type_code, value_id in (
+            ("TYPE_1", payload.type_1_value_id),
+            ("TYPE_2", payload.type_2_value_id),
+            ("TYPE_3", payload.type_3_value_id),
+        ):
+            if value_id is None:
+                continue
+            pair = await self.repository.resolve_classification_value(type_code, value_id)
+            if pair is None:
+                raise ClassificationMismatchError("種別値と種別の組み合わせが不正です。")
+            classifications.append(pair)
+
+        try:
+            updated = await self.repository.update_file_attributes(
+                data_source_id, payload, title, classifications
+            )
+        except Exception as exc:
+            await self.repository.rollback()
+            raise DataSourceUpdateError() from exc
+        if not updated:
+            raise DataSourceVersionConflictError()
+        return self.serialize(await self._get(data_source_id))
 
     async def update_answer_source(self, data_source_id: int, enabled: bool, version: int) -> DataSourceResponse:
         await self._get(data_source_id)

@@ -16,16 +16,20 @@ from app.schemas.data_source import (
     ClassificationAssignment,
     DataSourceFilters,
     DeleteTarget,
+    FileDataSourceUpdateRequest,
 )
 from app.services.data_source_service import (
     ClassificationMismatchError,
+    DataSourceNotFoundError,
     DataSourceService,
+    DataSourceUpdateError,
     DataSourceVersionConflictError,
+    FileDataSourceRequiredError,
     PageNotFoundError,
 )
 
 
-def make_row(*, version: int = 1, answer: bool = True, reference: bool = True):
+def make_row(*, version: int = 1, answer: bool = True, reference: bool = True, source_type: str = "FILE"):
     type_row = SimpleNamespace(id=1, type_code="TYPE_1", display_label="対象者", display_order=1)
     value_row = SimpleNamespace(id=1, value_name="在学生")
     link = SimpleNamespace(
@@ -35,11 +39,13 @@ def make_row(*, version: int = 1, answer: bool = True, reference: bool = True):
         classification_value=value_row,
     )
     return SimpleNamespace(
-        id=1, source_type="FILE", title="［サンプル］募集要項", format="pdf", status="AVAILABLE",
+        id=1, source_type=source_type, title="［サンプル］募集要項", format="pdf", status="AVAILABLE",
         category_name=None, size_bytes=1024, character_count=2000,
         answer_source_enabled=answer, priority="HIGH", reference_link_visible=reference,
         updated_at=datetime(2026, 8, 6, 1, 2, tzinfo=timezone.utc), version=version,
-        file=SimpleNamespace(file_name="sample.pdf"), website=None, classification_links=[link],
+        file=SimpleNamespace(file_name="sample.pdf", storage_key="fixed.pdf", mime_type="application/pdf") if source_type == "FILE" else None,
+        website=SimpleNamespace(url="https://example.com") if source_type == "WEB" else None,
+        classification_links=[link],
     )
 
 
@@ -163,6 +169,117 @@ async def test_classification_value_must_belong_to_type():
         await DataSourceService(repository).validate_classification_assignments([
             ClassificationAssignment(classification_type_id=1, classification_value_id=999)
         ])
+
+
+def update_payload(**values):
+    return FileDataSourceUpdateRequest(
+        title=values.get("title", "更新タイトル"),
+        type_1_value_id=values.get("type_1_value_id", 1),
+        type_2_value_id=values.get("type_2_value_id"),
+        type_3_value_id=values.get("type_3_value_id"),
+        priority=values.get("priority", "MEDIUM"),
+        answer_source_enabled=values.get("answer_source_enabled", False),
+        reference_link_visible=values.get("reference_link_visible", False),
+        version=values.get("version", 1),
+    )
+
+
+@pytest.mark.anyio
+async def test_file_detail_returns_complete_row_and_not_found():
+    repository = AsyncMock()
+    repository.get.side_effect = [make_row(), None]
+    service = DataSourceService(repository)
+    result = await service.get(1)
+    assert result.file.file_name == "sample.pdf"
+    assert result.size_bytes == 1024
+    with pytest.raises(DataSourceNotFoundError):
+        await service.get(999)
+
+
+@pytest.mark.anyio
+async def test_file_attribute_update_resolves_types_and_returns_new_version():
+    repository = AsyncMock()
+    before = make_row()
+    after = make_row(version=2, answer=False, reference=False)
+    after.title = "更新タイトル"
+    after.priority = "MEDIUM"
+    repository.get.side_effect = [before, after]
+    repository.resolve_classification_value.return_value = (1, 1)
+    repository.update_file_attributes.return_value = True
+    payload = update_payload()
+    result = await DataSourceService(repository).update_file_attributes(1, payload)
+    assert result.version == 2
+    assert result.status == "AVAILABLE"
+    assert result.category_name is None
+    assert result.file.file_name == "sample.pdf"
+    repository.update_file_attributes.assert_awaited_once_with(1, payload, "更新タイトル", [(1, 1)])
+
+
+@pytest.mark.anyio
+async def test_blank_title_falls_back_to_existing_file_name_and_classifications_can_clear():
+    repository = AsyncMock()
+    after = make_row(version=2)
+    after.title = "sample.pdf"
+    after.classification_links = []
+    repository.get.side_effect = [make_row(), after]
+    repository.update_file_attributes.return_value = True
+    payload = update_payload(title="   ", type_1_value_id=None)
+    result = await DataSourceService(repository).update_file_attributes(1, payload)
+    assert result.title == "sample.pdf"
+    repository.update_file_attributes.assert_awaited_once_with(1, payload, "sample.pdf", [])
+
+
+@pytest.mark.anyio
+async def test_file_update_rejects_web_invalid_classification_and_version_conflict():
+    repository = AsyncMock()
+    repository.get.return_value = make_row(source_type="WEB")
+    with pytest.raises(FileDataSourceRequiredError):
+        await DataSourceService(repository).update_file_attributes(1, update_payload())
+
+    repository.get.return_value = make_row()
+    repository.resolve_classification_value.return_value = None
+    with pytest.raises(ClassificationMismatchError):
+        await DataSourceService(repository).update_file_attributes(1, update_payload())
+
+    repository.resolve_classification_value.return_value = (1, 1)
+    repository.update_file_attributes.return_value = False
+    with pytest.raises(DataSourceVersionConflictError):
+        await DataSourceService(repository).update_file_attributes(1, update_payload(version=99))
+
+
+@pytest.mark.anyio
+async def test_file_update_failure_rolls_back():
+    repository = AsyncMock()
+    repository.get.return_value = make_row()
+    repository.resolve_classification_value.return_value = (1, 1)
+    repository.update_file_attributes.side_effect = RuntimeError("db failure")
+    with pytest.raises(DataSourceUpdateError):
+        await DataSourceService(repository).update_file_attributes(1, update_payload())
+    repository.rollback.assert_awaited_once()
+
+
+def test_file_update_title_length_boundary():
+    assert len(FileDataSourceUpdateRequest(**{**update_payload().model_dump(), "title": "a" * 500}).title) == 500
+    with pytest.raises(ValidationError):
+        FileDataSourceUpdateRequest(**{**update_payload().model_dump(), "title": "a" * 501})
+
+
+@pytest.mark.anyio
+async def test_file_detail_and_update_api_errors(mock_service):
+    mock_service.get.side_effect = DataSourceNotFoundError()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/data-sources/999")
+        assert response.status_code == 404
+
+        mock_service.update_file_attributes.side_effect = FileDataSourceRequiredError()
+        response = await client.put("/api/v1/data-sources/1", json=update_payload().model_dump())
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "FILE_DATA_SOURCE_REQUIRED"
+
+        mock_service.update_file_attributes.side_effect = DataSourceVersionConflictError()
+        response = await client.put("/api/v1/data-sources/1", json=update_payload().model_dump())
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "VERSION_CONFLICT"
 
 
 @pytest.mark.anyio
