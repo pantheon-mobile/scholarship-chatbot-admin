@@ -54,7 +54,7 @@ docker compose up --build
 - 一覧Excelは検索結果の確認用であり、未確定の一括更新用フォーマットではありません。一括更新機能はMVP対象外です。
 - `data_source_classification_values`は既存CB-207テーブルへの複合一意制約追加を避け、単純な外部キーで構成します。種別値が指定種別に属することは`DataSourceService.validate_classification_assignments`で必ず検証します。
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
-- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-205～CB-206本画面は未実装です。
+- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-206本画面は未実装です。
 
 ## CB-203 local file upload MVP
 
@@ -74,3 +74,13 @@ docker compose up --build
 - 正式カテゴリ機能は未実装のため、`category_name`は現在値をdisabled表示するだけで更新対象に含めません。
 - dirty状態は入力操作の有無ではなく、タイトル、種別1～3、優先度、回答ソース、参照リンクの初期値との差分で判定します。差分がない場合は更新ボタンを無効化します。
 - 属性更新では現在の`status`を維持し、Bedrock同期・再学習を行いません。更新対象と種別関連、`version`、`updated_at`だけを1トランザクションで更新します。
+
+## CB-205 website URL registration MVP
+
+- CB-205は1件のURLと任意タイトルを登録するMVPです。デザイン資料にある複数URL入力、ファイル一括入力、フォーマットダウンロードは実装しません。
+- URLは`http`または`https`の絶対URLだけを許可し、文字列形式のみ検証します。DNS、到達可否、HTTP応答、SSL、リダイレクト、robots.txt、ページ内容は確認しません。
+- URL上限は、タイトル省略時にURL全体を`data_sources.title(500)`へ保存できるよう500文字とします。タイトルが空文字または空白のみの場合は、登録URLをそのままタイトルとして保存します。
+- 同じURLが既に存在しても、自動更新・重複排除は行わず別データソースとして新規登録します。
+- 正式カテゴリ機能は未実装のため、カテゴリはdisabled表示し、`category_name`はNULLで登録します。
+- 登録時は`source_type=WEB`、`format=Web`、`status=PREPARING`、`size_bytes=NULL`、`character_count=NULL`、`last_fetched_at=NULL`、`version=1`です。
+- Web取得、スクレイピング、本文抽出、Bedrock同期、再学習、ingestion jobは実行せず、`PREPARING`以降の自動状態遷移も行いません。

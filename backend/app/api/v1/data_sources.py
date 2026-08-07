@@ -16,6 +16,7 @@ from app.schemas.data_source import (
     FileUploadResponse,
     ToggleAnswerSourceRequest,
     ToggleReferenceLinkRequest,
+    WebsiteDataSourceCreateRequest,
 )
 from app.services.data_source_service import (
     DataSourceNotFoundError,
@@ -26,6 +27,7 @@ from app.services.data_source_service import (
     FileDataSourceRequiredError,
     ClassificationMismatchError,
     PageNotFoundError,
+    WebsiteDataSourceCreateError,
 )
 from app.storage import LocalStorage
 
@@ -119,6 +121,18 @@ async def create_file_data_sources(
         return FileUploadResponse(items=items, created_count=len(items))
     except FileUploadError as exc:
         status_code = 500 if exc.code == "FILE_SAVE_FAILED" else 422
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
+
+
+@router.post("/data-sources/websites", response_model=DataSourceResponse, status_code=201)
+async def create_website_data_source(
+    payload: WebsiteDataSourceCreateRequest,
+    service: DataSourceService = Depends(get_service),
+):
+    try:
+        return await service.create_website_source(payload)
+    except WebsiteDataSourceCreateError as exc:
+        status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
         raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
 
 

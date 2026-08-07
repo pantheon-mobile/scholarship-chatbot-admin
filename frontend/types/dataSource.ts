@@ -69,6 +69,17 @@ export type FileDataSourceUpdate = {
   version: number;
 };
 
+export type WebsiteDataSourceCreate = {
+  url: string;
+  title: string;
+  type_1_value_id: number | null;
+  type_2_value_id: number | null;
+  type_3_value_id: number | null;
+  priority: Priority;
+  answer_source_enabled: boolean;
+  reference_link_visible: boolean;
+};
+
 export class DataSourcesApiError extends Error {
   constructor(message: string, public status: number, public code?: string) {
     super(message);

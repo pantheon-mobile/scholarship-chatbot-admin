@@ -1,4 +1,4 @@
-import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate } from "@/types/dataSource";
+import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteDataSourceCreate } from "@/types/dataSource";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -44,6 +44,16 @@ export async function updateFileDataSource(id: number, values: FileDataSourceUpd
     body: JSON.stringify(values),
   });
   if (!response.ok) return parseError(response, "データソースの更新に失敗しました。");
+  return response.json();
+}
+
+export async function createWebsiteDataSource(values: WebsiteDataSourceCreate): Promise<DataSource> {
+  const response = await fetch(`${apiBase}/api/v1/data-sources/websites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!response.ok) return parseError(response, "Webサイトの追加に失敗しました。");
   return response.json();
 }
 

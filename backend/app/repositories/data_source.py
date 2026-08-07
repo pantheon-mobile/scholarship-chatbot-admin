@@ -220,6 +220,42 @@ class DataSourceRepository:
         await self.session.commit()
         return True
 
+    async def create_website_source(
+        self,
+        *,
+        url: str,
+        title: str,
+        priority: str,
+        answer_source_enabled: bool,
+        reference_link_visible: bool,
+        classifications: list[tuple[int, int]],
+    ) -> int:
+        row = DataSource(
+            source_type="WEB",
+            title=title,
+            format="Web",
+            status="PREPARING",
+            category_name=None,
+            size_bytes=None,
+            character_count=None,
+            answer_source_enabled=answer_source_enabled,
+            priority=priority,
+            reference_link_visible=reference_link_visible,
+            updated_at=datetime.now(timezone.utc),
+            version=1,
+            website=DataSourceWebsite(url=url, last_fetched_at=None),
+            classification_links=[
+                DataSourceClassificationValue(
+                    classification_type_id=type_id,
+                    classification_value_id=value_id,
+                )
+                for type_id, value_id in classifications
+            ],
+        )
+        self.session.add(row)
+        await self.session.flush()
+        return int(row.id)
+
     async def commit(self) -> None:
         await self.session.commit()
 

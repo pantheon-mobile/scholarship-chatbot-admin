@@ -130,3 +130,14 @@ class FileDataSourceUpdateRequest(BaseModel):
     answer_source_enabled: bool
     reference_link_visible: bool
     version: int = Field(ge=1)
+
+
+class WebsiteDataSourceCreateRequest(BaseModel):
+    url: str = ""
+    title: str = ""
+    type_1_value_id: int | None = Field(default=None, ge=1)
+    type_2_value_id: int | None = Field(default=None, ge=1)
+    type_3_value_id: int | None = Field(default=None, ge=1)
+    priority: str = "MEDIUM"
+    answer_source_enabled: bool = True
+    reference_link_visible: bool = True
