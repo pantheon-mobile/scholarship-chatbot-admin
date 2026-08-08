@@ -17,6 +17,7 @@ from app.schemas.data_source import (
     ToggleAnswerSourceRequest,
     ToggleReferenceLinkRequest,
     WebsiteDataSourceCreateRequest,
+    WebsiteDataSourceUpdateRequest,
 )
 from app.services.data_source_service import (
     DataSourceNotFoundError,
@@ -28,6 +29,8 @@ from app.services.data_source_service import (
     ClassificationMismatchError,
     PageNotFoundError,
     WebsiteDataSourceCreateError,
+    WebsiteDataSourceRequiredError,
+    WebsiteDataSourceUpdateError,
 )
 from app.storage import LocalStorage
 
@@ -147,10 +150,12 @@ async def get_data_source(data_source_id: int, service: DataSourceService = Depe
 @router.put("/data-sources/{data_source_id}", response_model=DataSourceResponse)
 async def update_file_data_source(
     data_source_id: int,
-    payload: FileDataSourceUpdateRequest,
+    payload: FileDataSourceUpdateRequest | WebsiteDataSourceUpdateRequest,
     service: DataSourceService = Depends(get_service),
 ):
     try:
+        if isinstance(payload, WebsiteDataSourceUpdateRequest):
+            return await service.update_website_attributes(data_source_id, payload)
         return await service.update_file_attributes(data_source_id, payload)
     except DataSourceNotFoundError:
         raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None
@@ -162,6 +167,11 @@ async def update_file_data_source(
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "message": "他の操作で情報が更新されています。再読み込みしてください。"}) from None
     except DataSourceUpdateError:
         raise HTTPException(status_code=500, detail={"code": "UPDATE_FAILED", "message": "データソースの更新に失敗しました。"}) from None
+    except WebsiteDataSourceRequiredError:
+        raise HTTPException(status_code=422, detail={"code": "WEB_DATA_SOURCE_REQUIRED", "message": "Webサイト編集の対象ではありません。"}) from None
+    except WebsiteDataSourceUpdateError as exc:
+        status_code = 500 if exc.code == "WEB_DATA_SOURCE_UPDATE_FAILED" else 422
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
 
 
 @router.patch("/data-sources/{data_source_id}/answer-source", response_model=DataSourceResponse)

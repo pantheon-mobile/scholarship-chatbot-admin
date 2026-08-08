@@ -26,7 +26,7 @@ const rows = [
     id: 2, source_type: "WEB", title: "大学サイト", format: "Web", status: "TRAINING",
     category_name: null, size_bytes: null, character_count: 3000, answer_source_enabled: false,
     priority: "LOW", reference_link_visible: false, updated_at: "2026-08-05T01:00:00Z", version: 3,
-    file: null, website: { url: "https://example.com" }, classifications: [],
+    file: null, website: { url: "https://example.com", last_fetched_at: null }, classifications: [],
   },
 ] as const;
 

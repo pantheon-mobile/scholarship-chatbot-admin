@@ -27,7 +27,7 @@ export type DataSource = {
   updated_at: string;
   version: number;
   file: { file_name: string } | null;
-  website: { url: string } | null;
+  website: { url: string; last_fetched_at: string | null } | null;
   classifications: DataSourceClassification[];
 };
 
@@ -78,6 +78,10 @@ export type WebsiteDataSourceCreate = {
   priority: Priority;
   answer_source_enabled: boolean;
   reference_link_visible: boolean;
+};
+
+export type WebsiteDataSourceUpdate = WebsiteDataSourceCreate & {
+  version: number;
 };
 
 export class DataSourcesApiError extends Error {

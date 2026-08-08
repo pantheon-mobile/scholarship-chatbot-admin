@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
-from app.schemas.data_source import DataSourceFilters, DeleteTarget, FileDataSourceUpdateRequest
+from app.schemas.data_source import DataSourceFilters, DeleteTarget, FileDataSourceUpdateRequest, WebsiteDataSourceUpdateRequest
 
 
 class DataSourceRepository:
@@ -255,6 +255,53 @@ class DataSourceRepository:
         self.session.add(row)
         await self.session.flush()
         return int(row.id)
+
+    async def update_website_attributes(
+        self,
+        data_source_id: int,
+        payload: WebsiteDataSourceUpdateRequest,
+        *,
+        url: str,
+        title: str,
+        classifications: list[tuple[int, int]],
+    ) -> bool:
+        result = await self.session.execute(
+            update(DataSource)
+            .where(DataSource.id == data_source_id, DataSource.version == payload.version)
+            .values(
+                title=title,
+                priority=payload.priority,
+                answer_source_enabled=payload.answer_source_enabled,
+                reference_link_visible=payload.reference_link_visible,
+                version=DataSource.version + 1,
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+        if result.rowcount != 1:
+            await self.session.rollback()
+            return False
+        website_result = await self.session.execute(
+            update(DataSourceWebsite)
+            .where(DataSourceWebsite.data_source_id == data_source_id)
+            .values(url=url)
+        )
+        if website_result.rowcount != 1:
+            raise LookupError("website_not_found")
+        await self.session.execute(
+            delete(DataSourceClassificationValue).where(
+                DataSourceClassificationValue.data_source_id == data_source_id
+            )
+        )
+        self.session.add_all([
+            DataSourceClassificationValue(
+                data_source_id=data_source_id,
+                classification_type_id=type_id,
+                classification_value_id=value_id,
+            )
+            for type_id, value_id in classifications
+        ])
+        await self.session.commit()
+        return True
 
     async def commit(self) -> None:
         await self.session.commit()

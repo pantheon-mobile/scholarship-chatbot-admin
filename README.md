@@ -54,7 +54,7 @@ docker compose up --build
 - 一覧Excelは検索結果の確認用であり、未確定の一括更新用フォーマットではありません。一括更新機能はMVP対象外です。
 - `data_source_classification_values`は既存CB-207テーブルへの複合一意制約追加を避け、単純な外部キーで構成します。種別値が指定種別に属することは`DataSourceService.validate_classification_assignments`で必ず検証します。
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
-- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可、CB-206本画面は未実装です。
+- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可は未実装です。
 
 ## CB-203 local file upload MVP
 
@@ -84,3 +84,11 @@ docker compose up --build
 - 正式カテゴリ機能は未実装のため、カテゴリはdisabled表示し、`category_name`はNULLで登録します。
 - 登録時は`source_type=WEB`、`format=Web`、`status=PREPARING`、`size_bytes=NULL`、`character_count=NULL`、`last_fetched_at=NULL`、`version=1`です。
 - Web取得、スクレイピング、本文抽出、Bedrock同期、再学習、ingestion jobは実行せず、`PREPARING`以降の自動状態遷移も行いません。
+
+## CB-206 website attribute edit MVP
+
+- CB-206は登録済みWEBデータソースのURLと属性を編集します。デザイン資料ではカテゴリが選択可能に見えますが、正式カテゴリ機能が未実装のため現在値をdisabled表示し、`category_name`を更新しません。
+- URLは変更できますが、Web取得、到達確認、スクレイピング、Bedrock同期、再学習は行いません。
+- URL変更時も現在の`status`、`last_fetched_at`、`character_count`を維持し、`PREPARING`へ戻しません。
+- タイトルが空文字または空白のみの場合は、更新後のURLをタイトルとして保存します。他のデータソースと同じURLへの更新も許可します。
+- dirty状態はURL、タイトル、種別1～3、優先度、回答ソース、参照リンクの初期値との差分で判定し、差分がない場合またはURLが空の場合は更新ボタンを無効化します。

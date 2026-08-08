@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 SourceType = Literal["FILE", "WEB"]
@@ -17,6 +17,7 @@ class DataSourceFileResponse(BaseModel):
 
 class DataSourceWebsiteResponse(BaseModel):
     url: str
+    last_fetched_at: datetime | None
 
 
 class DataSourceClassificationResponse(BaseModel):
@@ -122,6 +123,8 @@ class FileUploadResponse(BaseModel):
 
 
 class FileDataSourceUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(max_length=500)
     type_1_value_id: int | None = Field(default=None, ge=1)
     type_2_value_id: int | None = Field(default=None, ge=1)
@@ -141,3 +144,17 @@ class WebsiteDataSourceCreateRequest(BaseModel):
     priority: str = "MEDIUM"
     answer_source_enabled: bool = True
     reference_link_visible: bool = True
+
+
+class WebsiteDataSourceUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str
+    title: str
+    type_1_value_id: int | None = Field(default=None, ge=1)
+    type_2_value_id: int | None = Field(default=None, ge=1)
+    type_3_value_id: int | None = Field(default=None, ge=1)
+    priority: str
+    answer_source_enabled: bool
+    reference_link_visible: bool
+    version: int = Field(ge=1)

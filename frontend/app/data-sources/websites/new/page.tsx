@@ -7,6 +7,7 @@ import {
 } from "@/components/admin";
 import { fetchDataSourceTypes } from "@/lib/api";
 import { createWebsiteDataSource } from "@/lib/dataSourcesApi";
+import { validateWebsiteUrl } from "@/lib/websiteUrlValidation";
 import { Priority } from "@/types/dataSource";
 import { ClassificationType } from "@/types/dataSourceTypes";
 import styles from "./page.module.css";
@@ -27,19 +28,6 @@ const initialValues: FormValues = {
   priority: "MEDIUM", answer_source_enabled: true, reference_link_visible: true,
 };
 const leaveMessage = "Webサイトを追加せずにデータソース一覧に戻ります。よろしいですか？";
-
-function validateUrl(value: string) {
-  const url = value.trim();
-  if (!url) return "URLを入力してください。";
-  if (url.length > 500 || /\s/.test(url)) return "正しいURLを入力してください。";
-  try {
-    const parsed = new URL(url);
-    if (!(["http:", "https:"] as string[]).includes(parsed.protocol) || !parsed.hostname) return "正しいURLを入力してください。";
-  } catch {
-    return "正しいURLを入力してください。";
-  }
-  return null;
-}
 
 export default function DataSourceWebsiteNewPage() {
   const router = useRouter();
@@ -76,7 +64,7 @@ export default function DataSourceWebsiteNewPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
-    const validationError = validateUrl(values.url);
+    const validationError = validateWebsiteUrl(values.url);
     if (validationError) {
       setError(validationError);
       return;

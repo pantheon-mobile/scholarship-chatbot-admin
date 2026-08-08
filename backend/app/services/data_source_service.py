@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
@@ -21,8 +20,10 @@ from app.schemas.data_source import (
     DataSourceWebsiteResponse,
     FileDataSourceUpdateRequest,
     WebsiteDataSourceCreateRequest,
+    WebsiteDataSourceUpdateRequest,
 )
 from app.services.file_upload_validation import FileUploadValidationError, validate_uploads
+from app.services.website_url_validation import WebsiteUrlValidationError, validate_website_url
 from app.storage.base import StorageAdapter
 
 
@@ -51,6 +52,17 @@ class DataSourceUpdateError(Exception):
 
 
 class WebsiteDataSourceCreateError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+class WebsiteDataSourceRequiredError(Exception):
+    pass
+
+
+class WebsiteDataSourceUpdateError(Exception):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -86,7 +98,10 @@ class DataSourceService:
             updated_at=row.updated_at,
             version=row.version,
             file=DataSourceFileResponse(file_name=row.file.file_name) if row.file else None,
-            website=DataSourceWebsiteResponse(url=row.website.url) if row.website else None,
+            website=DataSourceWebsiteResponse(
+                url=row.website.url,
+                last_fetched_at=getattr(row.website, "last_fetched_at", None),
+            ) if row.website else None,
             classifications=[DataSourceClassificationResponse(
                 type_code=link.classification_type.type_code,
                 classification_type_id=link.classification_type_id,
@@ -158,19 +173,10 @@ class DataSourceService:
         self,
         payload: WebsiteDataSourceCreateRequest,
     ) -> DataSourceResponse:
-        url = payload.url.strip()
-        if not url:
-            raise WebsiteDataSourceCreateError("URL_REQUIRED", "URLを入力してください。")
-        if len(url) > 500 or any(character.isspace() for character in url):
-            raise WebsiteDataSourceCreateError("INVALID_URL", "正しいURLを入力してください。")
         try:
-            parsed = urlsplit(url)
-            valid_url = parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc) and bool(parsed.hostname)
-            parsed.port
-        except ValueError:
-            valid_url = False
-        if not valid_url:
-            raise WebsiteDataSourceCreateError("INVALID_URL", "正しいURLを入力してください。")
+            url = validate_website_url(payload.url)
+        except WebsiteUrlValidationError as exc:
+            raise WebsiteDataSourceCreateError(exc.code, exc.message) from exc
 
         title = payload.title.strip() or url
         if len(title) > 500:
@@ -204,6 +210,50 @@ class DataSourceService:
         except Exception as exc:
             await self.repository.rollback()
             raise WebsiteDataSourceCreateError("WEB_DATA_SOURCE_CREATE_FAILED", "Webサイトの追加に失敗しました。") from exc
+        return self.serialize(await self._get(data_source_id))
+
+    async def update_website_attributes(
+        self,
+        data_source_id: int,
+        payload: WebsiteDataSourceUpdateRequest,
+    ) -> DataSourceResponse:
+        row = await self._get(data_source_id)
+        if row.source_type != "WEB" or row.website is None:
+            raise WebsiteDataSourceRequiredError()
+
+        try:
+            url = validate_website_url(payload.url)
+        except WebsiteUrlValidationError as exc:
+            raise WebsiteDataSourceUpdateError(exc.code, exc.message) from exc
+
+        title = payload.title.strip() or url
+        if len(title) > 500:
+            raise WebsiteDataSourceUpdateError("TITLE_TOO_LONG", "タイトルが長すぎます。")
+        if payload.priority not in {"HIGH", "MEDIUM", "LOW"}:
+            raise WebsiteDataSourceUpdateError("INVALID_PRIORITY", "回答利用の優先度が不正です。")
+
+        classifications: list[tuple[int, int]] = []
+        for type_code, value_id in (
+            ("TYPE_1", payload.type_1_value_id),
+            ("TYPE_2", payload.type_2_value_id),
+            ("TYPE_3", payload.type_3_value_id),
+        ):
+            if value_id is None:
+                continue
+            pair = await self.repository.resolve_classification_value(type_code, value_id)
+            if pair is None:
+                raise WebsiteDataSourceUpdateError("INVALID_CLASSIFICATION", "種別値と種別の組み合わせが不正です。")
+            classifications.append(pair)
+
+        try:
+            updated = await self.repository.update_website_attributes(
+                data_source_id, payload, url=url, title=title, classifications=classifications
+            )
+        except Exception as exc:
+            await self.repository.rollback()
+            raise WebsiteDataSourceUpdateError("WEB_DATA_SOURCE_UPDATE_FAILED", "Webサイトの更新に失敗しました。") from exc
+        if not updated:
+            raise DataSourceVersionConflictError()
         return self.serialize(await self._get(data_source_id))
 
     async def update_answer_source(self, data_source_id: int, enabled: bool, version: int) -> DataSourceResponse:

@@ -131,7 +131,7 @@ describe("CB-204 file edit page", () => {
     expect(await screen.findByText("指定されたデータソースが見つかりません。")).not.toBeNull();
     cleanup();
 
-    api.fetchDataSource.mockResolvedValue({ ...row, source_type: "WEB", file: null, website: { url: "https://example.com" } });
+    api.fetchDataSource.mockResolvedValue({ ...row, source_type: "WEB", file: null, website: { url: "https://example.com", last_fetched_at: null } });
     render(<DataSourceFileEditPage />);
     expect(await screen.findByText("ファイル編集の対象ではありません。")).not.toBeNull();
   });
