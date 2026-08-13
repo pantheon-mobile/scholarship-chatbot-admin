@@ -18,12 +18,14 @@ type SidebarProps = {
   activeMenu: AdminMenuKey;
   onNavigate: (href: string) => void;
   showMenuTrigger?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
 };
 
-export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false }: SidebarProps) {
+export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, collapsed = false, onToggle }: SidebarProps) {
   return (
-    <aside className={`${styles.sidebar} ${showMenuTrigger ? styles.sidebarWithMenuTrigger : ""}`}>
-      {showMenuTrigger && <button type="button" className={styles.sidebarMenuTrigger} aria-label="サイドメニュー">
+    <aside className={`${styles.sidebar} ${showMenuTrigger ? styles.sidebarWithMenuTrigger : ""}`} aria-label="管理サイドバー">
+      {showMenuTrigger && <button type="button" className={styles.sidebarMenuTrigger} aria-label={collapsed ? "サイドメニューを開く" : "サイドメニューを閉じる"} aria-expanded={!collapsed} onClick={onToggle}>
         <AdminIcon name="menu" size={34} />
       </button>}
       <nav aria-label="管理メニュー">
@@ -33,6 +35,8 @@ export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false }: Sid
             type="button"
             className={item.key === activeMenu ? styles.activeMenu : undefined}
             aria-current={item.key === activeMenu ? "page" : undefined}
+            aria-label={collapsed ? item.label : undefined}
+            title={collapsed ? item.label : undefined}
             onClick={() => onNavigate(item.href)}
           >
             <span className={styles.sidebarIcon}><AdminIcon name={item.icon} size={30} /></span>

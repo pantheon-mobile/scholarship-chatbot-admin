@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminIcon } from "../components/admin/AdminIcon";
 import { AdminLayout } from "../components/admin/AdminLayout";
 import styles from "../components/admin/admin.module.css";
@@ -51,10 +51,22 @@ describe("AdminLayout", () => {
   it("新ヘッダ・サイドバーvariantを明示した画面だけに適用する", () => {
     const { container } = render(<AdminLayout activeMenu="data-sources" chromeVariant="sidebar-menu" onNavigate={() => undefined}>本文</AdminLayout>);
 
-    expect(screen.getByRole("button", { name: "サイドメニュー" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "チャットサイト" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "東京太郎" })).not.toBeNull();
     expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
+  });
+
+  it("ハンバーガーでアイコン表示へ切り替え、折りたたみ中もメニュー遷移できる", () => {
+    const onNavigate = vi.fn();
+    const { container } = render(<AdminLayout activeMenu="data-sources" chromeVariant="sidebar-menu" onNavigate={onNavigate}>本文</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "サイドメニューを閉じる" }));
+    expect(container.firstElementChild?.classList.contains(styles.sidebarCollapsed)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "ダッシュボード" }));
+    expect(onNavigate).toHaveBeenCalledWith("/");
+    fireEvent.click(screen.getByRole("button", { name: "サイドメニューを開く" }));
+    expect(container.firstElementChild?.classList.contains(styles.sidebarCollapsed)).toBe(false);
   });
 
   it("ダッシュボードを円形メーターと丸い目盛り、右上向きの針で描画する", () => {
