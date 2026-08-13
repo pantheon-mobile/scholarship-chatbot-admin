@@ -31,6 +31,11 @@
 .schoolIcon { width: 32px; height: 32px; display: inline-grid; place-items: center; margin-right: 15px; }
 .user { display: flex; align-items: center; gap: 29px; font-size: 17px; font-weight: 700; white-space: nowrap; }
 .menuIcon { width: 32px; height: 32px; display: inline-grid; place-items: center; }
+.headerActions { display: flex; align-items: center; gap: 10px; }
+.headerActions button { min-height: 42px; padding: 0 20px; border-radius: 12px; font: inherit; font-size: 17px; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; }
+.chatSiteButton { border: 1px solid #ffc65b; color: #fff; background: #f5a000; }
+.userButton { border: 2px solid #fff; color: #fff; background: #17191b; }
+.headerActions button:focus-visible { outline: 2px solid rgb(255 255 255 / 70%); outline-offset: 2px; }
 
 .sidebar {
   position: fixed;
@@ -43,6 +48,7 @@
 }
 
 .sidebar nav { display: grid; }
+.sidebarWithMenuTrigger { padding-top: 0; }
 .sidebar button {
   position: relative;
   height: 72px;
@@ -61,6 +67,8 @@
   text-align: left;
   cursor: pointer;
 }
+.sidebar .sidebarMenuTrigger { width: 100%; height: 62px; gap: 0; padding: 0 8px; border-bottom-color: rgb(255 255 255 / 10%); color: #fff; background: #171a1c; cursor: default; }
+.sidebar .sidebarMenuTrigger:hover { background: #171a1c; }
 .sidebarIcon { width: 32px; height: 32px; display: inline-grid; flex: 0 0 32px; place-items: center; }
 .sidebarLabel { min-width: 0; }
 .sidebar button:hover { background: rgb(255 255 255 / 5%); }

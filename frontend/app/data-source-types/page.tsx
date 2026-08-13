@@ -339,7 +339,7 @@ export default function DataSourceTypesPage() {
   };
 
   return (
-    <AdminLayout activeMenu="data-sources" contentWidth="default" contentAlign="start" onNavigate={navigateWithConfirmation}>
+    <AdminLayout activeMenu="data-sources" contentWidth="default" contentAlign="start" chromeVariant="sidebar-menu" onNavigate={navigateWithConfirmation}>
       <PageHeader
         title="種別設定"
         actions={

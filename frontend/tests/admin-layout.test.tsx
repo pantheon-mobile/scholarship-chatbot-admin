@@ -48,6 +48,15 @@ describe("AdminLayout", () => {
     expect(activeMenu.getAttribute("aria-current")).toBe("page");
   });
 
+  it("新ヘッダ・サイドバーvariantを明示した画面だけに適用する", () => {
+    const { container } = render(<AdminLayout activeMenu="data-sources" chromeVariant="sidebar-menu" onNavigate={() => undefined}>本文</AdminLayout>);
+
+    expect(screen.getByRole("button", { name: "サイドメニュー" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "チャットサイト" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "東京太郎" })).not.toBeNull();
+    expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
+  });
+
   it("ダッシュボードを円形メーターと丸い目盛り、右上向きの針で描画する", () => {
     const { container } = render(<AdminIcon name="dashboard" />);
     const paths = Array.from(container.querySelectorAll("path"));

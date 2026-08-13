@@ -17,11 +17,15 @@ const menuItems: MenuItem[] = [
 type SidebarProps = {
   activeMenu: AdminMenuKey;
   onNavigate: (href: string) => void;
+  showMenuTrigger?: boolean;
 };
 
-export function Sidebar({ activeMenu, onNavigate }: SidebarProps) {
+export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false }: SidebarProps) {
   return (
-    <aside className={styles.sidebar}>
+    <aside className={`${styles.sidebar} ${showMenuTrigger ? styles.sidebarWithMenuTrigger : ""}`}>
+      {showMenuTrigger && <button type="button" className={styles.sidebarMenuTrigger} aria-label="サイドメニュー">
+        <AdminIcon name="menu" size={34} />
+      </button>}
       <nav aria-label="管理メニュー">
         {menuItems.map((item) => (
           <button
