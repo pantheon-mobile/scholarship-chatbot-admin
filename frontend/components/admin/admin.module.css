@@ -42,6 +42,8 @@
   z-index: 10;
   inset: var(--header-height) auto 0 0;
   width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
   padding-top: 14px;
   background: linear-gradient(140deg, #1b1e20, #121517);
   box-shadow: 2px 0 5px rgb(0 0 0 / 20%);
@@ -72,11 +74,13 @@
 .sidebar .sidebarMenuTrigger:hover { background: rgb(255 255 255 / 5%); }
 .sidebarIcon { width: 32px; height: 32px; display: inline-grid; flex: 0 0 32px; place-items: center; }
 .sidebarLabel { min-width: 0; }
+.sidebarFooter { margin-top: auto; padding: 20px 8px; color: #fff; font-size: 12px; line-height: 1.4; text-align: center; white-space: nowrap; }
 .sidebar button:hover { background: rgb(255 255 255 / 5%); }
 .sidebar .activeMenu { color: #ffad00; background: linear-gradient(90deg, #111315, #17191b); }
 .sidebar .activeMenu::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: #f5a000; }
 .sidebarCollapsed { --sidebar-width: 72px; }
 .sidebarCollapsed .sidebarLabel { display: none; }
+.sidebarCollapsed .sidebarFooter { display: none; }
 .sidebarCollapsed .sidebar nav button { display: grid; grid-template-columns: 32px; place-content: center; gap: 0; padding-inline: 0; }
 .sidebarCollapsed .sidebar .sidebarMenuTrigger { display: grid; grid-template-columns: 34px; place-content: center; padding-inline: 0; }
 

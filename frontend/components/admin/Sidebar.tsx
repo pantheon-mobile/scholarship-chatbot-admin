@@ -23,6 +23,8 @@ type SidebarProps = {
 };
 
 export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, collapsed = false, onToggle }: SidebarProps) {
+  const currentYear = new Date().getFullYear();
+
   return (
     <aside className={`${styles.sidebar} ${showMenuTrigger ? styles.sidebarWithMenuTrigger : ""}`} aria-label="管理サイドバー">
       {showMenuTrigger && <button type="button" className={styles.sidebarMenuTrigger} aria-label={collapsed ? "サイドメニューを開く" : "サイドメニューを閉じる"} aria-expanded={!collapsed} onClick={onToggle}>
@@ -44,6 +46,7 @@ export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, colla
           </button>
         ))}
       </nav>
+      <footer className={styles.sidebarFooter}>© {currentYear} HarmonyPlus Co.,Ltd.</footer>
     </aside>
   );
 }
