@@ -27,6 +27,41 @@ class CategoryRepository:
             statement = statement.where(Category.id != exclude_id)
         return (await self.session.execute(statement)).scalar_one() > 0
 
+    async def add(self, name: str, parent_id: int | None, display_order: int) -> Category:
+        now = datetime.now(timezone.utc)
+        category = Category(
+            name=name,
+            parent_id=parent_id,
+            display_order=display_order,
+            version=1,
+            created_at=now,
+            updated_at=now,
+        )
+        self.session.add(category)
+        await self.session.flush()
+        return category
+
+    async def update_category(
+        self,
+        category: Category,
+        *,
+        name: str,
+        parent_id: int | None,
+        display_order: int,
+        old_siblings_to_shift: list[Category],
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        for sibling in old_siblings_to_shift:
+            sibling.display_order -= 1
+            sibling.version += 1
+            sibling.updated_at = now
+        category.name = name
+        category.parent_id = parent_id
+        category.display_order = display_order
+        category.version += 1
+        category.updated_at = now
+        await self.session.flush()
+
     async def commit(self) -> None:
         await self.session.commit()
 

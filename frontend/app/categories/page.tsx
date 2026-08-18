@@ -7,12 +7,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 
 import { AdminIcon, AdminLayout, Button, Checkbox, Modal, PageHeader, Table, TableCell, TableFrame, TableHeaderCell, TableRow } from "@/components/admin";
-import { bulkDeleteCategories, deleteCategory, exportCategories, fetchCategories, reorderCategories } from "@/lib/categoriesApi";
+import { CategoryFormModal, CategoryFormValues } from "@/components/categories/CategoryFormModal";
+import { bulkDeleteCategories, createCategory, deleteCategory, exportCategories, fetchCategories, reorderCategories, updateCategory } from "@/lib/categoriesApi";
 import { Category, CategoryApiError } from "@/types/category";
 import styles from "./page.module.css";
 
 type VisibleCategory = Category & { depth: number };
 type DeleteState = { kind: "single"; category: Category } | { kind: "bulk"; categories: Category[] } | null;
+type FormState = { mode: "create" } | { mode: "edit"; category: Category } | null;
 
 function childrenByParent(categories: Category[]) {
   const result = new Map<number | null, Category[]>();
@@ -75,6 +77,9 @@ export default function CategoriesPage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [deleteState, setDeleteState] = useState<DeleteState>(null);
+  const [formState, setFormState] = useState<FormState>(null);
+  const [formError, setFormError] = useState("");
+  const [formErrorCode, setFormErrorCode] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -103,6 +108,27 @@ export default function CategoriesPage() {
   const someSelected = selected.size > 0 && !allSelected;
 
   const toggleAll = (checked: boolean) => setSelected(checked ? new Set(categories.map((category) => category.id)) : new Set());
+
+  const saveCategory = async (values: CategoryFormValues) => {
+    if (!formState) return;
+    setBusy(true);
+    setFormError("");
+    setFormErrorCode(undefined);
+    try {
+      const saved = formState.mode === "create"
+        ? await createCategory(values)
+        : await updateCategory(formState.category.id, { ...values, version: formState.category.version });
+      setFormState(null);
+      await load();
+      if (saved.parent_id !== null) setExpanded((current) => new Set(current).add(saved.parent_id!));
+    } catch (reason) {
+      const conflict = reason instanceof CategoryApiError && reason.code === "CATEGORY_VERSION_CONFLICT";
+      setFormError(conflict ? "他の操作で情報が更新されています。再読み込みしてください。" : reason instanceof Error ? reason.message : "カテゴリの保存に失敗しました。");
+      setFormErrorCode(reason instanceof CategoryApiError ? reason.code : undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const confirmDelete = async () => {
     if (!deleteState) return;
@@ -175,7 +201,7 @@ export default function CategoriesPage() {
   return <AdminLayout activeMenu="categories" contentWidth="wide" contentAlign="start" onNavigate={(href) => router.push(href)}>
     <PageHeader title="カテゴリ一覧" />
     <div className={styles.toolbar}>
-      <Button variant="primary" icon={<AdminIcon name="plus" size={20} />} onClick={() => router.push("/categories/new")}>カテゴリ追加</Button>
+      <Button variant="primary" icon={<AdminIcon name="plus" size={20} />} onClick={() => { setFormError(""); setFormErrorCode(undefined); setFormState({ mode: "create" }); }}>カテゴリ追加</Button>
     </div>
     <div className={styles.listActions}>
       <div className={styles.bulkAction}>
@@ -196,7 +222,7 @@ export default function CategoriesPage() {
               {visible.map((category) => <SortableCategoryRow key={category.id} category={category} selected={selected.has(category.id)} expanded={expanded.has(category.id)}
                 onSelect={(checked) => setSelected((current) => { const next = new Set(current); checked ? next.add(category.id) : next.delete(category.id); return next; })}
                 onToggle={() => setExpanded((current) => { const next = new Set(current); next.has(category.id) ? next.delete(category.id) : next.add(category.id); return next; })}
-                onEdit={() => router.push(`/categories/${category.id}/edit`)} onDelete={() => setDeleteState({ kind: "single", category })} />)}
+                onEdit={() => { setFormError(""); setFormErrorCode(undefined); setFormState({ mode: "edit", category }); }} onDelete={() => setDeleteState({ kind: "single", category })} />)}
               {!loading && !visible.length && <TableRow><TableCell colSpan={6} className={styles.empty}>カテゴリは登録されていません。</TableCell></TableRow>}
               {loading && <TableRow><TableCell colSpan={6} className={styles.empty}>読み込み中...</TableCell></TableRow>}
             </tbody>
@@ -207,5 +233,16 @@ export default function CategoriesPage() {
     <Modal open={Boolean(deleteState)} title={deleteState?.kind === "bulk" ? "カテゴリの一括削除" : "カテゴリの削除"} variant="danger" confirmLabel={busy ? "削除中..." : "削除する"} busy={busy} error={error || undefined} onConfirm={confirmDelete} onClose={() => { if (!busy) { setDeleteState(null); setError(""); } }}>
       <p className={styles.modalText}>{modalBody}</p>
     </Modal>
+    <CategoryFormModal
+      open={Boolean(formState)}
+      mode={formState?.mode ?? "create"}
+      category={formState?.mode === "edit" ? formState.category : undefined}
+      categories={categories}
+      busy={busy}
+      error={formError || undefined}
+      errorCode={formErrorCode}
+      onSubmit={saveCategory}
+      onClose={() => { if (!busy) { setFormState(null); setFormError(""); setFormErrorCode(undefined); } }}
+    />
   </AdminLayout>;
 }

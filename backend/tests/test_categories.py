@@ -9,14 +9,18 @@ from openpyxl import load_workbook
 
 from app.api.v1.categories import get_service
 from app.main import app
-from app.schemas.category import CategoryDeleteTarget, CategoryOrderRequest
+from app.schemas.category import CategoryCreateRequest, CategoryDeleteTarget, CategoryOrderRequest, CategoryResponse, CategoryUpdateRequest
 from app.services.category_service import (
     CategoryNotFoundError,
+    CategoryCycleError,
+    CategoryNameRequiredError,
+    CategoryNameTooLongError,
     CategoryService,
     CategoryVersionConflictError,
     CrossParentReorderError,
     DuplicateCategoryNameError,
     InvalidCategoryOrderError,
+    ParentCategoryNotFoundError,
 )
 
 
@@ -64,8 +68,92 @@ async def test_service_trims_name_and_rejects_duplicate_within_same_parent():
     repository.name_exists.assert_awaited_with(1, "申請", exclude_id=None)
     with pytest.raises(DuplicateCategoryNameError):
         await service.validate_name_available("申請", 1)
-    with pytest.raises(ValueError, match="invalid_category_name"):
+    with pytest.raises(CategoryNameRequiredError):
         service.normalize_name(" " * 3)
+    with pytest.raises(CategoryNameTooLongError):
+        service.normalize_name("あ" * 16)
+
+
+@pytest.mark.anyio
+async def test_create_root_child_and_grandchild_at_sibling_tail():
+    created = category(6, "国内", 2, 1)
+    repository = AsyncMock()
+    repository.list_all.return_value = TREE
+    repository.add.return_value = created
+    result = await CategoryService(repository).create(CategoryCreateRequest(name=" 国内 ", parent_id=2))
+    repository.add.assert_awaited_once_with("国内", 2, 1)
+    repository.commit.assert_awaited_once()
+    assert (result.name, result.parent_id, result.display_order, result.version, result.has_children) == ("国内", 2, 1, 1, False)
+
+    repository.reset_mock()
+    repository.list_all.return_value = TREE
+    repository.add.return_value = category(7, "ルート", None, 3)
+    await CategoryService(repository).create(CategoryCreateRequest(name="ルート", parent_id=None))
+    repository.add.assert_awaited_once_with("ルート", None, 3)
+
+
+@pytest.mark.anyio
+async def test_create_rejects_missing_parent_and_duplicate_but_allows_other_parent_name():
+    repository = AsyncMock()
+    repository.list_all.return_value = TREE
+    service = CategoryService(repository)
+    with pytest.raises(ParentCategoryNotFoundError):
+        await service.create(CategoryCreateRequest(name="申請", parent_id=999))
+    with pytest.raises(DuplicateCategoryNameError):
+        await service.create(CategoryCreateRequest(name="申請", parent_id=1))
+    repository.add.return_value = category(6, "申請", 2, 1)
+    result = await service.create(CategoryCreateRequest(name="申請", parent_id=2))
+    assert result.parent_id == 2
+
+
+@pytest.mark.anyio
+async def test_update_name_without_parent_change_keeps_order_and_increments_version():
+    after = [*TREE[:2], category(3, "継続申請", 1, 1, 2), *TREE[3:]]
+    repository = AsyncMock()
+    repository.list_all.side_effect = [TREE, after]
+    result = await CategoryService(repository).update(3, CategoryUpdateRequest(name="継続申請", parent_id=1, version=1))
+    kwargs = repository.update_category.await_args.kwargs
+    assert kwargs["display_order"] == 1
+    assert kwargs["old_siblings_to_shift"] == []
+    assert (result.name, result.version) == ("継続申請", 2)
+
+
+@pytest.mark.anyio
+async def test_update_parent_moves_subtree_to_tail_and_compacts_old_siblings():
+    moved = category(3, "申請", 2, 1, 2)
+    child_kept = category(5, "新規", 3, 1)
+    after = [TREE[0], TREE[1], category(4, "継続", 1, 1, 2), moved, child_kept]
+    repository = AsyncMock()
+    repository.list_all.side_effect = [TREE, after]
+    result = await CategoryService(repository).update(3, CategoryUpdateRequest(name="申請", parent_id=2, version=1))
+    kwargs = repository.update_category.await_args.kwargs
+    assert kwargs["display_order"] == 1
+    assert [row.id for row in kwargs["old_siblings_to_shift"]] == [4]
+    assert (result.parent_id, result.has_children) == (2, True)
+    assert next(row for row in after if row.id == 5).parent_id == 3
+
+
+@pytest.mark.anyio
+async def test_update_rejects_missing_cycle_duplicate_not_found_and_version_conflict():
+    repository = AsyncMock()
+    repository.list_all.return_value = TREE
+    service = CategoryService(repository)
+    cases = [
+        (999, CategoryUpdateRequest(name="x", parent_id=None, version=1), CategoryNotFoundError),
+        (3, CategoryUpdateRequest(name="申請", parent_id=1, version=9), CategoryVersionConflictError),
+        (3, CategoryUpdateRequest(name="申請", parent_id=999, version=1), ParentCategoryNotFoundError),
+        (1, CategoryUpdateRequest(name="全般", parent_id=1, version=1), CategoryCycleError),
+        (1, CategoryUpdateRequest(name="全般", parent_id=5, version=1), CategoryCycleError),
+        (3, CategoryUpdateRequest(name="継続", parent_id=1, version=1), DuplicateCategoryNameError),
+    ]
+    for category_id, payload, error_type in cases:
+        with pytest.raises(error_type):
+            await service.update(category_id, payload)
+
+
+def test_name_boundary_accepts_one_and_fifteen_characters():
+    assert CategoryService.normalize_name("あ") == "あ"
+    assert CategoryService.normalize_name("あ" * 15) == "あ" * 15
 
 
 @pytest.mark.anyio
@@ -206,6 +294,45 @@ async def test_api_list_and_empty_bulk_delete(api_service):
     assert response.json() == {"items": []}
     assert empty.status_code == 422
     assert empty.json()["detail"]["code"] == "EMPTY_CATEGORY_SELECTION"
+
+
+@pytest.mark.anyio
+async def test_api_create_returns_201_and_formal_error_codes(api_service):
+    api_service.create.return_value = CategoryResponse(
+        id=10, name="申請", parent_id=1, display_order=3, version=1,
+        has_children=False, created_at=NOW, updated_at=NOW,
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        created = await client.post("/api/v1/categories", json={"name": "申請", "parent_id": 1})
+        assert created.status_code == 201 and created.json()["version"] == 1
+        for exception, code in [
+            (CategoryNameRequiredError(), "CATEGORY_NAME_REQUIRED"),
+            (CategoryNameTooLongError(), "CATEGORY_NAME_TOO_LONG"),
+            (ParentCategoryNotFoundError(), "PARENT_CATEGORY_NOT_FOUND"),
+            (DuplicateCategoryNameError(), "CATEGORY_NAME_DUPLICATE"),
+        ]:
+            api_service.create.side_effect = exception
+            response = await client.post("/api/v1/categories", json={"name": "x", "parent_id": None})
+            assert response.status_code == 422 and response.json()["detail"]["code"] == code
+
+
+@pytest.mark.anyio
+async def test_api_update_returns_complete_row_and_error_codes(api_service):
+    api_service.update.return_value = CategoryResponse(
+        id=3, name="継続申請", parent_id=2, display_order=1, version=2,
+        has_children=True, created_at=NOW, updated_at=NOW + timedelta(seconds=1),
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        updated = await client.put("/api/v1/categories/3", json={"name": "継続申請", "parent_id": 2, "version": 1})
+        assert updated.status_code == 200 and updated.json()["has_children"] is True
+        for exception, status, code in [
+            (CategoryNotFoundError(), 404, "CATEGORY_NOT_FOUND"),
+            (CategoryVersionConflictError(), 409, "CATEGORY_VERSION_CONFLICT"),
+            (CategoryCycleError(), 422, "CATEGORY_CYCLE_NOT_ALLOWED"),
+        ]:
+            api_service.update.side_effect = exception
+            response = await client.put("/api/v1/categories/3", json={"name": "x", "parent_id": None, "version": 1})
+            assert response.status_code == status and response.json()["detail"]["code"] == code
 
 
 @pytest.mark.anyio

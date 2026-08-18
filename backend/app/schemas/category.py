@@ -18,6 +18,15 @@ class CategoryListResponse(BaseModel):
     items: list[CategoryResponse]
 
 
+class CategoryCreateRequest(BaseModel):
+    name: str
+    parent_id: int | None = None
+
+
+class CategoryUpdateRequest(CategoryCreateRequest):
+    version: int = Field(ge=1)
+
+
 class CategoryDeleteTarget(BaseModel):
     id: int
     version: int = Field(ge=1)

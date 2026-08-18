@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CategoriesPage from "../app/categories/page";
 import { CategoryApiError } from "../types/category";
@@ -6,6 +6,8 @@ import { CategoryApiError } from "../types/category";
 const push = vi.fn();
 const api = vi.hoisted(() => ({
   fetchCategories: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
   bulkDeleteCategories: vi.fn(),
   reorderCategories: vi.fn(),
@@ -49,6 +51,8 @@ beforeEach(() => {
   push.mockReset();
   Object.values(api).forEach((mock) => mock.mockReset());
   api.fetchCategories.mockResolvedValue({ items: categories });
+  api.createCategory.mockResolvedValue({ ...categories[3], id: 6, name: "国内", parent_id: 2, display_order: 1, version: 1, has_children: false });
+  api.updateCategory.mockResolvedValue({ ...categories[2], name: "継続申請", version: 2 });
   api.deleteCategory.mockResolvedValue(undefined);
   api.bulkDeleteCategories.mockResolvedValue(5);
   api.reorderCategories.mockResolvedValue([
@@ -152,14 +156,116 @@ describe("CB-213 categories", () => {
     expect(api.reorderCategories).not.toHaveBeenCalled();
   });
 
-  it("Excel出力と追加・編集導線を実行する", async () => {
+  it("Excel出力と追加・編集Modalを表示し、ページ遷移しない", async () => {
     await renderPage();
     fireEvent.click(screen.getByRole("button", { name: "一覧をダウンロード" }));
     await waitFor(() => expect(api.exportCategories).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
-    expect(push).toHaveBeenCalledWith("/categories/new");
+    expect(screen.getByRole("dialog", { name: "カテゴリ新規追加" })).not.toBeNull();
+    expect(push).not.toHaveBeenCalledWith("/categories/new");
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
     const row = screen.getByText("給付").closest("tr")!;
     fireEvent.click(row.querySelectorAll("button")[1]);
-    expect(push).toHaveBeenCalledWith("/categories/2/edit");
+    expect(screen.getByRole("dialog", { name: "カテゴリ編集" })).not.toBeNull();
+    expect(push).not.toHaveBeenCalledWith("/categories/2/edit");
+  });
+
+  it("新規Modalで階層付き親候補を選び、trimした名称を登録する", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    const register = screen.getByRole("button", { name: "カテゴリ登録" }) as HTMLButtonElement;
+    expect(register.disabled).toBe(true);
+    const options = Array.from((screen.getByLabelText("親カテゴリ") as HTMLSelectElement).options).map((option) => option.text);
+    expect(options).toContain("　申請");
+    expect(options).toContain("　　新規");
+    fireEvent.change(screen.getByLabelText("カテゴリ名"), { target: { value: " 国内 " } });
+    fireEvent.change(screen.getByLabelText("親カテゴリ"), { target: { value: "2" } });
+    expect(register.disabled).toBe(false);
+    fireEvent.click(register);
+    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith({ name: "国内", parent_id: 2 }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.fetchCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it("新規登録失敗時はModalと入力値を維持し、フィールドエラーを表示する", async () => {
+    api.createCategory.mockRejectedValueOnce(new CategoryApiError("同じ親カテゴリ内に同名のカテゴリがあります。", 422, "CATEGORY_NAME_DUPLICATE"));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    fireEvent.change(screen.getByLabelText("カテゴリ名"), { target: { value: "申請" } });
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ登録" }));
+    expect(await screen.findByText("同じ親カテゴリ内に同名のカテゴリがあります。")).not.toBeNull();
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("申請");
+    expect(screen.getByRole("dialog")).not.toBeNull();
+  });
+
+  it("編集Modalは現在値を表示し、自分自身と全子孫を親候補から除外する", async () => {
+    await renderPage();
+    const row = screen.getByText("全般").closest("tr")!;
+    fireEvent.click(row.querySelectorAll("button")[2]);
+    expect((screen.getByLabelText("カテゴリ名") as HTMLInputElement).value).toBe("全般");
+    const select = screen.getByLabelText("親カテゴリ") as HTMLSelectElement;
+    const values = Array.from(select.options).map((option) => option.value);
+    expect(values).not.toContain("1");
+    expect(values).not.toContain("3");
+    expect(values).not.toContain("5");
+    expect(values).toContain("2");
+    expect((screen.getByRole("button", { name: "カテゴリ更新" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("編集のdirtyは実差分で判定し、元へ戻すと更新を無効化する", async () => {
+    await renderPage();
+    const row = screen.getByText("申請").closest("tr")!;
+    fireEvent.click(row.querySelectorAll("button")[2]);
+    const input = screen.getByLabelText("カテゴリ名");
+    const update = screen.getByRole("button", { name: "カテゴリ更新" }) as HTMLButtonElement;
+    fireEvent.change(input, { target: { value: "継続申請" } });
+    expect(update.disabled).toBe(false);
+    fireEvent.change(input, { target: { value: "申請" } });
+    expect(update.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("親カテゴリ"), { target: { value: "2" } });
+    expect(update.disabled).toBe(false);
+    fireEvent.click(update);
+    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(3, { name: "申請", parent_id: 2, version: 1 }));
+  });
+
+  it("編集version競合時は入力を保持してユーザー向けエラーを表示する", async () => {
+    api.updateCategory.mockRejectedValueOnce(new CategoryApiError("競合", 409, "CATEGORY_VERSION_CONFLICT"));
+    await renderPage();
+    const row = screen.getByText("給付").closest("tr")!;
+    fireEvent.click(row.querySelectorAll("button")[1]);
+    fireEvent.change(screen.getByLabelText("カテゴリ名"), { target: { value: "給付制度" } });
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ更新" }));
+    expect(await screen.findByText("他の操作で情報が更新されています。再読み込みしてください。")).not.toBeNull();
+    expect((screen.getByLabelText("カテゴリ名") as HTMLInputElement).value).toBe("給付制度");
+  });
+
+  it("処理中はEsc・背景クリック・二重送信を禁止する", async () => {
+    let resolveCreate!: (value: unknown) => void;
+    api.createCategory.mockReturnValueOnce(new Promise((resolve) => { resolveCreate = resolve; }));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    fireEvent.change(screen.getByLabelText("カテゴリ名"), { target: { value: "新カテゴリ" } });
+    fireEvent.click(screen.getByRole("button", { name: "カテゴリ登録" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "登録中..." }) as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseDown(screen.getByRole("dialog").parentElement!);
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(api.createCategory).toHaveBeenCalledTimes(1);
+    await act(async () => { resolveCreate({ ...categories[0], id: 8, name: "新カテゴリ" }); });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("キャンセル・Esc・背景クリックで閉じ、起点へフォーカスを戻す", async () => {
+    await renderPage();
+    const trigger = screen.getByRole("button", { name: "カテゴリ追加" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "キャンセル" })));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(screen.getByRole("dialog").parentElement!);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

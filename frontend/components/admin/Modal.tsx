@@ -17,6 +17,7 @@ type ModalProps = {
   cancelLabel?: string;
   confirmVariant?: ButtonVariant;
   busy?: boolean;
+  confirmDisabled?: boolean;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   onConfirm?: () => void;
@@ -43,6 +44,7 @@ export function Modal({
   cancelLabel = "キャンセル",
   confirmVariant,
   busy = false,
+  confirmDisabled = false,
   closeOnBackdrop = true,
   closeOnEscape = true,
   onConfirm,
@@ -111,7 +113,7 @@ export function Modal({
       <Button ref={cancelRef} className={styles.modalButton} variant="secondary" onClick={onClose} disabled={busy}>
         {cancelLabel}
       </Button>
-      <Button className={styles.modalButton} variant={resolvedConfirmVariant} onClick={onConfirm} disabled={busy}>
+      <Button className={styles.modalButton} variant={resolvedConfirmVariant} onClick={onConfirm} disabled={busy || confirmDisabled}>
         {confirmLabel}
       </Button>
     </>

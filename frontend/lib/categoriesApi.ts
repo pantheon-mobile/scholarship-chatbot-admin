@@ -1,4 +1,4 @@
-import { Category, CategoryApiError, CategoryDeleteTarget, CategoryListResponse } from "@/types/category";
+import { Category, CategoryApiError, CategoryDeleteTarget, CategoryListResponse, CategoryWriteValues } from "@/types/category";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -19,6 +19,26 @@ async function parseError(response: Response, fallback: string): Promise<never> 
 export async function fetchCategories(): Promise<CategoryListResponse> {
   const response = await fetch(`${apiBase}/api/v1/categories`, { cache: "no-store" });
   if (!response.ok) return parseError(response, "カテゴリ一覧の取得に失敗しました。");
+  return response.json();
+}
+
+export async function createCategory(values: CategoryWriteValues): Promise<Category> {
+  const response = await fetch(`${apiBase}/api/v1/categories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!response.ok) return parseError(response, "カテゴリの登録に失敗しました。");
+  return response.json();
+}
+
+export async function updateCategory(id: number, values: CategoryWriteValues & { version: number }): Promise<Category> {
+  const response = await fetch(`${apiBase}/api/v1/categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+  });
+  if (!response.ok) return parseError(response, "カテゴリの更新に失敗しました。");
   return response.json();
 }
 
