@@ -1,0 +1,28 @@
+.toolbar { margin: -25px 0 22px; }
+.listActions { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.bulkAction { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+.error { margin: 0 0 14px; padding: 10px 14px; border: 1px solid #edb5b5; background: #fff7f7; color: #b40000; font-size: 14px; }
+.handleColumn { width: 54px; }
+.checkColumn { width: 48px; }
+.idColumn { width: 190px; }
+.actionColumn { width: 112px; }
+.handleCell, .checkCell, .idCell, .actionCell { padding-inline: 8px; }
+.handleCell { text-align: center; }
+.checkCell { text-align: center; }
+.idCell { font-size: 16px; white-space: nowrap; }
+.actionCell { text-align: center; }
+.dragHandle, .disclosure { display: inline-grid; place-items: center; padding: 0; border: 0; background: transparent; color: #171717; cursor: grab; }
+.dragHandle { width: 34px; height: 40px; touch-action: none; }
+.dragHandle:active { cursor: grabbing; }
+.dragHandle:focus-visible, .disclosure:focus-visible { outline: 2px solid rgb(61 90 254 / 22%); outline-offset: 2px; }
+.categoryName { min-height: 56px; display: flex; align-items: center; gap: 12px; font-weight: 600; }
+.disclosure { width: 28px; height: 32px; cursor: pointer; }
+.disclosureSpacer { width: 28px; flex: 0 0 28px; }
+.draggingRow { position: relative; z-index: 2; box-shadow: 0 3px 10px rgb(0 0 0 / 16%); }
+.empty { height: 110px; color: #666; text-align: center; }
+.modalText { margin: 0; line-height: 1.8; }
+
+@media (max-width: 1400px) {
+  .idColumn { width: 155px; }
+  .actionColumn { width: 96px; }
+}

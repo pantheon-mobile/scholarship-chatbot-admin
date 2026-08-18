@@ -9,6 +9,7 @@ from alembic import context
 from app.db.base_class import Base
 from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
+from app.models.category import Category
 
 config = context.config
 fileConfig(config.config_file_name)
