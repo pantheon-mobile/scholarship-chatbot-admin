@@ -48,8 +48,8 @@ describe("AdminLayout", () => {
     expect(activeMenu.getAttribute("aria-current")).toBe("page");
   });
 
-  it("新ヘッダ・サイドバーvariantを明示した画面だけに適用する", () => {
-    const { container } = render(<AdminLayout activeMenu="data-sources" chromeVariant="sidebar-menu" onNavigate={() => undefined}>本文</AdminLayout>);
+  it("新ヘッダ・サイドバーを全画面の既定仕様として適用する", () => {
+    const { container } = render(<AdminLayout activeMenu="data-sources" onNavigate={() => undefined}>本文</AdminLayout>);
 
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "チャットサイト" })).not.toBeNull();
@@ -59,7 +59,7 @@ describe("AdminLayout", () => {
 
   it("ハンバーガーでアイコン表示へ切り替え、折りたたみ中もメニュー遷移できる", () => {
     const onNavigate = vi.fn();
-    const { container } = render(<AdminLayout activeMenu="data-sources" chromeVariant="sidebar-menu" onNavigate={onNavigate}>本文</AdminLayout>);
+    const { container } = render(<AdminLayout activeMenu="data-sources" onNavigate={onNavigate}>本文</AdminLayout>);
 
     fireEvent.click(screen.getByRole("button", { name: "サイドメニューを閉じる" }));
     expect(container.firstElementChild?.classList.contains(styles.sidebarCollapsed)).toBe(true);

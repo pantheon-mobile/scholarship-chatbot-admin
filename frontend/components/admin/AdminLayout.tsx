@@ -23,7 +23,7 @@ export function AdminLayout({
   userName,
   contentWidth = "default",
   contentAlign = "center",
-  chromeVariant = "default",
+  chromeVariant = "sidebar-menu",
 }: AdminLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const collapsible = chromeVariant === "sidebar-menu";
