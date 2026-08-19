@@ -18,7 +18,9 @@ class Faq(Base):
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    similar_questions = relationship("FaqSimilarQuestion", back_populates="faq", cascade="all, delete-orphan")
+    similar_questions = relationship(
+        "FaqSimilarQuestion", back_populates="faq", order_by="FaqSimilarQuestion.display_order", cascade="all, delete-orphan"
+    )
     classification_assignments = relationship("FaqClassificationAssignment", back_populates="faq", cascade="all, delete-orphan")
 
 

@@ -19,6 +19,20 @@ export type Faq = {
   classifications: FaqClassification[];
 };
 
+export type FaqSimilarQuestion = { id: number; question: string; display_order: number };
+export type FaqDetail = Faq & { created_at: string; similar_questions: FaqSimilarQuestion[] };
+
+export type FaqCreate = {
+  question: string;
+  answer: string;
+  similar_questions: string[];
+  classification_1_value_id: number | null;
+  classification_2_value_id: number | null;
+  classification_3_value_id: number | null;
+  classification_4_value_id: number | null;
+  chat_enabled: boolean;
+};
+
 export type FaqFilters = {
   keyword: string;
   classification_1_value_id: string;

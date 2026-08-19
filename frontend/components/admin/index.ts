@@ -3,6 +3,7 @@ export * from "./AdminIcon";
 export * from "./Button";
 export * from "./Breadcrumb";
 export * from "./Checkbox";
+export * from "./CharacterCountTextarea";
 export * from "./FormField";
 export * from "./FileDropzone";
 export * from "./FileSelectionList";

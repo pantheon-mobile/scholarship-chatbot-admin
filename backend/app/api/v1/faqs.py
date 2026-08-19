@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.repositories.faq import FaqRepository
-from app.schemas.faq import FaqBulkDeleteRequest, FaqBulkDeleteResponse, FaqFilters, FaqListResponse
+from app.schemas.faq import (
+    FaqBulkDeleteRequest,
+    FaqBulkDeleteResponse,
+    FaqCreateRequest,
+    FaqDetailResponse,
+    FaqFilters,
+    FaqListResponse,
+)
 from app.services.faq_service import FaqError, FaqService
 
 router = APIRouter()
@@ -27,6 +34,14 @@ def api_error(error: FaqError) -> HTTPException:
 async def list_faqs(filters: FaqFilters = Depends(), service: FaqService = Depends(get_service)):
     try:
         return await service.list(filters)
+    except FaqError as error:
+        raise api_error(error) from None
+
+
+@router.post("/faqs", response_model=FaqDetailResponse, status_code=201)
+async def create_faq(payload: FaqCreateRequest, service: FaqService = Depends(get_service)):
+    try:
+        return await service.create(payload)
     except FaqError as error:
         raise api_error(error) from None
 
@@ -50,6 +65,14 @@ async def export_faqs(filters: FaqFilters = Depends(), service: FaqService = Dep
 async def bulk_delete_faqs(payload: FaqBulkDeleteRequest, service: FaqService = Depends(get_service)):
     try:
         return FaqBulkDeleteResponse(deleted_count=await service.bulk_delete(payload))
+    except FaqError as error:
+        raise api_error(error) from None
+
+
+@router.get("/faqs/{faq_id}", response_model=FaqDetailResponse)
+async def get_faq(faq_id: int, service: FaqService = Depends(get_service)):
+    try:
+        return await service.get_detail(faq_id)
     except FaqError as error:
         raise api_error(error) from None
 

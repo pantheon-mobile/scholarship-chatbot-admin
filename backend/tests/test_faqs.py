@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from app.api.v1.faqs import get_service
 from app.main import app
 from app.repositories.faq import FaqRepository
-from app.schemas.faq import FaqBulkDeleteRequest, FaqDeleteTarget, FaqFilters
+from app.schemas.faq import FaqBulkDeleteRequest, FaqCreateRequest, FaqDeleteTarget, FaqFilters
 from app.services.faq_service import FaqError, FaqService
 
 
@@ -29,8 +29,28 @@ def make_faq(faq_id: int = 1, *, question: str = "申請期限は？", answer: s
         id=faq_id, question=question, answer=answer, chat_enabled=chat_enabled, version=version,
         created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 8, faq_id, 1, 2, tzinfo=timezone.utc),
+        similar_questions=[],
         classification_assignments=[make_assignment(1, "奨学金"), make_assignment(4, "神楽坂")],
     )
+
+
+def create_payload(**values):
+    return FaqCreateRequest(
+        question=values.get("question", "質問"), answer=values.get("answer", "回答"),
+        similar_questions=values.get("similar_questions", []),
+        classification_1_value_id=values.get("classification_1_value_id"),
+        classification_2_value_id=values.get("classification_2_value_id"),
+        classification_3_value_id=values.get("classification_3_value_id"),
+        classification_4_value_id=values.get("classification_4_value_id"),
+        chat_enabled=values.get("chat_enabled", True),
+    )
+
+
+def create_repository(detail=None):
+    repository = AsyncMock()
+    repository.create.return_value = 1
+    repository.get_detail.return_value = detail or make_faq()
+    return repository
 
 
 @pytest.fixture
@@ -192,3 +212,140 @@ async def test_export_filename(mock_service):
 def test_repository_uses_fixed_count_eager_loading_not_per_row_queries():
     source = FaqRepository.list.__code__.co_names
     assert "selectinload" in source
+
+
+@pytest.mark.anyio
+async def test_minimal_faq_create_trims_and_returns_complete_detail():
+    repository = create_repository(make_faq(chat_enabled=False))
+    result = await FaqService(repository).create(create_payload(question=" 質問 ", answer=" 回答\n本文 ", chat_enabled=False))
+    assert result.id == 1 and result.version == 1 and result.created_at
+    assert result.similar_questions == [] and result.chat_enabled is False
+    repository.create.assert_awaited_once_with(
+        question="質問", answer="回答\n本文", similar_questions=[], classifications=[], chat_enabled=False,
+    )
+    repository.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_create_multiple_similar_questions_preserves_order_and_all_classifications():
+    detail = make_faq()
+    detail.similar_questions = [
+        SimpleNamespace(id=11, question="類似1", display_order=1),
+        SimpleNamespace(id=12, question="類似2", display_order=2),
+    ]
+    detail.classification_assignments = [make_assignment(index, f"値{index}") for index in range(1, 5)]
+    repository = create_repository(detail)
+    repository.get_value_type.side_effect = [(1, "FAQ_TYPE_1"), (2, "FAQ_TYPE_2"), (3, "FAQ_TYPE_3"), (4, "FAQ_TYPE_4")]
+    result = await FaqService(repository).create(create_payload(
+        similar_questions=[" 類似1 ", "類似2"],
+        classification_1_value_id=10, classification_2_value_id=20,
+        classification_3_value_id=30, classification_4_value_id=40,
+    ))
+    assert [(item.question, item.display_order) for item in result.similar_questions] == [("類似1", 1), ("類似2", 2)]
+    assert len(result.classifications) == 4
+    assert result.classifications[0].display_label == "区分1" and result.classifications[0].value_name == "値1"
+    assert repository.create.await_args.kwargs["classifications"] == [(1, 10), (2, 20), (3, 30), (4, 40)]
+
+
+@pytest.mark.anyio
+async def test_create_one_similar_question_and_one_classification():
+    detail = make_faq()
+    detail.similar_questions = [SimpleNamespace(id=11, question="類似1", display_order=1)]
+    detail.classification_assignments = [make_assignment(1, "値1")]
+    repository = create_repository(detail)
+    repository.get_value_type.return_value = (1, "FAQ_TYPE_1")
+    result = await FaqService(repository).create(create_payload(
+        similar_questions=[" 類似1 "], classification_1_value_id=10,
+    ))
+    assert [(item.question, item.display_order) for item in result.similar_questions] == [("類似1", 1)]
+    assert repository.create.await_args.kwargs["classifications"] == [(1, 10)]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("field,value,code", [
+    ("question", "", "FAQ_QUESTION_REQUIRED"), ("question", "   ", "FAQ_QUESTION_REQUIRED"),
+    ("question", "x" * 501, "FAQ_QUESTION_TOO_LONG"),
+    ("answer", "", "FAQ_ANSWER_REQUIRED"), ("answer", "   ", "FAQ_ANSWER_REQUIRED"),
+    ("answer", "x" * 1001, "FAQ_ANSWER_TOO_LONG"),
+])
+async def test_question_and_answer_validation(field, value, code):
+    repository = create_repository()
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).create(create_payload(**{field: value}))
+    assert error.value.code == code
+    repository.create.assert_not_awaited()
+    repository.rollback.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("question,answer", [("x", "y"), ("x" * 500, "y" * 1000)])
+async def test_question_and_answer_boundaries_are_allowed(question, answer):
+    repository = create_repository()
+    await FaqService(repository).create(create_payload(question=question, answer=answer))
+    assert repository.create.await_args.kwargs["question"] == question
+    assert repository.create.await_args.kwargs["answer"] == answer
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("value,code", [
+    ("", "FAQ_SIMILAR_QUESTION_REQUIRED"), ("   ", "FAQ_SIMILAR_QUESTION_REQUIRED"),
+    ("x" * 501, "FAQ_SIMILAR_QUESTION_TOO_LONG"),
+])
+async def test_similar_question_validation(value, code):
+    repository = create_repository()
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).create(create_payload(similar_questions=["正常", value]))
+    assert error.value.code == code
+    repository.create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_similar_question_500_chars_and_duplicates_are_allowed():
+    repository = create_repository()
+    value = "x" * 500
+    await FaqService(repository).create(create_payload(similar_questions=[value, value]))
+    assert repository.create.await_args.kwargs["similar_questions"] == [value, value]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("resolved,code", [
+    (None, "FAQ_CLASSIFICATION_NOT_FOUND"), ((2, "FAQ_TYPE_2"), "INVALID_FAQ_CLASSIFICATION"),
+])
+async def test_create_classification_must_exist_and_belong_to_expected_type(resolved, code):
+    repository = create_repository()
+    repository.get_value_type.return_value = resolved
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).create(create_payload(classification_1_value_id=20))
+    assert error.value.code == code
+    repository.create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", ["similar question insert failed", "assignment insert failed"])
+async def test_create_failure_rolls_back_without_commit(failure):
+    repository = create_repository()
+    repository.create.side_effect = RuntimeError(failure)
+    with pytest.raises(RuntimeError):
+        await FaqService(repository).create(create_payload(similar_questions=["類似"] ))
+    repository.rollback.assert_awaited_once()
+    repository.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_create_api_returns_201_and_domain_validation_code(mock_service):
+    detail = FaqService.serialize_detail(make_faq())
+    mock_service.create.side_effect = [detail, FaqError("FAQ_QUESTION_REQUIRED", "質問を入力してください。")]
+    payload = {"question": "質問", "answer": "回答", "similar_questions": [], "chat_enabled": True}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        created = await client.post("/api/v1/faqs", json=payload)
+        invalid = await client.post("/api/v1/faqs", json=payload)
+    assert created.status_code == 201 and created.json()["version"] == 1
+    assert invalid.status_code == 422 and invalid.json()["detail"]["code"] == "FAQ_QUESTION_REQUIRED"
+
+
+@pytest.mark.anyio
+async def test_detail_api_returns_404_code(mock_service):
+    mock_service.get_detail.side_effect = FaqError("FAQ_NOT_FOUND", "指定されたFAQが見つかりません。")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/faqs/999")
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "FAQ_NOT_FOUND"

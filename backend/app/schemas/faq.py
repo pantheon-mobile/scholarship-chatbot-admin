@@ -41,6 +41,12 @@ class FaqClassificationResponse(BaseModel):
     value_name: str
 
 
+class FaqSimilarQuestionResponse(BaseModel):
+    id: int
+    question: str
+    display_order: int
+
+
 class FaqResponse(BaseModel):
     id: int
     question: str
@@ -59,6 +65,22 @@ class FaqListResponse(BaseModel):
     total_pages: int
     sort: FaqSortColumn
     order: SortOrder
+
+
+class FaqCreateRequest(BaseModel):
+    question: str
+    answer: str
+    similar_questions: list[str] = Field(default_factory=list)
+    classification_1_value_id: int | None = Field(default=None, ge=1)
+    classification_2_value_id: int | None = Field(default=None, ge=1)
+    classification_3_value_id: int | None = Field(default=None, ge=1)
+    classification_4_value_id: int | None = Field(default=None, ge=1)
+    chat_enabled: bool
+
+
+class FaqDetailResponse(FaqResponse):
+    created_at: datetime
+    similar_questions: list[FaqSimilarQuestionResponse]
 
 
 class FaqDeleteTarget(BaseModel):

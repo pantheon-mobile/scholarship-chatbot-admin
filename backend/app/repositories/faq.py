@@ -6,7 +6,7 @@ from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.faq import Faq, FaqClassificationAssignment
+from app.models.faq import Faq, FaqClassificationAssignment, FaqSimilarQuestion
 from app.models.faq_classification import FaqClassificationType, FaqClassificationValue
 from app.schemas.faq import FaqDeleteTarget, FaqFilters
 
@@ -41,6 +41,14 @@ class FaqRepository:
         )).scalar_one_or_none()
         return int(row) if row is not None else None
 
+    async def get_value_type(self, value_id: int) -> tuple[int, str] | None:
+        row = (await self.session.execute(
+            select(FaqClassificationType.id, FaqClassificationType.type_code)
+            .join(FaqClassificationValue, FaqClassificationValue.classification_type_id == FaqClassificationType.id)
+            .where(FaqClassificationValue.id == value_id)
+        )).one_or_none()
+        return (int(row.id), str(row.type_code)) if row else None
+
     async def list_type_labels(self) -> dict[str, str]:
         rows = (await self.session.execute(
             select(FaqClassificationType.type_code, FaqClassificationType.display_label)
@@ -71,6 +79,41 @@ class FaqRepository:
     async def get(self, faq_id: int) -> Faq | None:
         return (await self.session.execute(select(Faq).where(Faq.id == faq_id))).scalars().first()
 
+    async def get_detail(self, faq_id: int) -> Faq | None:
+        stmt = select(Faq).where(Faq.id == faq_id).options(
+            selectinload(Faq.similar_questions),
+            selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_type),
+            selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_value),
+        ).execution_options(populate_existing=True)
+        return (await self.session.execute(stmt)).scalars().unique().first()
+
+    async def create(
+        self,
+        *,
+        question: str,
+        answer: str,
+        similar_questions: list[str],
+        classifications: list[tuple[int, int]],
+        chat_enabled: bool,
+    ) -> int:
+        row = Faq(
+            question=question,
+            answer=answer,
+            chat_enabled=chat_enabled,
+            version=1,
+            similar_questions=[
+                FaqSimilarQuestion(question=value, display_order=index)
+                for index, value in enumerate(similar_questions, start=1)
+            ],
+            classification_assignments=[
+                FaqClassificationAssignment(classification_type_id=type_id, classification_value_id=value_id)
+                for type_id, value_id in classifications
+            ],
+        )
+        self.session.add(row)
+        await self.session.flush()
+        return int(row.id)
+
     async def delete_one(self, faq_id: int, version: int) -> bool:
         result = await self.session.execute(delete(Faq).where(Faq.id == faq_id, Faq.version == version))
         if result.rowcount != 1:
@@ -95,3 +138,9 @@ class FaqRepository:
         await self.session.execute(delete(Faq).where(Faq.id.in_(ids)))
         await self.session.commit()
         return len(ids)
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()

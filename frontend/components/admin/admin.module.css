@@ -171,6 +171,29 @@
 .input:focus { border-color: #397fc8; box-shadow: 0 0 0 3px rgb(0 112 235 / 14%), inset 0 1px 2px rgb(0 0 0 / 7%); }
 .input[aria-invalid="true"] { border-color: #d94a3a; }
 
+.textareaField { display: grid; gap: 7px; color: #191919; }
+.textarea {
+  width: 100%;
+  min-height: 116px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid #aeb4ba;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 9%);
+  color: #202020;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  outline: none;
+}
+.textarea:hover { border-color: #8d959c; }
+.textarea:focus { border-color: #397fc8; box-shadow: 0 0 0 3px rgb(0 112 235 / 14%), inset 0 1px 2px rgb(0 0 0 / 7%); }
+.textarea[aria-invalid="true"] { border-color: #d94a3a; }
+.textarea:disabled { background: #f3f3f3; color: #737373; }
+.characterCount { justify-self: end; color: #40464c; font-size: 14px; }
+.characterCountOver { color: #bd2517; font-weight: 700; }
+
 .selectField { display: grid; gap: 7px; color: #191919; }
 .select {
   width: 100%;
