@@ -5,16 +5,20 @@ import { useParams, useRouter } from "next/navigation";
 import {
   AdminIcon, AdminLayout, Breadcrumb, Button, FormField, Modal, SelectField, ToggleSwitch,
 } from "@/components/admin";
+import { CategorySelectField } from "@/components/categories/CategorySelectField";
+import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import { fetchDataSource, updateWebsiteDataSource } from "@/lib/dataSourcesApi";
 import { validateWebsiteUrl } from "@/lib/websiteUrlValidation";
 import { DataSource, DataSourcesApiError, Priority } from "@/types/dataSource";
 import { ClassificationType } from "@/types/dataSourceTypes";
+import { Category } from "@/types/category";
 import styles from "./page.module.css";
 
 type EditableValues = {
   url: string;
   title: string;
+  category_id: string;
   type_1_value_id: string;
   type_2_value_id: string;
   type_3_value_id: string;
@@ -24,7 +28,7 @@ type EditableValues = {
 };
 
 const emptyValues: EditableValues = {
-  url: "", title: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
+  url: "", title: "", category_id: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
   priority: "MEDIUM", answer_source_enabled: true, reference_link_visible: true,
 };
 const leaveMessage = "情報を更新せずにデータソース一覧に戻ります。よろしいですか？";
@@ -34,6 +38,7 @@ function valuesFrom(row: DataSource): EditableValues {
   return {
     url: row.website?.url ?? "",
     title: row.title,
+    category_id: row.category ? String(row.category.id) : "",
     type_1_value_id: selected.TYPE_1 ?? "",
     type_2_value_id: selected.TYPE_2 ?? "",
     type_3_value_id: selected.TYPE_3 ?? "",
@@ -49,6 +54,7 @@ export default function DataSourceWebsiteEditPage() {
   const dataSourceId = Number(params.id);
   const [row, setRow] = useState<DataSource | null>(null);
   const [types, setTypes] = useState<ClassificationType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [initial, setInitial] = useState<EditableValues | null>(null);
   const [values, setValues] = useState<EditableValues>(emptyValues);
   const [loading, setLoading] = useState(true);
@@ -62,6 +68,7 @@ export default function DataSourceWebsiteEditPage() {
       setLoading(false);
       return;
     }
+    fetchCategories().then((result) => setCategories(result.items)).catch(() => setError("カテゴリの取得に失敗しました。"));
     Promise.all([fetchDataSource(dataSourceId), fetchDataSourceTypes()])
       .then(([data, classificationTypes]) => {
         if (data.source_type !== "WEB" || !data.website) {
@@ -111,6 +118,7 @@ export default function DataSourceWebsiteEditPage() {
     try {
       const updated = await updateWebsiteDataSource(row.id, {
         url: values.url.trim(), title: values.title,
+        category_id: values.category_id ? Number(values.category_id) : null,
         type_1_value_id: values.type_1_value_id ? Number(values.type_1_value_id) : null,
         type_2_value_id: values.type_2_value_id ? Number(values.type_2_value_id) : null,
         type_3_value_id: values.type_3_value_id ? Number(values.type_3_value_id) : null,
@@ -148,7 +156,7 @@ export default function DataSourceWebsiteEditPage() {
           <div className={styles.formRows}>
             <div className={styles.formRow}><span className={styles.rowLabel}>WebサイトURL：</span><FormField wrapperClassName={styles.urlField} aria-label="WebサイトURL" value={values.url} maxLength={500} disabled={busy} onChange={(event) => setValue("url", event.target.value)} /></div>
             <div className={styles.formRow}><span className={styles.rowLabel}>タイトル：</span><FormField wrapperClassName={styles.titleField} aria-label="タイトル" value={values.title} maxLength={500} disabled={busy} onChange={(event) => setValue("title", event.target.value)} description="※未入力の場合、タイトルはURLとなります。" /></div>
-            <div className={styles.formRow}><span className={styles.rowLabel}>カテゴリ：</span><SelectField wrapperClassName={styles.categoryField} aria-label="カテゴリ" disabled value={row.category_name ?? ""}><option value={row.category_name ?? ""}>{row.category_name ?? "カテゴリ設定後に変更できます"}</option></SelectField></div>
+            <div className={styles.formRow}><span className={styles.rowLabel}>カテゴリ：</span><CategorySelectField wrapperClassName={styles.categoryField} aria-label="カテゴリ" categories={categories} value={values.category_id} disabled={busy} onChange={(event) => setValue("category_id", event.target.value)} /></div>
             <div className={`${styles.formRow} ${styles.classificationRow}`}><span className={styles.rowLabel}>種別：</span><div className={styles.classificationFields}>{(["TYPE_1", "TYPE_2", "TYPE_3"] as const).map((code, index) => {
               const key = `type_${index + 1}_value_id` as "type_1_value_id" | "type_2_value_id" | "type_3_value_id";
               const type = typeMap[code];

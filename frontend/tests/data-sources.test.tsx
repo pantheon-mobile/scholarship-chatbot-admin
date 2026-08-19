@@ -8,22 +8,31 @@ const api = vi.hoisted(() => ({
   fetchDataSources: vi.fn(), updateAnswerSource: vi.fn(), updateReferenceLink: vi.fn(),
   deleteDataSource: vi.fn(), bulkDeleteDataSources: vi.fn(), exportDataSources: vi.fn(),
   fetchDataSourceTypes: vi.fn(),
+  fetchCategories: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("../lib/dataSourcesApi", () => ({ ...api }));
 vi.mock("../lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
+vi.mock("../lib/categoriesApi", () => ({ fetchCategories: api.fetchCategories }));
+
+const categories = [
+  { id: 10, name: "奨学金", parent_id: null, display_order: 1, version: 1 },
+  { id: 11, name: "給付", parent_id: 10, display_order: 1, version: 1 },
+];
 
 const rows = [
   {
     id: 1, source_type: "FILE", title: "募集要項", format: "pdf", status: "AVAILABLE",
-    category_name: null, size_bytes: 1024, character_count: 2000, answer_source_enabled: true,
+    category: { id: 11, name: "給付", parent_id: 10, path: "奨学金/給付" },
+    category_name: "奨学金/給付", size_bytes: 1024, character_count: 2000, answer_source_enabled: true,
     priority: "HIGH", reference_link_visible: true, updated_at: "2026-08-06T01:00:00Z", version: 1,
     file: { file_name: "guide.pdf" }, website: null,
     classifications: [{ type_code: "TYPE_1", classification_type_id: 1, classification_value_id: 1, display_label: "種別1", value_name: "在学生" }],
   },
   {
     id: 2, source_type: "WEB", title: "大学サイト", format: "Web", status: "TRAINING",
+    category: null,
     category_name: null, size_bytes: null, character_count: 3000, answer_source_enabled: false,
     priority: "LOW", reference_link_visible: false, updated_at: "2026-08-05T01:00:00Z", version: 3,
     file: null, website: { url: "https://example.com", last_fetched_at: null }, classifications: [],
@@ -38,6 +47,7 @@ beforeEach(() => {
   Object.values(api).forEach((mock) => mock.mockReset());
   api.fetchDataSources.mockResolvedValue(response);
   api.fetchDataSourceTypes.mockResolvedValue(types);
+  api.fetchCategories.mockResolvedValue({ items: categories });
   api.updateAnswerSource.mockResolvedValue({ ...rows[0], answer_source_enabled: false, version: 2 });
   api.updateReferenceLink.mockResolvedValue({ ...rows[0], reference_link_visible: false, version: 2 });
   api.deleteDataSource.mockResolvedValue(undefined);
@@ -61,14 +71,16 @@ describe("CB-202 data sources", () => {
   it("初期表示を更新日時降順・10件で取得する", async () => {
     await renderPage();
     expect(screen.getByText("データソース数 12件")).not.toBeNull();
+    expect(screen.getByText("奨学金/給付")).not.toBeNull();
     expect(api.fetchDataSources).toHaveBeenCalledWith(expect.objectContaining({ sort: "updated_at", order: "desc", page_size: 10 }));
   });
 
   it("検索条件を適用する", async () => {
     await renderPage();
     fireEvent.change(screen.getByPlaceholderText("キーワードを入力"), { target: { value: "奨学金" } });
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "11" } });
     fireEvent.click(screen.getByRole("button", { name: "絞り込み検索" }));
-    await waitFor(() => expect(api.fetchDataSources).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: "奨学金", page: 1 })));
+    await waitFor(() => expect(api.fetchDataSources).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: "奨学金", category_id: "11", page: 1 })));
   });
 
   it("IDをソートし、表示件数とページを変更する", async () => {

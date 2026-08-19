@@ -27,6 +27,7 @@ from app.services.data_source_service import (
     FileUploadError,
     FileDataSourceRequiredError,
     ClassificationMismatchError,
+    DataSourceCategoryNotFoundError,
     PageNotFoundError,
     WebsiteDataSourceCreateError,
     WebsiteDataSourceRequiredError,
@@ -50,6 +51,7 @@ def get_filters(
     keyword: str | None = None,
     format: str | None = None,
     status: str | None = None,
+    category_id: int | None = None,
     type_1_value_id: int | None = None,
     type_2_value_id: int | None = None,
     type_3_value_id: int | None = None,
@@ -63,7 +65,7 @@ def get_filters(
 ) -> DataSourceFilters:
     try:
         return DataSourceFilters(
-            keyword=keyword, format=format, status=status,
+            keyword=keyword, format=format, status=status, category_id=category_id,
             type_1_value_id=type_1_value_id, type_2_value_id=type_2_value_id, type_3_value_id=type_3_value_id,
             answer_source_enabled=answer_source_enabled, priority=priority,
             reference_link_visible=reference_link_visible, sort=sort, order=order,
@@ -97,7 +99,7 @@ async def export_data_sources(filters: DataSourceFilters = Depends(get_filters),
 async def create_file_data_sources(
     files: list[UploadFile] = File(default=[]),
     title: str | None = Form(default=None),
-    category_name: str | None = Form(default=None),
+    category_id: int | None = Form(default=None),
     type_1_value_id: int | None = Form(default=None),
     type_2_value_id: int | None = Form(default=None),
     type_3_value_id: int | None = Form(default=None),
@@ -107,13 +109,12 @@ async def create_file_data_sources(
     service: DataSourceService = Depends(get_service),
     storage: LocalStorage = Depends(get_storage),
 ):
-    if category_name and category_name.strip():
-        raise HTTPException(status_code=422, detail={"code": "CATEGORY_NOT_SUPPORTED", "message": "カテゴリは現在選択できません。"})
     try:
         items = await service.create_file_sources(
             files,
             storage,
             title=title,
+            category_id=category_id,
             type_1_value_id=type_1_value_id,
             type_2_value_id=type_2_value_id,
             type_3_value_id=type_3_value_id,
@@ -163,6 +164,8 @@ async def update_file_data_source(
         raise HTTPException(status_code=422, detail={"code": "FILE_DATA_SOURCE_REQUIRED", "message": "ファイル編集の対象ではありません。"}) from None
     except ClassificationMismatchError as exc:
         raise HTTPException(status_code=422, detail={"code": "INVALID_CLASSIFICATION", "message": str(exc)}) from None
+    except DataSourceCategoryNotFoundError:
+        raise HTTPException(status_code=422, detail={"code": "CATEGORY_NOT_FOUND", "message": "指定されたカテゴリが存在しません。"}) from None
     except DataSourceVersionConflictError:
         raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "message": "他の操作で情報が更新されています。再読み込みしてください。"}) from None
     except DataSourceUpdateError:

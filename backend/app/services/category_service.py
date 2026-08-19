@@ -191,8 +191,13 @@ class CategoryService:
             await self.repository.rollback()
             raise CategoryVersionConflictError()
         delete_ids = self._descendant_ids({category_id}, self._children(rows))
-        await self.repository.delete_ids(delete_ids)
-        await self.repository.commit()
+        try:
+            await self.repository.clear_data_source_categories(delete_ids)
+            await self.repository.delete_ids(delete_ids)
+            await self.repository.commit()
+        except Exception:
+            await self.repository.rollback()
+            raise
 
     async def bulk_delete(self, targets: list[CategoryDeleteTarget]) -> int:
         if not targets:
@@ -208,8 +213,13 @@ class CategoryService:
                 await self.repository.rollback()
                 raise CategoryVersionConflictError()
         delete_ids = self._descendant_ids({target.id for target in targets}, self._children(rows))
-        await self.repository.delete_ids(delete_ids)
-        await self.repository.commit()
+        try:
+            await self.repository.clear_data_source_categories(delete_ids)
+            await self.repository.delete_ids(delete_ids)
+            await self.repository.commit()
+        except Exception:
+            await self.repository.rollback()
+            raise
         return len(delete_ids)
 
     async def reorder(self, payload: CategoryOrderRequest) -> list[CategoryResponse]:

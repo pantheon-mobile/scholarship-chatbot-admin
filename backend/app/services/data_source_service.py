@@ -8,11 +8,13 @@ from fastapi import UploadFile
 from openpyxl import Workbook
 
 from app.models.data_source import DataSource
+from app.models.category import Category
 from app.repositories.data_source import DataSourceRepository
 from app.schemas.data_source import (
     BulkDeleteRequest,
     ClassificationAssignment,
     DataSourceClassificationResponse,
+    DataSourceCategoryResponse,
     DataSourceFileResponse,
     DataSourceFilters,
     DataSourceListResponse,
@@ -40,6 +42,10 @@ class PageNotFoundError(Exception):
 
 
 class ClassificationMismatchError(Exception):
+    pass
+
+
+class DataSourceCategoryNotFoundError(Exception):
     pass
 
 
@@ -81,15 +87,44 @@ class DataSourceService:
         self.repository = repository
 
     @staticmethod
-    def serialize(row: DataSource) -> DataSourceResponse:
+    def category_paths(categories: list[Category]) -> dict[int, str]:
+        by_id = {category.id: category for category in categories}
+        paths: dict[int, str] = {}
+
+        def resolve(category_id: int, visiting: set[int]) -> str:
+            if category_id in paths:
+                return paths[category_id]
+            category = by_id[category_id]
+            if category_id in visiting or category.parent_id is None or category.parent_id not in by_id:
+                path = category.name
+            else:
+                path = f"{resolve(category.parent_id, visiting | {category_id})}/{category.name}"
+            paths[category_id] = path
+            return path
+
+        for category_id in by_id:
+            resolve(category_id, set())
+        return paths
+
+    @classmethod
+    def serialize(cls, row: DataSource, categories: dict[int, Category], paths: dict[int, str]) -> DataSourceResponse:
         classifications = sorted(row.classification_links, key=lambda link: link.classification_type.display_order)
+        row_category_id = getattr(row, "category_id", None)
+        category = categories.get(row_category_id) if row_category_id is not None else None
+        category_path = paths.get(category.id) if category else None
         return DataSourceResponse(
             id=row.id,
             source_type=row.source_type,
             title=row.title,
             format=row.format,
             status=row.status,
-            category_name=row.category_name,
+            category=DataSourceCategoryResponse(
+                id=category.id,
+                name=category.name,
+                parent_id=category.parent_id,
+                path=category_path or category.name,
+            ) if category else None,
+            category_name=category_path if category else row.category_name,
             size_bytes=row.size_bytes,
             character_count=row.character_count,
             answer_source_enabled=row.answer_source_enabled,
@@ -115,8 +150,11 @@ class DataSourceService:
         rows, total_count, total_pages, total_size = await self.repository.list(filters)
         if filters.page > 1 and filters.page > total_pages:
             raise PageNotFoundError()
+        category_rows = await self.repository.list_categories()
+        categories = {category.id: category for category in category_rows}
+        paths = self.category_paths(category_rows)
         return DataSourceListResponse(
-            items=[self.serialize(row) for row in rows],
+            items=[self.serialize(row, categories, paths) for row in rows],
             page=filters.page,
             page_size=filters.page_size,
             total_count=total_count,
@@ -133,7 +171,13 @@ class DataSourceService:
         return row
 
     async def get(self, data_source_id: int) -> DataSourceResponse:
-        return self.serialize(await self._get(data_source_id))
+        row = await self._get(data_source_id)
+        category_rows = await self.repository.list_categories()
+        return self.serialize(row, {category.id: category for category in category_rows}, self.category_paths(category_rows))
+
+    async def validate_category(self, category_id: int | None) -> None:
+        if category_id is not None and not await self.repository.category_exists(category_id):
+            raise DataSourceCategoryNotFoundError()
 
     async def update_file_attributes(
         self,
@@ -143,6 +187,7 @@ class DataSourceService:
         row = await self._get(data_source_id)
         if row.source_type != "FILE" or row.file is None:
             raise FileDataSourceRequiredError()
+        await self.validate_category(payload.category_id)
 
         title = payload.title.strip() or row.file.file_name
         classifications: list[tuple[int, int]] = []
@@ -167,7 +212,7 @@ class DataSourceService:
             raise DataSourceUpdateError() from exc
         if not updated:
             raise DataSourceVersionConflictError()
-        return self.serialize(await self._get(data_source_id))
+        return await self.get(data_source_id)
 
     async def create_website_source(
         self,
@@ -183,6 +228,10 @@ class DataSourceService:
             raise WebsiteDataSourceCreateError("TITLE_TOO_LONG", "タイトルが長すぎます。")
         if payload.priority not in {"HIGH", "MEDIUM", "LOW"}:
             raise WebsiteDataSourceCreateError("INVALID_PRIORITY", "回答利用の優先度が不正です。")
+        try:
+            await self.validate_category(payload.category_id)
+        except DataSourceCategoryNotFoundError as exc:
+            raise WebsiteDataSourceCreateError("CATEGORY_NOT_FOUND", "指定されたカテゴリが存在しません。") from exc
 
         classifications: list[tuple[int, int]] = []
         for type_code, value_id in (
@@ -204,13 +253,14 @@ class DataSourceService:
                 priority=payload.priority,
                 answer_source_enabled=payload.answer_source_enabled,
                 reference_link_visible=payload.reference_link_visible,
+                category_id=payload.category_id,
                 classifications=classifications,
             )
             await self.repository.commit()
         except Exception as exc:
             await self.repository.rollback()
             raise WebsiteDataSourceCreateError("WEB_DATA_SOURCE_CREATE_FAILED", "Webサイトの追加に失敗しました。") from exc
-        return self.serialize(await self._get(data_source_id))
+        return await self.get(data_source_id)
 
     async def update_website_attributes(
         self,
@@ -220,6 +270,10 @@ class DataSourceService:
         row = await self._get(data_source_id)
         if row.source_type != "WEB" or row.website is None:
             raise WebsiteDataSourceRequiredError()
+        try:
+            await self.validate_category(payload.category_id)
+        except DataSourceCategoryNotFoundError as exc:
+            raise WebsiteDataSourceUpdateError("CATEGORY_NOT_FOUND", "指定されたカテゴリが存在しません。") from exc
 
         try:
             url = validate_website_url(payload.url)
@@ -254,19 +308,19 @@ class DataSourceService:
             raise WebsiteDataSourceUpdateError("WEB_DATA_SOURCE_UPDATE_FAILED", "Webサイトの更新に失敗しました。") from exc
         if not updated:
             raise DataSourceVersionConflictError()
-        return self.serialize(await self._get(data_source_id))
+        return await self.get(data_source_id)
 
     async def update_answer_source(self, data_source_id: int, enabled: bool, version: int) -> DataSourceResponse:
         await self._get(data_source_id)
         if not await self.repository.update_toggle(data_source_id, "answer_source_enabled", enabled, version):
             raise DataSourceVersionConflictError()
-        return self.serialize(await self._get(data_source_id))
+        return await self.get(data_source_id)
 
     async def update_reference_link(self, data_source_id: int, visible: bool, version: int) -> DataSourceResponse:
         await self._get(data_source_id)
         if not await self.repository.update_toggle(data_source_id, "reference_link_visible", visible, version):
             raise DataSourceVersionConflictError()
-        return self.serialize(await self._get(data_source_id))
+        return await self.get(data_source_id)
 
     async def delete(self, data_source_id: int, version: int) -> None:
         await self._get(data_source_id)
@@ -307,6 +361,7 @@ class DataSourceService:
         priority: str,
         answer_source_enabled: bool,
         reference_link_visible: bool,
+        category_id: int | None = None,
     ) -> list[DataSourceResponse]:
         try:
             validated = validate_uploads(files)
@@ -320,6 +375,10 @@ class DataSourceService:
             raise FileUploadError("INVALID_TITLE", "タイトルは500文字以内で入力してください。")
         if priority not in {"HIGH", "MEDIUM", "LOW"}:
             raise FileUploadError("INVALID_PRIORITY", "回答利用の優先度が不正です。")
+        try:
+            await self.validate_category(category_id)
+        except DataSourceCategoryNotFoundError as exc:
+            raise FileUploadError("CATEGORY_NOT_FOUND", "指定されたカテゴリが存在しません。") from exc
 
         classification_pairs: list[tuple[int, int]] = []
         for type_code, value_id in (
@@ -356,6 +415,7 @@ class DataSourceService:
                 priority=priority,
                 answer_source_enabled=answer_source_enabled,
                 reference_link_visible=reference_link_visible,
+                category_id=category_id,
                 classifications=classification_pairs,
             )
             for temporary_path, storage_key in staged:
@@ -374,7 +434,7 @@ class DataSourceService:
 
         result: list[DataSourceResponse] = []
         for data_source_id in ids:
-            result.append(self.serialize(await self._get(data_source_id)))
+            result.append(await self.get(data_source_id))
         return result
 
     async def export_excel(self, filters: DataSourceFilters) -> bytes:

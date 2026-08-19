@@ -6,6 +6,7 @@ const push = vi.fn();
 const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createWebsiteDataSource: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
+vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
 vi.mock("@/lib/dataSourcesApi", () => ({ createWebsiteDataSource: api.createWebsiteDataSource }));
 
 const types = [
@@ -27,9 +28,9 @@ async function renderPage() {
 }
 
 describe("CB-205 website add page", () => {
-  it("初期値・disabledカテゴリ・未選択種別を表示する", async () => {
+  it("初期値・カテゴリ選択・未選択種別を表示する", async () => {
     await renderPage();
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(false);
     expect((screen.getByLabelText("回答利用の優先度") as HTMLSelectElement).value).toBe("MEDIUM");
     expect((screen.getByLabelText("対象者") as HTMLSelectElement).value).toBe("");
     expect(screen.getAllByRole("switch").map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "true"]);
@@ -42,11 +43,13 @@ describe("CB-205 website add page", () => {
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "奨学金案内" } });
     fireEvent.change(screen.getByLabelText("対象者"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("給付区分"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "7" } });
     fireEvent.change(screen.getByLabelText("回答利用の優先度"), { target: { value: "HIGH" } });
     fireEvent.click(screen.getAllByRole("switch")[1]);
     fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
     await waitFor(() => expect(api.createWebsiteDataSource).toHaveBeenCalledWith({
       url: "https://example.com/scholarship", title: "奨学金案内",
+      category_id: 7,
       type_1_value_id: 10, type_2_value_id: 20, type_3_value_id: null,
       priority: "HIGH", answer_source_enabled: true, reference_link_visible: false,
     }));

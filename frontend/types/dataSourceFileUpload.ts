@@ -3,6 +3,7 @@ import { DataSource } from "./dataSource";
 export type FileUploadForm = {
   files: File[];
   title: string;
+  category_id: string;
   type_1_value_id: string;
   type_2_value_id: string;
   type_3_value_id: string;

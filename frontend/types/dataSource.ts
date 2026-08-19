@@ -12,12 +12,20 @@ export type DataSourceClassification = {
   value_name: string;
 };
 
+export type DataSourceCategory = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  path: string;
+};
+
 export type DataSource = {
   id: number;
   source_type: SourceType;
   title: string;
   format: string;
   status: DataSourceStatus;
+  category: DataSourceCategory | null;
   category_name: string | null;
   size_bytes: number | null;
   character_count: number | null;
@@ -35,6 +43,7 @@ export type DataSourceFilters = {
   keyword: string;
   format: string;
   status: string;
+  category_id: string;
   type_1_value_id: string;
   type_2_value_id: string;
   type_3_value_id: string;
@@ -60,6 +69,7 @@ export type DataSourceListResponse = {
 
 export type FileDataSourceUpdate = {
   title: string;
+  category_id: number | null;
   type_1_value_id: number | null;
   type_2_value_id: number | null;
   type_3_value_id: number | null;
@@ -72,6 +82,7 @@ export type FileDataSourceUpdate = {
 export type WebsiteDataSourceCreate = {
   url: string;
   title: string;
+  category_id: number | null;
   type_1_value_id: number | null;
   type_2_value_id: number | null;
   type_3_value_id: number | null;

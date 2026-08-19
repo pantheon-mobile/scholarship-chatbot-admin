@@ -4,6 +4,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
+from app.models.data_source import DataSource
 
 
 class CategoryRepository:
@@ -19,6 +20,20 @@ class CategoryRepository:
 
     async def delete_ids(self, ids: set[int]) -> None:
         await self.session.execute(delete(Category).where(Category.id.in_(ids)))
+
+    async def clear_data_source_categories(self, category_ids: set[int]) -> int:
+        if not category_ids:
+            return 0
+        rows = list((await self.session.execute(
+            select(DataSource).where(DataSource.category_id.in_(category_ids)).with_for_update()
+        )).scalars().all())
+        now = datetime.now(timezone.utc)
+        for row in rows:
+            row.category_id = None
+            row.version += 1
+            row.updated_at = now
+        await self.session.flush()
+        return len(rows)
 
     async def name_exists(self, parent_id: int | None, name: str, *, exclude_id: int | None = None) -> bool:
         statement = select(func.count()).select_from(Category).where(Category.name == name)

@@ -19,6 +19,7 @@ class DataSource(Base):
     title: Mapped[str] = Column(String(500), nullable=False, index=True)
     format: Mapped[str] = Column(String(20), nullable=False, index=True)
     status: Mapped[str] = Column(String(20), nullable=False, index=True)
+    category_id: Mapped[int | None] = Column(ForeignKey("categories.id", ondelete="RESTRICT"), nullable=True, index=True)
     category_name: Mapped[str | None] = Column(String(200), nullable=True)
     size_bytes: Mapped[int | None] = Column(BigInteger, nullable=True)
     character_count: Mapped[int | None] = Column(BigInteger, nullable=True)
@@ -31,6 +32,7 @@ class DataSource(Base):
     file = relationship("DataSourceFile", back_populates="data_source", uselist=False, cascade="all, delete-orphan")
     website = relationship("DataSourceWebsite", back_populates="data_source", uselist=False, cascade="all, delete-orphan")
     classification_links = relationship("DataSourceClassificationValue", back_populates="data_source", cascade="all, delete-orphan")
+    category = relationship("Category")
 
 
 class DataSourceFile(Base):

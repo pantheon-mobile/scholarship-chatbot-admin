@@ -5,16 +5,20 @@ import { useRouter } from "next/navigation";
 import {
   AdminIcon, AdminLayout, Breadcrumb, Button, FormField, Modal, SelectField, ToggleSwitch,
 } from "@/components/admin";
+import { CategorySelectField } from "@/components/categories/CategorySelectField";
+import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import { createWebsiteDataSource } from "@/lib/dataSourcesApi";
 import { validateWebsiteUrl } from "@/lib/websiteUrlValidation";
 import { Priority } from "@/types/dataSource";
 import { ClassificationType } from "@/types/dataSourceTypes";
+import { Category } from "@/types/category";
 import styles from "./page.module.css";
 
 type FormValues = {
   url: string;
   title: string;
+  category_id: string;
   type_1_value_id: string;
   type_2_value_id: string;
   type_3_value_id: string;
@@ -24,7 +28,7 @@ type FormValues = {
 };
 
 const initialValues: FormValues = {
-  url: "", title: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
+  url: "", title: "", category_id: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
   priority: "MEDIUM", answer_source_enabled: true, reference_link_visible: true,
 };
 const leaveMessage = "Webサイトを追加せずにデータソース一覧に戻ります。よろしいですか？";
@@ -33,6 +37,7 @@ export default function DataSourceWebsiteNewPage() {
   const router = useRouter();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [types, setTypes] = useState<ClassificationType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -40,6 +45,7 @@ export default function DataSourceWebsiteNewPage() {
 
   useEffect(() => {
     fetchDataSourceTypes().then(setTypes).catch(() => setError("種別の取得に失敗しました。"));
+    fetchCategories().then((result) => setCategories(result.items)).catch(() => setError("カテゴリの取得に失敗しました。"));
   }, []);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -73,6 +79,7 @@ export default function DataSourceWebsiteNewPage() {
     try {
       await createWebsiteDataSource({
         url: values.url.trim(), title: values.title,
+        category_id: values.category_id ? Number(values.category_id) : null,
         type_1_value_id: values.type_1_value_id ? Number(values.type_1_value_id) : null,
         type_2_value_id: values.type_2_value_id ? Number(values.type_2_value_id) : null,
         type_3_value_id: values.type_3_value_id ? Number(values.type_3_value_id) : null,
@@ -109,7 +116,7 @@ export default function DataSourceWebsiteNewPage() {
           </div>
           <div className={styles.formRow}>
             <span className={styles.rowLabel}>カテゴリ：</span>
-            <SelectField wrapperClassName={styles.categoryField} aria-label="カテゴリ" disabled value=""><option value="">カテゴリ設定後に選択できます</option></SelectField>
+            <CategorySelectField wrapperClassName={styles.categoryField} aria-label="カテゴリ" categories={categories} value={values.category_id} disabled={busy} onChange={(event) => setValue("category_id", event.target.value)} />
           </div>
           <div className={`${styles.formRow} ${styles.classificationRow}`}>
             <span className={styles.rowLabel}>種別：</span>

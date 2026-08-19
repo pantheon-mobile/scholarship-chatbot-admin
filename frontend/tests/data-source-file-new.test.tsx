@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createFileDataSou
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
 vi.mock("@/lib/dataSourceFilesApi", () => ({ createFileDataSources: api.createFileDataSources }));
+vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
 
 const types = [{ id: 1, type_code: "TYPE_1", fixed_name: "種別1", display_label: "対象者", display_order: 1, version: 1, values: [{ id: 10, value_name: "在学生", display_order: 1, version: 1 }] }];
 
@@ -40,7 +41,7 @@ describe("CB-203 file add page", () => {
     expect((screen.getByLabelText("回答利用の優先度") as HTMLSelectElement).value).toBe("MEDIUM");
     expect(screen.getAllByRole("switch").map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "true"]);
     expect(await screen.findByLabelText("対象者")).not.toBeNull();
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(false);
   });
 
   it("ファイル選択・一覧・個別解除とタイトル活性を管理する", async () => {
@@ -66,8 +67,9 @@ describe("CB-203 file add page", () => {
     await choose(input, [textFile("one.txt")]);
     fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "任意タイトル" } });
     fireEvent.change(await screen.findByLabelText("対象者"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "7" } });
     fireEvent.click(screen.getByRole("button", { name: "ファイルを追加する" }));
-    await waitFor(() => expect(api.createFileDataSources).toHaveBeenCalledWith(expect.objectContaining({ title: "任意タイトル", type_1_value_id: "10", priority: "MEDIUM" })));
+    await waitFor(() => expect(api.createFileDataSources).toHaveBeenCalledWith(expect.objectContaining({ title: "任意タイトル", category_id: "7", type_1_value_id: "10", priority: "MEDIUM" })));
     expect(push).toHaveBeenCalledWith("/data-sources");
   });
 

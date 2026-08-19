@@ -19,7 +19,7 @@ from app.storage.local import LocalStorage
 def make_row(version: int = 1):
     return SimpleNamespace(
         id=1, source_type="FILE", title="guide.pdf", format="pdf", status="PREPARING",
-        category_name=None, size_bytes=100, character_count=None,
+        category_id=None, category_name=None, size_bytes=100, character_count=None,
         answer_source_enabled=True, priority="MEDIUM", reference_link_visible=True,
         updated_at=datetime.now(timezone.utc), version=version,
         file=SimpleNamespace(file_name="guide.pdf"), website=None, classification_links=[],
@@ -134,7 +134,7 @@ async def test_single_file_registration_title_defaults_and_settings(tmp_path):
     assert records[0]["storage_key"] != "guide.PDF"
     assert repository.create_file_sources.await_args.kwargs == {
         "priority": "MEDIUM", "answer_source_enabled": True,
-        "reference_link_visible": True, "classifications": [(1, 1)],
+        "reference_link_visible": True, "category_id": None, "classifications": [(1, 1)],
     }
     repository.commit.assert_awaited_once()
     assert storage.exists(records[0]["storage_key"])

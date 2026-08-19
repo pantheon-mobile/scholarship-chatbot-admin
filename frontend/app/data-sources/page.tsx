@@ -7,17 +7,20 @@ import {
   SelectField, SortableHeader, StatusBadge, Table, TableCell, TableFrame, TableHeaderCell,
   TableRow, ToggleSwitch,
 } from "@/components/admin";
+import { CategorySelectField } from "@/components/categories/CategorySelectField";
+import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import {
   bulkDeleteDataSources, deleteDataSource, exportDataSources, fetchDataSources,
   updateAnswerSource, updateReferenceLink,
 } from "@/lib/dataSourcesApi";
 import { ClassificationType } from "@/types/dataSourceTypes";
+import { Category } from "@/types/category";
 import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, SortColumn } from "@/types/dataSource";
 import styles from "./page.module.css";
 
 const emptyFilters: DataSourceFilters = {
-  keyword: "", format: "", status: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
+  keyword: "", format: "", status: "", category_id: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
   answer_source_enabled: "", priority: "", reference_link_visible: "",
   sort: "updated_at", order: "desc", page: 1, page_size: 10,
 };
@@ -39,6 +42,7 @@ export default function DataSourcesPage() {
   const [filters, setFilters] = useState(emptyFilters);
   const [result, setResult] = useState<DataSourceListResponse | null>(null);
   const [classificationTypes, setClassificationTypes] = useState<ClassificationType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -63,7 +67,9 @@ export default function DataSourcesPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetchDataSourceTypes().then(setClassificationTypes).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    Promise.all([fetchDataSourceTypes(), fetchCategories()])
+      .then(([types, categoryResult]) => { setClassificationTypes(types); setCategories(categoryResult.items); })
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   const rows = result?.items ?? [];
@@ -153,7 +159,7 @@ export default function DataSourcesPage() {
           <FormField label="キーワード" wrapperClassName={styles.keyword} placeholder="キーワードを入力" value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} />
           <SelectField label="形式" value={draft.format} onChange={(event) => setDraft({ ...draft, format: event.target.value })}><option value="">すべて</option>{["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","Web"].map((value) => <option key={value}>{value}</option>)}</SelectField>
           <SelectField label="状態" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option value="">すべて</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
-          <SelectField label="カテゴリ" wrapperClassName={styles.category} value="" disabled><option value="">すべて</option></SelectField>
+          <CategorySelectField label="カテゴリ" wrapperClassName={styles.category} categories={categories} emptyLabel="すべて" value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })} />
           {["TYPE_1","TYPE_2","TYPE_3"].map((code, index) => {
             const key = `type_${index + 1}_value_id` as "type_1_value_id" | "type_2_value_id" | "type_3_value_id";
             const type = typeMap[code];

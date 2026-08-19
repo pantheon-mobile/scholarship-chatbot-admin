@@ -7,6 +7,7 @@ from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.category import Category
 from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
 from app.schemas.data_source import DataSourceFilters, DeleteTarget, FileDataSourceUpdateRequest, WebsiteDataSourceUpdateRequest
@@ -26,6 +27,8 @@ class DataSourceRepository:
             conditions.append(DataSource.format == filters.format)
         if filters.status:
             conditions.append(DataSource.status == filters.status)
+        if filters.category_id is not None:
+            conditions.append(DataSource.category_id == filters.category_id)
         if filters.answer_source_enabled is not None:
             conditions.append(DataSource.answer_source_enabled == filters.answer_source_enabled)
         if filters.priority:
@@ -81,6 +84,14 @@ class DataSourceRepository:
             selectinload(DataSource.classification_links).selectinload(DataSourceClassificationValue.classification_value),
         ).execution_options(populate_existing=True)
         return (await self.session.execute(stmt)).scalars().first()
+
+    async def list_categories(self) -> list[Category]:
+        statement = select(Category).order_by(Category.parent_id.nullsfirst(), Category.display_order, Category.id)
+        return list((await self.session.execute(statement)).scalars().all())
+
+    async def category_exists(self, category_id: int) -> bool:
+        statement = select(Category.id).where(Category.id == category_id).with_for_update(read=True)
+        return (await self.session.execute(statement)).scalar_one_or_none() is not None
 
     async def update_toggle(self, data_source_id: int, field: str, value: bool, version: int) -> bool:
         if field not in {"answer_source_enabled", "reference_link_visible"}:
@@ -145,6 +156,7 @@ class DataSourceRepository:
         priority: str,
         answer_source_enabled: bool,
         reference_link_visible: bool,
+        category_id: int | None,
         classifications: list[tuple[int, int]],
     ) -> list[int]:
         now = datetime.now(timezone.utc)
@@ -155,6 +167,7 @@ class DataSourceRepository:
                 title=item["title"],
                 format=item["extension"],
                 status="PREPARING",
+                category_id=category_id,
                 category_name=None,
                 size_bytes=item["size_bytes"],
                 character_count=None,
@@ -193,6 +206,7 @@ class DataSourceRepository:
             .where(DataSource.id == data_source_id, DataSource.version == payload.version)
             .values(
                 title=title,
+                category_id=payload.category_id,
                 priority=payload.priority,
                 answer_source_enabled=payload.answer_source_enabled,
                 reference_link_visible=payload.reference_link_visible,
@@ -228,6 +242,7 @@ class DataSourceRepository:
         priority: str,
         answer_source_enabled: bool,
         reference_link_visible: bool,
+        category_id: int | None,
         classifications: list[tuple[int, int]],
     ) -> int:
         row = DataSource(
@@ -235,6 +250,7 @@ class DataSourceRepository:
             title=title,
             format="Web",
             status="PREPARING",
+            category_id=category_id,
             category_name=None,
             size_bytes=None,
             character_count=None,
@@ -270,6 +286,7 @@ class DataSourceRepository:
             .where(DataSource.id == data_source_id, DataSource.version == payload.version)
             .values(
                 title=title,
+                category_id=payload.category_id,
                 priority=payload.priority,
                 answer_source_enabled=payload.answer_source_enabled,
                 reference_link_visible=payload.reference_link_visible,

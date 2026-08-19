@@ -6,10 +6,13 @@ import {
   AdminIcon, AdminLayout, Breadcrumb, Button, FileDropzone, FileSelectionList,
   FormField, Modal, SelectField, ToggleSwitch,
 } from "@/components/admin";
+import { CategorySelectField } from "@/components/categories/CategorySelectField";
+import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import { createFileDataSources } from "@/lib/dataSourceFilesApi";
 import { FILE_ACCEPT, validateSelectedFiles } from "@/lib/fileUploadValidation";
 import { ClassificationType } from "@/types/dataSourceTypes";
+import { Category } from "@/types/category";
 import styles from "./page.module.css";
 
 const leaveMessage = "ファイルを追加せずにデータソース一覧に戻ります。よろしいですか？";
@@ -25,6 +28,8 @@ export default function DataSourceFileNewPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("");
   const [types, setTypes] = useState<ClassificationType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
   const [typeValues, setTypeValues] = useState({ TYPE_1: "", TYPE_2: "", TYPE_3: "" });
   const [priority, setPriority] = useState<"HIGH" | "MEDIUM" | "LOW">("MEDIUM");
   const [answerSource, setAnswerSource] = useState(true);
@@ -36,6 +41,7 @@ export default function DataSourceFileNewPage() {
 
   useEffect(() => {
     fetchDataSourceTypes().then(setTypes).catch(() => setError("種別の取得に失敗しました。"));
+    fetchCategories().then((result) => setCategories(result.items)).catch(() => setError("カテゴリの取得に失敗しました。"));
   }, []);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -83,7 +89,7 @@ export default function DataSourceFileNewPage() {
     setBusy(true);
     try {
       await createFileDataSources({
-        files, title,
+        files, title, category_id: categoryId,
         type_1_value_id: typeValues.TYPE_1,
         type_2_value_id: typeValues.TYPE_2,
         type_3_value_id: typeValues.TYPE_3,
@@ -128,7 +134,7 @@ export default function DataSourceFileNewPage() {
           <div className={styles.formRow}>
             <span className={styles.rowLabel}>カテゴリ：</span>
             <div className={styles.categoryField}>
-              <SelectField wrapperClassName={styles.mediumField} aria-label="カテゴリ" disabled value=""><option value="">カテゴリ設定後に選択できます</option></SelectField>
+              <CategorySelectField wrapperClassName={styles.mediumField} aria-label="カテゴリ" categories={categories} value={categoryId} disabled={busy} onChange={(event) => setCategoryId(event.target.value)} />
               <p className={styles.categoryNote}>
                 ※複数ファイルを選択した場合、全てのファイルに同じカテゴリが適用されます。<br />
                 カテゴリをファイルごとに変えたい場合は未設定にして追加後、個別に編集してください。

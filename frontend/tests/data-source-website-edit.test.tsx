@@ -11,6 +11,7 @@ vi.mock("@/lib/dataSourcesApi", async () => {
   return { ...actual, fetchDataSource: api.fetchDataSource, updateWebsiteDataSource: api.updateWebsiteDataSource };
 });
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
+vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
 
 const types = [
   { id: 1, type_code: "TYPE_1", fixed_name: "種別1", display_label: "対象者", display_order: 1, version: 1, values: [{ id: 10, value_name: "在学生", display_order: 1, version: 1 }, { id: 11, value_name: "卒業生", display_order: 2, version: 1 }] },
@@ -19,6 +20,7 @@ const types = [
 ];
 const row = {
   id: 8, source_type: "WEB" as const, title: "奨学金情報", format: "Web", status: "AVAILABLE" as const,
+  category: { id: 7, name: "給付", parent_id: null, path: "給付" },
   category_name: "既存カテゴリ", size_bytes: null, character_count: 4321,
   answer_source_enabled: true, priority: "LOW" as const, reference_link_visible: false,
   updated_at: "2026-08-07T01:00:00Z", version: 2, file: null,
@@ -40,11 +42,11 @@ async function renderLoaded() {
 }
 
 describe("CB-206 website edit page", () => {
-  it("現在のURL・属性・種別とdisabledカテゴリを初期表示する", async () => {
+  it("現在のURL・属性・種別とカテゴリ選択を初期表示する", async () => {
     await renderLoaded();
     expect((screen.getByLabelText("タイトル") as HTMLInputElement).value).toBe("奨学金情報");
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).value).toBe("既存カテゴリ");
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(false);
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).value).toBe("7");
     expect((screen.getByLabelText("対象者") as HTMLSelectElement).value).toBe("10");
     expect((screen.getByLabelText("回答利用の優先度") as HTMLSelectElement).value).toBe("LOW");
     expect(screen.getAllByRole("switch").map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "false"]);
@@ -53,6 +55,11 @@ describe("CB-206 website edit page", () => {
 
   it("実値差分だけでdirtyを判定し元へ戻すと解除する", async () => {
     await renderLoaded();
+    const category = screen.getByLabelText("カテゴリ");
+    fireEvent.change(category, { target: { value: "" } });
+    expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.change(category, { target: { value: "7" } });
+    expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(true);
     const title = screen.getByLabelText("タイトル");
     fireEvent.change(title, { target: { value: "変更" } });
     expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(false);
@@ -84,7 +91,7 @@ describe("CB-206 website edit page", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新する" }));
     await waitFor(() => expect(api.updateWebsiteDataSource).toHaveBeenCalledWith(8, expect.objectContaining({
       url: "https://new.example.com", title: "", type_1_value_id: null, priority: "HIGH",
-      answer_source_enabled: false, reference_link_visible: true, version: 2,
+      category_id: 7, answer_source_enabled: false, reference_link_visible: true, version: 2,
     })));
     expect(push).toHaveBeenCalledWith("/data-sources");
   });

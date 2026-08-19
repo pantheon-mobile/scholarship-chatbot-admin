@@ -28,12 +28,20 @@ class DataSourceClassificationResponse(BaseModel):
     value_name: str
 
 
+class DataSourceCategoryResponse(BaseModel):
+    id: int
+    name: str
+    parent_id: int | None
+    path: str
+
+
 class DataSourceResponse(BaseModel):
     id: int
     source_type: SourceType
     title: str
     format: str
     status: DataSourceStatus
+    category: DataSourceCategoryResponse | None
     category_name: str | None
     size_bytes: int | None
     character_count: int | None
@@ -62,6 +70,7 @@ class DataSourceFilters(BaseModel):
     keyword: str | None = None
     format: str | None = None
     status: DataSourceStatus | None = None
+    category_id: int | None = Field(default=None, ge=1)
     type_1_value_id: int | None = None
     type_2_value_id: int | None = None
     type_3_value_id: int | None = None
@@ -126,6 +135,7 @@ class FileDataSourceUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(max_length=500)
+    category_id: int | None = Field(default=None, ge=1)
     type_1_value_id: int | None = Field(default=None, ge=1)
     type_2_value_id: int | None = Field(default=None, ge=1)
     type_3_value_id: int | None = Field(default=None, ge=1)
@@ -138,6 +148,7 @@ class FileDataSourceUpdateRequest(BaseModel):
 class WebsiteDataSourceCreateRequest(BaseModel):
     url: str = ""
     title: str = ""
+    category_id: int | None = Field(default=None, ge=1)
     type_1_value_id: int | None = Field(default=None, ge=1)
     type_2_value_id: int | None = Field(default=None, ge=1)
     type_3_value_id: int | None = Field(default=None, ge=1)
@@ -151,6 +162,7 @@ class WebsiteDataSourceUpdateRequest(BaseModel):
 
     url: str
     title: str
+    category_id: int | None = Field(default=None, ge=1)
     type_1_value_id: int | None = Field(default=None, ge=1)
     type_2_value_id: int | None = Field(default=None, ge=1)
     type_3_value_id: int | None = Field(default=None, ge=1)

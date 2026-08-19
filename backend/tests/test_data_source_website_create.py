@@ -57,9 +57,10 @@ async def test_create_website_source_with_all_settings_and_classifications():
     assert result.website.url == "https://example.com/scholarship"
     assert result.version == 1
     repository.create_website_source.assert_awaited_once_with(
-        url="https://example.com/scholarship", title="奨学金案内", priority="HIGH",
-        answer_source_enabled=False, reference_link_visible=False,
-        classifications=[(1, 10), (2, 20), (3, 30)],
+            url="https://example.com/scholarship", title="奨学金案内", priority="HIGH",
+            answer_source_enabled=False, reference_link_visible=False,
+            category_id=None,
+            classifications=[(1, 10), (2, 20), (3, 30)],
     )
     repository.commit.assert_awaited_once()
 
@@ -73,8 +74,8 @@ async def test_http_and_https_are_allowed(url):
     result = await DataSourceService(repository).create_website_source(payload(url=f"  {url}  ", title="   "))
     assert result.website.url == url
     repository.create_website_source.assert_awaited_once_with(
-        url=url, title=url, priority="MEDIUM", answer_source_enabled=True,
-        reference_link_visible=True, classifications=[],
+            url=url, title=url, priority="MEDIUM", answer_source_enabled=True,
+            reference_link_visible=True, category_id=None, classifications=[],
     )
 
 

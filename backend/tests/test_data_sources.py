@@ -22,6 +22,7 @@ from app.services.data_source_service import (
     ClassificationMismatchError,
     DataSourceNotFoundError,
     DataSourceService,
+    DataSourceCategoryNotFoundError,
     DataSourceUpdateError,
     DataSourceVersionConflictError,
     FileDataSourceRequiredError,
@@ -29,7 +30,7 @@ from app.services.data_source_service import (
 )
 
 
-def make_row(*, version: int = 1, answer: bool = True, reference: bool = True, source_type: str = "FILE"):
+def make_row(*, version: int = 1, answer: bool = True, reference: bool = True, source_type: str = "FILE", category_id: int | None = None, category_name: str | None = None):
     type_row = SimpleNamespace(id=1, type_code="TYPE_1", display_label="対象者", display_order=1)
     value_row = SimpleNamespace(id=1, value_name="在学生")
     link = SimpleNamespace(
@@ -40,7 +41,7 @@ def make_row(*, version: int = 1, answer: bool = True, reference: bool = True, s
     )
     return SimpleNamespace(
         id=1, source_type=source_type, title="［サンプル］募集要項", format="pdf", status="AVAILABLE",
-        category_name=None, size_bytes=1024, character_count=2000,
+        category_id=category_id, category_name=category_name, size_bytes=1024, character_count=2000,
         answer_source_enabled=answer, priority="HIGH", reference_link_visible=reference,
         updated_at=datetime(2026, 8, 6, 1, 2, tzinfo=timezone.utc), version=version,
         file=SimpleNamespace(file_name="sample.pdf", storage_key="fixed.pdf", mime_type="application/pdf") if source_type == "FILE" else None,
@@ -76,15 +77,45 @@ def test_invalid_sort_and_page_size_are_rejected():
 
 def test_all_filters_are_combined_as_independent_and_conditions():
     filters = DataSourceFilters(
-        keyword="募集", format="pdf", status="AVAILABLE",
+        keyword="募集", format="pdf", status="AVAILABLE", category_id=7,
         type_1_value_id=1, type_2_value_id=5, type_3_value_id=9,
         answer_source_enabled=True, priority="HIGH", reference_link_visible=False,
     )
     conditions = DataSourceRepository._conditions(filters)
-    assert len(conditions) == 9
+    assert len(conditions) == 10
     assert "lower(data_sources.title) LIKE lower" in str(conditions[0])
     assert "data_source_files.file_name" in str(conditions[0])
     assert "data_source_websites.url" in str(conditions[0])
+    assert "data_sources.category_id" in str(conditions[3])
+
+
+@pytest.mark.anyio
+async def test_category_path_and_legacy_fallback_use_one_category_query():
+    categories = [
+        SimpleNamespace(id=10, name="奨学金", parent_id=None),
+        SimpleNamespace(id=11, name="給付", parent_id=10),
+        SimpleNamespace(id=12, name="学部", parent_id=11),
+    ]
+    formal = make_row(category_id=12, category_name="旧カテゴリ")
+    legacy = make_row(category_name="旧カテゴリ")
+    legacy.id = 2
+    repository = AsyncMock()
+    repository.list.return_value = ([formal, legacy], 2, 1, 2048)
+    repository.list_categories.return_value = categories
+    result = await DataSourceService(repository).list(DataSourceFilters())
+    assert result.items[0].category.path == "奨学金/給付/学部"
+    assert result.items[0].category_name == "奨学金/給付/学部"
+    assert result.items[1].category is None
+    assert result.items[1].category_name == "旧カテゴリ"
+    repository.list_categories.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_missing_category_is_rejected():
+    repository = AsyncMock()
+    repository.category_exists.return_value = False
+    with pytest.raises(DataSourceCategoryNotFoundError):
+        await DataSourceService(repository).validate_category(999)
 
 
 @pytest.mark.anyio
@@ -174,6 +205,7 @@ async def test_classification_value_must_belong_to_type():
 def update_payload(**values):
     return FileDataSourceUpdateRequest(
         title=values.get("title", "更新タイトル"),
+        category_id=values.get("category_id"),
         type_1_value_id=values.get("type_1_value_id", 1),
         type_2_value_id=values.get("type_2_value_id"),
         type_3_value_id=values.get("type_3_value_id"),
@@ -202,17 +234,24 @@ async def test_file_attribute_update_resolves_types_and_returns_new_version():
     before = make_row()
     after = make_row(version=2, answer=False, reference=False)
     after.title = "更新タイトル"
+    after.category_id = 12
     after.priority = "MEDIUM"
     repository.get.side_effect = [before, after]
     repository.resolve_classification_value.return_value = (1, 1)
+    repository.category_exists.return_value = True
+    repository.list_categories.return_value = [
+        SimpleNamespace(id=10, name="奨学金", parent_id=None),
+        SimpleNamespace(id=12, name="給付", parent_id=10),
+    ]
     repository.update_file_attributes.return_value = True
-    payload = update_payload()
+    payload = update_payload(category_id=12)
     result = await DataSourceService(repository).update_file_attributes(1, payload)
     assert result.version == 2
     assert result.status == "AVAILABLE"
-    assert result.category_name is None
+    assert result.category_name == "奨学金/給付"
     assert result.file.file_name == "sample.pdf"
     repository.update_file_attributes.assert_awaited_once_with(1, payload, "更新タイトル", [(1, 1)])
+    repository.category_exists.assert_awaited_once_with(12)
 
 
 @pytest.mark.anyio
@@ -285,11 +324,24 @@ async def test_file_detail_and_update_api_errors(mock_service):
 @pytest.mark.anyio
 async def test_excel_uses_japanese_display_values_and_jst():
     repository = AsyncMock()
-    repository.list.return_value = ([make_row()], 1, 1, 1024)
+    formal = make_row(category_id=12)
+    legacy = make_row(category_name="旧カテゴリ")
+    legacy.id = 2
+    empty = make_row()
+    empty.id = 3
+    repository.list.return_value = ([formal, legacy, empty], 3, 1, 3072)
+    repository.list_categories.return_value = [
+        SimpleNamespace(id=10, name="奨学金", parent_id=None),
+        SimpleNamespace(id=11, name="給付", parent_id=10),
+        SimpleNamespace(id=12, name="学部", parent_id=11),
+    ]
     data = await DataSourceService(repository).export_excel(DataSourceFilters())
     worksheet = load_workbook(BytesIO(data)).active
     values = list(worksheet.values)
     assert values[1][1] == "ファイル"
     assert values[1][5] == "利用可"
+    assert values[1][6] == "奨学金/給付/学部"
+    assert values[2][6] == "旧カテゴリ"
+    assert values[3][6] is None
     assert values[1][12:15] == ("有効", "高", "表示")
     assert values[1][15] == "2026/08/06 10:02"

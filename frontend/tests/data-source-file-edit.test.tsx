@@ -11,6 +11,7 @@ vi.mock("@/lib/dataSourcesApi", async () => {
   return { ...actual, fetchDataSource: api.fetchDataSource, updateFileDataSource: api.updateFileDataSource };
 });
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
+vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
 
 const types = [
   { id: 1, type_code: "TYPE_1", fixed_name: "種別1", display_label: "対象者", display_order: 1, version: 1, values: [{ id: 10, value_name: "在学生", display_order: 1, version: 1 }, { id: 11, value_name: "卒業生", display_order: 2, version: 1 }] },
@@ -19,6 +20,7 @@ const types = [
 ];
 const row = {
   id: 1, source_type: "FILE" as const, title: "募集要項", format: "pdf", status: "AVAILABLE" as const,
+  category: { id: 7, name: "給付", parent_id: null, path: "給付" },
   category_name: "給付", size_bytes: 10 * 1024 * 1024 + 100, character_count: null,
   answer_source_enabled: true, priority: "MEDIUM" as const, reference_link_visible: true,
   updated_at: "2026-08-07T01:00:00Z", version: 2,
@@ -40,17 +42,22 @@ async function renderLoaded() {
 }
 
 describe("CB-204 file edit page", () => {
-  it("DB値と表示専用ファイル・disabledカテゴリを初期表示する", async () => {
+  it("DB値とファイル情報・カテゴリ選択を初期表示する", async () => {
     await renderLoaded();
     expect(screen.getByText(/guide\.pdf（10\.0MB）/)).not.toBeNull();
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).value).toBe("給付");
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(false);
+    expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).value).toBe("7");
     expect((screen.getByLabelText("対象者") as HTMLSelectElement).value).toBe("10");
     expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("実値差分だけでdirtyを判定し、元へ戻すと解除する", async () => {
     await renderLoaded();
+    const category = screen.getByLabelText("カテゴリ");
+    fireEvent.change(category, { target: { value: "" } });
+    expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.change(category, { target: { value: "7" } });
+    expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(true);
     const title = screen.getByLabelText("タイトル");
     fireEvent.change(title, { target: { value: "変更" } });
     expect((screen.getByRole("button", { name: "更新する" }) as HTMLButtonElement).disabled).toBe(false);
@@ -71,7 +78,7 @@ describe("CB-204 file edit page", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新する" }));
     await waitFor(() => expect(api.updateFileDataSource).toHaveBeenCalledWith(1, expect.objectContaining({
       title: "", type_1_value_id: null, priority: "HIGH", answer_source_enabled: false,
-      reference_link_visible: false, version: 2,
+      category_id: 7, reference_link_visible: false, version: 2,
     })));
     expect(push).toHaveBeenCalledWith("/data-sources");
   });

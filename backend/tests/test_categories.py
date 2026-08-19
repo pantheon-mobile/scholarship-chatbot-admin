@@ -162,8 +162,10 @@ async def test_delete_leaf_and_descendants_are_one_transaction():
     repository.list_all.return_value = TREE
     service = CategoryService(repository)
     await service.delete(2, 1)
+    repository.clear_data_source_categories.assert_awaited_with({2})
     repository.delete_ids.assert_awaited_once_with({2})
     await service.delete(1, 1)
+    repository.clear_data_source_categories.assert_awaited_with({1, 3, 4, 5})
     repository.delete_ids.assert_awaited_with({1, 3, 4, 5})
     assert repository.commit.await_count == 2
 
@@ -190,6 +192,7 @@ async def test_bulk_delete_deduplicates_parent_and_child_and_counts_descendants(
         CategoryDeleteTarget(id=3, version=1),
     ])
     assert result == 4
+    repository.clear_data_source_categories.assert_awaited_once_with({1, 3, 4, 5})
     repository.delete_ids.assert_awaited_once_with({1, 3, 4, 5})
     repository.commit.assert_awaited_once()
 
@@ -206,6 +209,18 @@ async def test_bulk_delete_failure_rolls_back_all(targets, error_type):
         await CategoryService(repository).bulk_delete(targets)
     repository.rollback.assert_awaited_once()
     repository.delete_ids.assert_not_awaited()
+    repository.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_category_delete_db_failure_rolls_back_category_and_data_sources():
+    repository = AsyncMock()
+    repository.list_all.return_value = TREE
+    repository.delete_ids.side_effect = RuntimeError("db error")
+    with pytest.raises(RuntimeError):
+        await CategoryService(repository).delete(1, 1)
+    repository.clear_data_source_categories.assert_awaited_once_with({1, 3, 4, 5})
+    repository.rollback.assert_awaited_once()
     repository.commit.assert_not_awaited()
 
 

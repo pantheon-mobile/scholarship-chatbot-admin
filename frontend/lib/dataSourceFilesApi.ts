@@ -6,6 +6,7 @@ export async function createFileDataSources(values: FileUploadForm): Promise<Fil
   const form = new FormData();
   values.files.forEach((file) => form.append("files", file));
   if (values.title.trim()) form.append("title", values.title.trim());
+  if (values.category_id) form.append("category_id", values.category_id);
   for (const key of ["type_1_value_id", "type_2_value_id", "type_3_value_id"] as const) {
     if (values[key]) form.append(key, values[key]);
   }
