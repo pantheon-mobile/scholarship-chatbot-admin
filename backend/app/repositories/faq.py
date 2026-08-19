@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from math import ceil
 
-from sqlalchemy import delete, exists, func, or_, select
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -113,6 +114,51 @@ class FaqRepository:
         self.session.add(row)
         await self.session.flush()
         return int(row.id)
+
+    async def update(
+        self,
+        faq_id: int,
+        *,
+        version: int,
+        question: str,
+        answer: str,
+        similar_questions: list[str],
+        classifications: list[tuple[int, int]],
+        chat_enabled: bool,
+    ) -> bool:
+        result = await self.session.execute(
+            update(Faq)
+            .where(Faq.id == faq_id, Faq.version == version)
+            .values(
+                question=question,
+                answer=answer,
+                chat_enabled=chat_enabled,
+                version=Faq.version + 1,
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+        if result.rowcount != 1:
+            await self.session.rollback()
+            return False
+
+        await self.session.execute(delete(FaqSimilarQuestion).where(FaqSimilarQuestion.faq_id == faq_id))
+        await self.session.execute(
+            delete(FaqClassificationAssignment).where(FaqClassificationAssignment.faq_id == faq_id)
+        )
+        self.session.add_all([
+            FaqSimilarQuestion(faq_id=faq_id, question=value, display_order=index)
+            for index, value in enumerate(similar_questions, start=1)
+        ])
+        self.session.add_all([
+            FaqClassificationAssignment(
+                faq_id=faq_id,
+                classification_type_id=type_id,
+                classification_value_id=value_id,
+            )
+            for type_id, value_id in classifications
+        ])
+        await self.session.flush()
+        return True
 
     async def delete_one(self, faq_id: int, version: int) -> bool:
         result = await self.session.execute(delete(Faq).where(Faq.id == faq_id, Faq.version == version))

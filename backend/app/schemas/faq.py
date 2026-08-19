@@ -78,6 +78,10 @@ class FaqCreateRequest(BaseModel):
     chat_enabled: bool
 
 
+class FaqUpdateRequest(FaqCreateRequest):
+    version: int = Field(ge=1)
+
+
 class FaqDetailResponse(FaqResponse):
     created_at: datetime
     similar_questions: list[FaqSimilarQuestionResponse]

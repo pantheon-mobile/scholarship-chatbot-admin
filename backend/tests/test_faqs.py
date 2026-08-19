@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from app.api.v1.faqs import get_service
 from app.main import app
 from app.repositories.faq import FaqRepository
-from app.schemas.faq import FaqBulkDeleteRequest, FaqCreateRequest, FaqDeleteTarget, FaqFilters
+from app.schemas.faq import FaqBulkDeleteRequest, FaqCreateRequest, FaqDeleteTarget, FaqFilters, FaqUpdateRequest
 from app.services.faq_service import FaqError, FaqService
 
 
@@ -46,9 +46,22 @@ def create_payload(**values):
     )
 
 
+def update_payload(**values):
+    return FaqUpdateRequest(
+        question=values.get("question", "質問"), answer=values.get("answer", "回答"),
+        similar_questions=values.get("similar_questions", []),
+        classification_1_value_id=values.get("classification_1_value_id"),
+        classification_2_value_id=values.get("classification_2_value_id"),
+        classification_3_value_id=values.get("classification_3_value_id"),
+        classification_4_value_id=values.get("classification_4_value_id"),
+        chat_enabled=values.get("chat_enabled", True), version=values.get("version", 1),
+    )
+
+
 def create_repository(detail=None):
     repository = AsyncMock()
     repository.create.return_value = 1
+    repository.update.return_value = True
     repository.get_detail.return_value = detail or make_faq()
     return repository
 
@@ -349,3 +362,156 @@ async def test_detail_api_returns_404_code(mock_service):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/faqs/999")
     assert response.status_code == 404 and response.json()["detail"]["code"] == "FAQ_NOT_FOUND"
+
+
+@pytest.mark.anyio
+async def test_update_all_fields_replaces_children_and_returns_new_version():
+    original = make_faq(version=2)
+    updated = make_faq(question="更新質問", answer="更新回答\n本文", chat_enabled=False, version=3)
+    updated.similar_questions = [
+        SimpleNamespace(id=21, question="類似B", display_order=1),
+        SimpleNamespace(id=22, question="類似A", display_order=2),
+    ]
+    updated.classification_assignments = [make_assignment(index, f"更新値{index}") for index in range(1, 5)]
+    repository = create_repository()
+    repository.get_detail.side_effect = [original, updated]
+    repository.get_value_type.side_effect = [(index, f"FAQ_TYPE_{index}") for index in range(1, 5)]
+
+    result = await FaqService(repository).update(1, update_payload(
+        question=" 更新質問 ", answer=" 更新回答\n本文 ", similar_questions=[" 類似B ", "類似A"],
+        classification_1_value_id=10, classification_2_value_id=20,
+        classification_3_value_id=30, classification_4_value_id=40,
+        chat_enabled=False, version=2,
+    ))
+
+    repository.update.assert_awaited_once_with(
+        1, version=2, question="更新質問", answer="更新回答\n本文",
+        similar_questions=["類似B", "類似A"],
+        classifications=[(1, 10), (2, 20), (3, 30), (4, 40)], chat_enabled=False,
+    )
+    repository.commit.assert_awaited_once()
+    assert result.version == 3 and result.created_at == original.created_at
+    assert [(item.question, item.display_order) for item in result.similar_questions] == [("類似B", 1), ("類似A", 2)]
+    assert len(result.classifications) == 4 and result.chat_enabled is False
+
+
+@pytest.mark.anyio
+async def test_update_can_add_change_delete_and_clear_similar_questions_and_classifications():
+    for similar_questions, classifications in [(["追加"], [(1, 10)]), ([], [])]:
+        original = make_faq(version=1)
+        updated = make_faq(version=2)
+        updated.similar_questions = [
+            SimpleNamespace(id=index, question=value, display_order=index)
+            for index, value in enumerate(similar_questions, start=1)
+        ]
+        updated.classification_assignments = [make_assignment(type_id, "値") for type_id, _ in classifications]
+        repository = create_repository()
+        repository.get_detail.side_effect = [original, updated]
+        if classifications:
+            repository.get_value_type.return_value = (1, "FAQ_TYPE_1")
+        result = await FaqService(repository).update(1, update_payload(
+            similar_questions=similar_questions,
+            classification_1_value_id=classifications[0][1] if classifications else None,
+        ))
+        assert [item.question for item in result.similar_questions] == similar_questions
+        assert repository.update.await_args.kwargs["classifications"] == classifications
+
+
+@pytest.mark.anyio
+async def test_update_not_found_and_version_conflict_before_writing():
+    repository = create_repository()
+    repository.get_detail.side_effect = [None, make_faq(version=2)]
+    service = FaqService(repository)
+    with pytest.raises(FaqError) as missing:
+        await service.update(99, update_payload())
+    assert missing.value.code == "FAQ_NOT_FOUND"
+    with pytest.raises(FaqError) as conflict:
+        await service.update(1, update_payload(version=1))
+    assert conflict.value.code == "FAQ_VERSION_CONFLICT"
+    repository.update.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("field,value,code", [
+    ("question", " ", "FAQ_QUESTION_REQUIRED"), ("question", "x" * 501, "FAQ_QUESTION_TOO_LONG"),
+    ("answer", " ", "FAQ_ANSWER_REQUIRED"), ("answer", "x" * 1001, "FAQ_ANSWER_TOO_LONG"),
+    ("similar_questions", ["正常", " "], "FAQ_SIMILAR_QUESTION_REQUIRED"),
+    ("similar_questions", ["x" * 501], "FAQ_SIMILAR_QUESTION_TOO_LONG"),
+])
+async def test_update_reuses_registration_validation(field, value, code):
+    repository = create_repository(make_faq())
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).update(1, update_payload(**{field: value}))
+    assert error.value.code == code
+    repository.update.assert_not_awaited()
+    repository.rollback.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_update_accepts_question_answer_and_similar_boundaries():
+    updated = make_faq(question="q" * 500, answer="a" * 1000, version=2)
+    updated.similar_questions = [SimpleNamespace(id=1, question="s" * 500, display_order=1)]
+    repository = create_repository()
+    repository.get_detail.side_effect = [make_faq(version=1), updated]
+    await FaqService(repository).update(1, update_payload(
+        question="q" * 500, answer="a" * 1000, similar_questions=["s" * 500],
+    ))
+    assert repository.update.await_args.kwargs["similar_questions"] == ["s" * 500]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("resolved,code", [
+    (None, "FAQ_CLASSIFICATION_NOT_FOUND"), ((2, "FAQ_TYPE_2"), "INVALID_FAQ_CLASSIFICATION"),
+])
+async def test_update_classification_must_exist_and_match_type(resolved, code):
+    repository = create_repository(make_faq())
+    repository.get_value_type.return_value = resolved
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).update(1, update_payload(classification_1_value_id=20))
+    assert error.value.code == code
+    repository.update.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_update_race_rolls_back_as_version_conflict():
+    repository = create_repository(make_faq())
+    repository.update.return_value = False
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).update(1, update_payload(similar_questions=["類似"]))
+    assert error.value.code == "FAQ_VERSION_CONFLICT"
+    repository.rollback.assert_awaited()
+    repository.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", [
+    RuntimeError("similar question replacement failed"),
+    RuntimeError("classification assignment replacement failed"),
+])
+async def test_child_replacement_failure_rolls_back_entire_update(failure):
+    repository = create_repository(make_faq())
+    repository.update.side_effect = failure
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).update(1, update_payload(similar_questions=["類似"]))
+    assert error.value.code == "FAQ_UPDATE_FAILED"
+    repository.rollback.assert_awaited_once()
+    repository.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_update_api_returns_complete_response_and_error_statuses(mock_service):
+    detail = FaqService.serialize_detail(make_faq(version=2))
+    payload = {"question": "質問", "answer": "回答", "similar_questions": [], "chat_enabled": True, "version": 1}
+    mock_service.update.side_effect = [
+        detail,
+        FaqError("FAQ_VERSION_CONFLICT", "競合"),
+        FaqError("FAQ_NOT_FOUND", "不存在"),
+        FaqError("FAQ_UPDATE_FAILED", "失敗"),
+    ]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        responses = [await client.put("/api/v1/faqs/1", json=payload) for _ in range(4)]
+    assert responses[0].status_code == 200 and responses[0].json()["version"] == 2
+    assert [response.status_code for response in responses[1:]] == [409, 404, 500]
+    assert [response.json()["detail"]["code"] for response in responses[1:]] == [
+        "FAQ_VERSION_CONFLICT", "FAQ_NOT_FOUND", "FAQ_UPDATE_FAILED",
+    ]

@@ -1,4 +1,4 @@
-import { FaqCreate, FaqDetail, FaqFilters, FaqListResponse, FaqApiError } from "@/types/faq";
+import { FaqCreate, FaqDetail, FaqFilters, FaqListResponse, FaqApiError, FaqUpdate } from "@/types/faq";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -36,6 +36,20 @@ export async function createFaq(values: FaqCreate): Promise<FaqDetail> {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values),
   });
   if (!response.ok) return parseError(response, "FAQの登録に失敗しました。");
+  return response.json();
+}
+
+export async function fetchFaq(id: number): Promise<FaqDetail> {
+  const response = await fetch(`${apiBase}/api/v1/faqs/${id}`, { cache: "no-store" });
+  if (!response.ok) return parseError(response, "FAQの取得に失敗しました。");
+  return response.json();
+}
+
+export async function updateFaq(id: number, values: FaqUpdate): Promise<FaqDetail> {
+  const response = await fetch(`${apiBase}/api/v1/faqs/${id}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values),
+  });
+  if (!response.ok) return parseError(response, "FAQの更新に失敗しました。");
   return response.json();
 }
 

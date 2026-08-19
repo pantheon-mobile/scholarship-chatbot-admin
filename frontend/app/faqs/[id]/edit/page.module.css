@@ -1,0 +1,28 @@
+.page { width: min(100%, 1220px); min-width: 960px; }
+.topRow { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.divider { height: 1px; margin: 14px 0 20px; background: #c7cbd0; }
+.loading { padding: 50px 0; color: #4b5258; font-size: 16px; text-align: center; }
+.error { margin-bottom: 16px; padding: 10px 14px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 14px; }
+.formRows { display: grid; gap: 17px; }
+.formRow { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: center; gap: 18px; }
+.textareaRow, .similarRow { align-items: start; }
+.rowLabel { padding-top: 1px; font-size: 17px; font-weight: 700; text-align: right; }
+.textareaRow .rowLabel, .similarRow .rowLabel { padding-top: 10px; }
+.readonlyValue { font-size: 17px; }
+.questionField, .answerField { max-width: 860px; }
+.answerTextarea { min-height: 170px !important; }
+.similarFields { display: grid; max-width: 900px; gap: 12px; }
+.similarItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px; }
+.similarField { width: 100%; }
+.similarTextarea { min-height: 78px !important; }
+.similarItem > button { margin-top: 17px; }
+.addSimilar { justify-self: start; }
+.classificationField { width: min(100%, 570px); }
+.toggleRow { min-height: 42px; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(220px, 285px)); justify-content: center; gap: 22px; margin: 32px 0 8px; }
+.actions button { min-height: 46px; font-size: 17px; }
+
+@media (max-width: 1250px) {
+  .page { min-width: 900px; }
+  .formRow { grid-template-columns: 165px minmax(0, 1fr); }
+}

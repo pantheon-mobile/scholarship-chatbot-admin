@@ -14,6 +14,7 @@ from app.schemas.faq import (
     FaqListResponse,
     FaqResponse,
     FaqSimilarQuestionResponse,
+    FaqUpdateRequest,
 )
 
 
@@ -127,6 +128,47 @@ class FaqService:
         except Exception:
             await self.repository.rollback()
             raise
+
+    async def update(self, faq_id: int, payload: FaqUpdateRequest) -> FaqDetailResponse:
+        row = await self.repository.get_detail(faq_id)
+        if row is None:
+            raise FaqError("FAQ_NOT_FOUND", "指定されたFAQが見つかりません。")
+        if row.version != payload.version:
+            raise FaqError("FAQ_VERSION_CONFLICT", "他の操作で情報が更新されています。再読み込みしてください。")
+
+        try:
+            question = self.normalize_required(
+                payload.question, required_code="FAQ_QUESTION_REQUIRED", required_message="質問を入力してください。",
+                max_length=500, long_code="FAQ_QUESTION_TOO_LONG", long_message="質問は500文字以内で入力してください。",
+            )
+            answer = self.normalize_required(
+                payload.answer, required_code="FAQ_ANSWER_REQUIRED", required_message="回答を入力してください。",
+                max_length=1000, long_code="FAQ_ANSWER_TOO_LONG", long_message="回答は1000文字以内で入力してください。",
+            )
+            similar_questions = [self.normalize_required(
+                value, required_code="FAQ_SIMILAR_QUESTION_REQUIRED", required_message="類似質問を入力してください。",
+                max_length=500, long_code="FAQ_SIMILAR_QUESTION_TOO_LONG", long_message="類似質問は500文字以内で入力してください。",
+            ) for value in payload.similar_questions]
+            classifications = await self.resolve_create_classifications(payload)
+            updated = await self.repository.update(
+                faq_id,
+                version=payload.version,
+                question=question,
+                answer=answer,
+                similar_questions=similar_questions,
+                classifications=classifications,
+                chat_enabled=payload.chat_enabled,
+            )
+            if not updated:
+                raise FaqError("FAQ_VERSION_CONFLICT", "他の操作で情報が更新されています。再読み込みしてください。")
+            await self.repository.commit()
+            return await self.get_detail(faq_id)
+        except FaqError:
+            await self.repository.rollback()
+            raise
+        except Exception as error:
+            await self.repository.rollback()
+            raise FaqError("FAQ_UPDATE_FAILED", "FAQの更新に失敗しました。") from error
 
     async def list(self, filters: FaqFilters) -> FaqListResponse:
         type_ids = await self.validate_filters(filters)

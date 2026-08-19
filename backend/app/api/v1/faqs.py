@@ -15,6 +15,7 @@ from app.schemas.faq import (
     FaqDetailResponse,
     FaqFilters,
     FaqListResponse,
+    FaqUpdateRequest,
 )
 from app.services.faq_service import FaqError, FaqService
 
@@ -26,7 +27,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> FaqService:
 
 
 def api_error(error: FaqError) -> HTTPException:
-    status = 409 if error.code == "FAQ_VERSION_CONFLICT" else 404 if error.code == "FAQ_NOT_FOUND" else 422
+    status = 500 if error.code == "FAQ_UPDATE_FAILED" else 409 if error.code == "FAQ_VERSION_CONFLICT" else 404 if error.code == "FAQ_NOT_FOUND" else 422
     return HTTPException(status_code=status, detail={"code": error.code, "message": error.message})
 
 
@@ -73,6 +74,14 @@ async def bulk_delete_faqs(payload: FaqBulkDeleteRequest, service: FaqService = 
 async def get_faq(faq_id: int, service: FaqService = Depends(get_service)):
     try:
         return await service.get_detail(faq_id)
+    except FaqError as error:
+        raise api_error(error) from None
+
+
+@router.put("/faqs/{faq_id}", response_model=FaqDetailResponse)
+async def update_faq(faq_id: int, payload: FaqUpdateRequest, service: FaqService = Depends(get_service)):
+    try:
+        return await service.update(faq_id, payload)
     except FaqError as error:
         raise api_error(error) from None
 

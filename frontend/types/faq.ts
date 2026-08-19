@@ -33,6 +33,8 @@ export type FaqCreate = {
   chat_enabled: boolean;
 };
 
+export type FaqUpdate = FaqCreate & { version: number };
+
 export type FaqFilters = {
   keyword: string;
   classification_1_value_id: string;
