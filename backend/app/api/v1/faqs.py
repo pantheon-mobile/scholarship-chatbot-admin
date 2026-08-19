@@ -1,0 +1,67 @@
+from datetime import datetime
+from io import BytesIO
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.db import get_db
+from app.repositories.faq import FaqRepository
+from app.schemas.faq import FaqBulkDeleteRequest, FaqBulkDeleteResponse, FaqFilters, FaqListResponse
+from app.services.faq_service import FaqError, FaqService
+
+router = APIRouter()
+
+
+def get_service(session: AsyncSession = Depends(get_db)) -> FaqService:
+    return FaqService(FaqRepository(session))
+
+
+def api_error(error: FaqError) -> HTTPException:
+    status = 409 if error.code == "FAQ_VERSION_CONFLICT" else 404 if error.code == "FAQ_NOT_FOUND" else 422
+    return HTTPException(status_code=status, detail={"code": error.code, "message": error.message})
+
+
+@router.get("/faqs", response_model=FaqListResponse)
+async def list_faqs(filters: FaqFilters = Depends(), service: FaqService = Depends(get_service)):
+    try:
+        return await service.list(filters)
+    except FaqError as error:
+        raise api_error(error) from None
+
+
+@router.get("/faqs/export")
+async def export_faqs(filters: FaqFilters = Depends(), service: FaqService = Depends(get_service)):
+    try:
+        labels = await service.repository.list_type_labels()
+        content = await service.export_excel(filters, labels)
+    except FaqError as error:
+        raise api_error(error) from None
+    filename = f"faq{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/faqs/bulk-delete", response_model=FaqBulkDeleteResponse)
+async def bulk_delete_faqs(payload: FaqBulkDeleteRequest, service: FaqService = Depends(get_service)):
+    try:
+        return FaqBulkDeleteResponse(deleted_count=await service.bulk_delete(payload))
+    except FaqError as error:
+        raise api_error(error) from None
+
+
+@router.delete("/faqs/{faq_id}", status_code=204)
+async def delete_faq(
+    faq_id: int,
+    version: int = Query(..., ge=1),
+    service: FaqService = Depends(get_service),
+):
+    try:
+        await service.delete(faq_id, version)
+        return Response(status_code=204)
+    except FaqError as error:
+        raise api_error(error) from None

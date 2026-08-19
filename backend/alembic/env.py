@@ -11,6 +11,7 @@ from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
 from app.models.category import Category
 from app.models.faq_classification import FaqClassificationType, FaqClassificationValue
+from app.models.faq import Faq, FaqClassificationAssignment, FaqSimilarQuestion
 
 config = context.config
 fileConfig(config.config_file_name)

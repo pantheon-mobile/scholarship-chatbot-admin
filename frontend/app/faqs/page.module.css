@@ -1,0 +1,34 @@
+.page { min-width: 1180px; }
+.topActions { display: grid; grid-template-columns: repeat(2, minmax(210px, 1fr)); gap: 10px 12px; }
+.summary { margin: -44px 0 14px; font-size: 17px; font-weight: 700; }
+.addButton { min-width: 180px !important; margin-bottom: 24px; }
+.filterGrid { display: grid; grid-template-columns: 1.7fr repeat(5, minmax(150px, 1fr)); gap: 16px 18px; align-items: end; }
+.keyword { grid-column: span 2; }
+.filterButtonWrap { display: flex; justify-content: flex-end; }
+.bulkBar { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.bulkDelete, .countControls { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+.pageSize { width: 76px; }
+.error { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 14px; }
+.tableFrame { overflow-x: auto !important; border-radius: 2px !important; }
+.faqTable { min-width: 1540px; table-layout: fixed !important; font-size: 13px !important; }
+.faqTable th, .faqTable td { height: 70px !important; padding: 7px 8px !important; vertical-align: middle !important; }
+.faqTable th { height: 54px !important; font-size: 13px !important; font-weight: 700 !important; }
+.checkColumn { width: 42px; text-align: center !important; }
+.idColumn { width: 66px; text-align: center !important; }
+.questionColumn { width: 260px; }
+.answerColumn { width: 310px; }
+.classificationColumn { width: 118px; text-align: center !important; }
+.chatColumn { width: 100px; text-align: center !important; }
+.dateColumn { width: 118px; text-align: center !important; }
+.actionsColumn { width: 180px; }
+.longText { max-height: 76px; overflow-y: auto; white-space: pre-wrap; line-height: 1.45; overflow-wrap: anywhere; }
+.rowActions { display: flex; justify-content: flex-end; gap: 4px; }
+.rowActions button { min-width: 48px !important; min-height: 30px !important; padding: 0 6px !important; font-size: 13px !important; }
+.empty { height: 100px !important; color: #68717a; text-align: center !important; }
+.loading { padding: 45px; text-align: center; }
+.paginationWrap { padding: 14px 0 4px; }
+
+@media (max-width: 1500px) {
+  .filterGrid { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
+  .keyword { grid-column: span 2; }
+}
