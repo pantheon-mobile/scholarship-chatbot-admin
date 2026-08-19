@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
-const faqApi = vi.hoisted(() => ({ fetchFaqs: vi.fn(), fetchFaq: vi.fn(), deleteFaq: vi.fn(), bulkDeleteFaqs: vi.fn(), exportFaqs: vi.fn() }));
+const faqApi = vi.hoisted(() => ({
+  fetchFaqs: vi.fn(), fetchFaq: vi.fn(), deleteFaq: vi.fn(), bulkDeleteFaqs: vi.fn(), exportFaqs: vi.fn(),
+  downloadFaqImportTemplate: vi.fn(), importFaqs: vi.fn(),
+}));
 const classificationApi = vi.hoisted(() => ({ fetchFaqClassifications: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -46,6 +49,8 @@ beforeEach(() => {
   faqApi.deleteFaq.mockResolvedValue(undefined);
   faqApi.bulkDeleteFaqs.mockResolvedValue(2);
   faqApi.exportFaqs.mockResolvedValue(new Blob(["xlsx"]));
+  faqApi.downloadFaqImportTemplate.mockResolvedValue(new Blob(["template"]));
+  faqApi.importFaqs.mockResolvedValue({ created_count: 2, updated_count: 1, processed_count: 3 });
   classificationApi.fetchFaqClassifications.mockResolvedValue(classificationTypes);
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:faq") });
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -152,16 +157,106 @@ describe("CB-208 FAQ list", () => {
     expect(screen.getByRole("dialog")).not.toBeNull();
   });
 
-  it("Excel、新規、編集、区分設定、一括未実装導線が動作する", async () => {
+  it("一覧Excel、登録フォーマット、新規、編集、区分設定の導線が動作する", async () => {
     await renderPage();
     fireEvent.click(screen.getByRole("button", { name: "一覧をダウンロード" }));
     await waitFor(() => expect(faqApi.exportFaqs).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "フォーマットをダウンロード" }));
+    await waitFor(() => expect(faqApi.downloadFaqImportTemplate).toHaveBeenCalledOnce());
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole("button", { name: "FAQ新規追加" }));
     expect(push).toHaveBeenCalledWith("/faqs/new");
     fireEvent.click(within(screen.getByText("申請期限は？").closest("tr")!).getByRole("button", { name: "編集" }));
     expect(push).toHaveBeenCalledWith("/faqs/1/edit");
     fireEvent.click(screen.getByRole("button", { name: "区分を設定する" }));
     expect(push).toHaveBeenCalledWith("/faq-classifications");
+  });
+
+  it("一括登録Modalでxlsxだけを選択し、選択ファイル名と再選択を表示する", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    const dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByLabelText("FAQ一括登録／更新ファイル") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "invalid.xls", { type: "application/vnd.ms-excel" })] } });
+    expect(within(dialog).getByRole("alert").textContent).toContain("xlsx形式");
+    expect(within(dialog).getByRole("button", { name: "登録／更新する" }).hasAttribute("disabled")).toBe(true);
+
+    fireEvent.change(input, { target: { files: [new File(["xlsx"], "faq-bulk.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] } });
+    expect(within(dialog).getByText("faq-bulk.xlsx")).not.toBeNull();
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "登録／更新する" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("一括登録成功で件数を表示し、一覧・総数を再取得してファイルをクリアする", async () => {
+    faqApi.fetchFaqs.mockResolvedValueOnce(result).mockResolvedValueOnce({ ...result, total_count: 5 });
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    let dialog = screen.getByRole("dialog");
+    const file = new File(["xlsx"], "faq-bulk.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    fireEvent.change(within(dialog).getByLabelText("FAQ一括登録／更新ファイル"), { target: { files: [file] } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "登録／更新する" }));
+    await waitFor(() => expect(faqApi.importFaqs).toHaveBeenCalledOnce());
+    expect(faqApi.importFaqs).toHaveBeenCalledWith(file);
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("2件を登録、1件を更新しました。")).not.toBeNull();
+    expect(faqApi.fetchFaqs).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByText(/FAQ数/)[0].textContent).toContain("5件");
+    fireEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    expect(screen.getByText("ファイルが選択されていません。")).not.toBeNull();
+  });
+
+  it("一括登録処理中は二重送信・ファイル変更・Esc・背景クリックを禁止する", async () => {
+    let resolveImport: ((value: { created_count: number; updated_count: number; processed_count: number }) => void) | undefined;
+    faqApi.importFaqs.mockReturnValue(new Promise((resolve) => { resolveImport = resolve; }));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    let dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByLabelText("FAQ一括登録／更新ファイル") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["xlsx"], "faq.xlsx")] } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "登録／更新する" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "処理中..." }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseDown(screen.getByRole("presentation"));
+    expect(faqApi.importFaqs).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(input.hasAttribute("disabled")).toBe(true);
+    resolveImport?.({ created_count: 1, updated_count: 0, processed_count: 1 });
+    expect(await screen.findByText("1件を登録、0件を更新しました。")).not.toBeNull();
+  });
+
+  it("一括登録validationエラーを行・列単位で表示し、ファイルを再選択できる", async () => {
+    faqApi.importFaqs.mockRejectedValueOnce(new FaqApiError("入力内容にエラーがあります。", 422, "FAQ_IMPORT_VALIDATION_ERROR", [
+      { row: 3, column: "質問", code: "FAQ_QUESTION_REQUIRED", message: "質問を入力してください。" },
+      { row: 5, column: "年度", code: "FAQ_CLASSIFICATION_NOT_FOUND", message: "指定された区分値が存在しません。" },
+    ]));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    const dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByLabelText("FAQ一括登録／更新ファイル");
+    fireEvent.change(input, { target: { files: [new File(["xlsx"], "error.xlsx")] } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "登録／更新する" }));
+    expect(await within(dialog).findByText("入力内容にエラーがあります。")).not.toBeNull();
+    expect(within(dialog).getByText("行3・質問: 質問を入力してください。")).not.toBeNull();
+    expect(within(dialog).getByText("行5・年度: 指定された区分値が存在しません。")).not.toBeNull();
+    expect(within(dialog).getByText("error.xlsx")).not.toBeNull();
+    fireEvent.change(input, { target: { files: [new File(["xlsx"], "fixed.xlsx")] } });
+    expect(within(dialog).getByText("fixed.xlsx")).not.toBeNull();
+    expect(within(dialog).queryByText("行3・質問: 質問を入力してください。")).toBeNull();
+  });
+
+  it("一括登録API失敗を表示し、Modalを閉じず再実行できる", async () => {
+    faqApi.importFaqs.mockRejectedValueOnce(new Error("FAQの一括登録／更新に失敗しました。"));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "FAQを一括登録／更新" }));
+    const dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByLabelText("FAQ一括登録／更新ファイル");
+    fireEvent.change(input, { target: { files: [new File(["xlsx"], "retry.xlsx")] } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "登録／更新する" }));
+    expect(await within(dialog).findByText("FAQの一括登録／更新に失敗しました。")).not.toBeNull();
+    expect(within(dialog).getByText("retry.xlsx")).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "登録／更新する" }));
+    await waitFor(() => expect(faqApi.importFaqs).toHaveBeenCalledTimes(2));
   });
 
   it("参照Modalをページ遷移なしで開き、GET中の連打を抑止する", async () => {

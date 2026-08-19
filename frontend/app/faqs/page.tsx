@@ -9,8 +9,8 @@ import {
 } from "@/components/admin";
 import { FaqReferenceModal } from "@/components/faqs/FaqReferenceModal";
 import { fetchFaqClassifications } from "@/lib/faqClassificationsApi";
-import { bulkDeleteFaqs, deleteFaq, exportFaqs, fetchFaq, fetchFaqs } from "@/lib/faqsApi";
-import { Faq, FaqApiError, FaqDetail, FaqFilters, FaqListResponse, FaqSortColumn } from "@/types/faq";
+import { bulkDeleteFaqs, deleteFaq, downloadFaqImportTemplate, exportFaqs, fetchFaq, fetchFaqs, importFaqs } from "@/lib/faqsApi";
+import { Faq, FaqApiError, FaqDetail, FaqFilters, FaqImportRowError, FaqListResponse, FaqSortColumn } from "@/types/faq";
 import { FaqClassificationType } from "@/types/faqClassification";
 import styles from "./page.module.css";
 
@@ -32,7 +32,13 @@ export default function FaqsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageModal, setPageModal] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<FaqImportRowError[]>([]);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [referenceId, setReferenceId] = useState<number | null>(null);
   const [referenceDetail, setReferenceDetail] = useState<FaqDetail | null>(null);
   const [referenceLoading, setReferenceLoading] = useState(false);
@@ -41,6 +47,7 @@ export default function FaqsPage() {
   const referenceRequestRef = useRef(0);
   const referenceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const safeFocusRef = useRef<HTMLButtonElement | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async (nextFilters = filters) => {
     setLoading(true);
@@ -176,13 +183,69 @@ export default function FaqsPage() {
     } finally { setBusy(false); }
   };
 
+  const downloadTemplate = async () => {
+    if (templateBusy) return;
+    setTemplateBusy(true);
+    try {
+      const blob = await downloadFaqImportTemplate();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "faq_import_template.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally { setTemplateBusy(false); }
+  };
+
+  const closeImport = () => {
+    if (importBusy) return;
+    setImportOpen(false);
+    setImportFile(null);
+    setImportError(null);
+    setImportErrors([]);
+    if (importFileInputRef.current) importFileInputRef.current.value = "";
+  };
+
+  const selectImportFile = (file: File | null) => {
+    setImportError(null);
+    setImportErrors([]);
+    if (file && !file.name.toLowerCase().endsWith(".xlsx")) {
+      setImportFile(null);
+      setImportError("xlsx形式のファイルを選択してください。");
+      return;
+    }
+    setImportFile(file);
+  };
+
+  const executeImport = async () => {
+    if (!importFile || importBusy) return;
+    setImportBusy(true);
+    setImportError(null);
+    setImportErrors([]);
+    try {
+      const imported = await importFaqs(importFile);
+      const refreshedFilters = { ...filters, page: 1, sort: "updated_at" as const, order: "desc" as const };
+      if (filters.page !== 1 || filters.sort !== "updated_at" || filters.order !== "desc") setFilters(refreshedFilters);
+      else await load(refreshedFilters);
+      setImportOpen(false);
+      setImportFile(null);
+      if (importFileInputRef.current) importFileInputRef.current.value = "";
+      setNotice({ title: "FAQ一括登録／更新完了", message: `${imported.created_count}件を登録、${imported.updated_count}件を更新しました。` });
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : String(reason));
+      setImportErrors(reason instanceof FaqApiError ? reason.errors : []);
+    } finally { setImportBusy(false); }
+  };
+
   return <AdminLayout activeMenu="faq" contentWidth="wide" contentAlign="start" onNavigate={(href) => router.push(href)}>
     <div className={styles.page}>
       <PageHeader title="FAQ一覧" actions={<div className={styles.topActions}>
         <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/faq-classifications")}>区分を設定する</Button>
         <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={download} disabled={busy}>一覧をダウンロード</Button>
-        <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => setNotice("FAQの一括登録／更新は未実装です。")}>FAQを一括登録／更新</Button>
-        <Button variant="text" onClick={() => setNotice("FAQ登録フォーマットのダウンロードは未実装です。")}>フォーマットをダウンロード</Button>
+        <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => setImportOpen(true)} disabled={importBusy}>FAQを一括登録／更新</Button>
+        <Button variant="text" onClick={downloadTemplate} disabled={templateBusy}>{templateBusy ? "ダウンロード中..." : "フォーマットをダウンロード"}</Button>
       </div>} />
       <div className={styles.summary}>FAQ数　{result?.total_count ?? 0}件</div>
       <Button ref={safeFocusRef} className={styles.addButton} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/faqs/new")}>FAQ新規追加</Button>
@@ -256,6 +319,38 @@ export default function FaqsPage() {
       {deleteRows.length > 1 ? `選択した${deleteRows.length}件のFAQを削除します。` : `FAQ「${deleteRows[0]?.question ?? ""}」を削除します。`}<br />この操作は元に戻せません。<br />本当に削除しますか？
     </Modal>
     <Modal open={pageModal} title="ページがありません" cancelLabel="閉じる" onClose={() => setPageModal(false)}>指定されたページは存在しません。</Modal>
-    <Modal open={Boolean(notice)} title="未実装" cancelLabel="閉じる" onClose={() => setNotice(null)}>{notice}</Modal>
+    <Modal
+      open={importOpen}
+      title="FAQを一括登録／更新"
+      busy={importBusy}
+      closeOnBackdrop={!importBusy}
+      closeOnEscape={!importBusy}
+      onClose={closeImport}
+      footer={<>
+        <Button className={styles.importFooterButton} variant="secondary" onClick={closeImport} disabled={importBusy}>キャンセル</Button>
+        <Button className={styles.importFooterButton} variant="primary" onClick={executeImport} disabled={importBusy || !importFile}>{importBusy ? "処理中..." : "登録／更新する"}</Button>
+      </>}
+    >
+      <div className={styles.importBody}>
+        <p className={styles.importHelp}>FAQ一括登録／更新用のxlsxファイルを選択してください。</p>
+        <Button variant="secondary" onClick={() => importFileInputRef.current?.click()} disabled={importBusy}>ファイルを選択</Button>
+        <input
+          ref={importFileInputRef}
+          className={styles.hiddenFileInput}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          aria-label="FAQ一括登録／更新ファイル"
+          disabled={importBusy}
+          onClick={(event) => { event.currentTarget.value = ""; }}
+          onChange={(event) => selectImportFile(event.target.files?.[0] ?? null)}
+        />
+        <div className={styles.importFileName}>{importFile ? importFile.name : "ファイルが選択されていません。"}</div>
+        {importError && <div className={styles.importError} role="alert">{importError}</div>}
+        {importErrors.length > 0 && <ul className={styles.importErrorList} aria-label="Excel入力エラー">
+          {importErrors.map((item, index) => <li key={`${item.row}-${item.column}-${item.code}-${index}`}>行{item.row}・{item.column}: {item.message}</li>)}
+        </ul>}
+      </div>
+    </Modal>
+    <Modal open={Boolean(notice)} title={notice?.title ?? "完了"} cancelLabel="閉じる" onClose={() => setNotice(null)}>{notice?.message}</Modal>
   </AdminLayout>;
 }

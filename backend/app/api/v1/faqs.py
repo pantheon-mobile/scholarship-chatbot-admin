@@ -2,7 +2,7 @@ from datetime import datetime
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.schemas.faq import (
     FaqDetailResponse,
     FaqFilters,
     FaqListResponse,
+    FaqImportResponse,
     FaqUpdateRequest,
 )
 from app.services.faq_service import FaqError, FaqService
@@ -27,8 +28,11 @@ def get_service(session: AsyncSession = Depends(get_db)) -> FaqService:
 
 
 def api_error(error: FaqError) -> HTTPException:
-    status = 500 if error.code == "FAQ_UPDATE_FAILED" else 409 if error.code == "FAQ_VERSION_CONFLICT" else 404 if error.code == "FAQ_NOT_FOUND" else 422
-    return HTTPException(status_code=status, detail={"code": error.code, "message": error.message})
+    status = 500 if error.code in ("FAQ_UPDATE_FAILED", "FAQ_IMPORT_FAILED") else 409 if error.code == "FAQ_VERSION_CONFLICT" else 404 if error.code == "FAQ_NOT_FOUND" else 422
+    detail = {"code": error.code, "message": error.message}
+    if error.errors is not None:
+        detail["errors"] = [item.model_dump() for item in error.errors]
+    return HTTPException(status_code=status, detail=detail)
 
 
 @router.get("/faqs", response_model=FaqListResponse)
@@ -60,6 +64,24 @@ async def export_faqs(filters: FaqFilters = Depends(), service: FaqService = Dep
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/faqs/import-template")
+async def download_faq_import_template(service: FaqService = Depends(get_service)):
+    content = await service.create_import_template()
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=faq_import_template.xlsx"},
+    )
+
+
+@router.post("/faqs/import", response_model=FaqImportResponse)
+async def import_faqs(file: UploadFile = File(...), service: FaqService = Depends(get_service)):
+    try:
+        return await service.import_excel(file)
+    except FaqError as error:
+        raise api_error(error) from None
 
 
 @router.post("/faqs/bulk-delete", response_model=FaqBulkDeleteResponse)

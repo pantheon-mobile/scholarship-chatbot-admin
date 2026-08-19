@@ -1,4 +1,4 @@
-import { FaqCreate, FaqDetail, FaqFilters, FaqListResponse, FaqApiError, FaqUpdate } from "@/types/faq";
+import { FaqCreate, FaqDetail, FaqFilters, FaqImportResponse, FaqImportRowError, FaqListResponse, FaqApiError, FaqUpdate } from "@/types/faq";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -14,15 +14,17 @@ function queryString(filters: FaqFilters, includePaging = true) {
 async function parseError(response: Response, fallback: string): Promise<never> {
   let message = fallback;
   let code: string | undefined;
+  let errors: FaqImportRowError[] = [];
   try {
     const body = await response.json();
     if (typeof body.detail === "string") message = body.detail;
     else if (body.detail) {
       message = body.detail.message ?? fallback;
       code = body.detail.code;
+      errors = Array.isArray(body.detail.errors) ? body.detail.errors : [];
     }
   } catch {}
-  throw new FaqApiError(message, response.status, code);
+  throw new FaqApiError(message, response.status, code, errors);
 }
 
 export async function fetchFaqs(filters: FaqFilters): Promise<FaqListResponse> {
@@ -70,4 +72,18 @@ export async function exportFaqs(filters: FaqFilters): Promise<Blob> {
   const response = await fetch(`${apiBase}/api/v1/faqs/export?${queryString(filters, false)}`);
   if (!response.ok) return parseError(response, "FAQ一覧のダウンロードに失敗しました。");
   return response.blob();
+}
+
+export async function downloadFaqImportTemplate(): Promise<Blob> {
+  const response = await fetch(`${apiBase}/api/v1/faqs/import-template`);
+  if (!response.ok) return parseError(response, "FAQ登録フォーマットのダウンロードに失敗しました。");
+  return response.blob();
+}
+
+export async function importFaqs(file: File): Promise<FaqImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${apiBase}/api/v1/faqs/import`, { method: "POST", body: formData });
+  if (!response.ok) return parseError(response, "FAQの一括登録／更新に失敗しました。");
+  return response.json();
 }

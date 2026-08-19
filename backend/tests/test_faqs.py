@@ -5,14 +5,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from openpyxl import load_workbook
+from fastapi import UploadFile
+from openpyxl import Workbook, load_workbook
 from pydantic import ValidationError
 
 from app.api.v1.faqs import get_service
 from app.main import app
 from app.repositories.faq import FaqRepository
-from app.schemas.faq import FaqBulkDeleteRequest, FaqCreateRequest, FaqDeleteTarget, FaqFilters, FaqUpdateRequest
-from app.services.faq_service import FaqError, FaqService
+from app.schemas.faq import FaqBulkDeleteRequest, FaqCreateRequest, FaqDeleteTarget, FaqFilters, FaqImportRowError, FaqUpdateRequest
+from app.services.faq_service import FAQ_IMPORT_FIXED_HEADERS, FaqError, FaqService
 
 
 def make_assignment(index: int, value_name: str):
@@ -64,6 +65,33 @@ def create_repository(detail=None):
     repository.update.return_value = True
     repository.get_detail.return_value = detail or make_faq()
     return repository
+
+
+def make_import_types():
+    return [SimpleNamespace(
+        id=index, type_code=f"FAQ_TYPE_{index}", display_label=f"表示区分{index}",
+        values=[SimpleNamespace(id=index * 10, value_name=f"値{index}")],
+    ) for index in range(1, 5)]
+
+
+def make_import_file(rows=None, *, headers=None, filename="faqs.xlsx"):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(headers or [*FAQ_IMPORT_FIXED_HEADERS, *[f"表示区分{i}" for i in range(1, 5)], "チャット利用"])
+    for row in rows or []:
+        sheet.append(row)
+    output = BytesIO()
+    workbook.save(output)
+    return UploadFile(file=BytesIO(output.getvalue()), filename=filename)
+
+
+def import_row(*, faq_id=None, question="質問", answer="回答", similar=None, classifications=None, chat="公開"):
+    return [
+        faq_id, question, answer,
+        *((similar or []) + [None] * (10 - len(similar or []))),
+        *((classifications or []) + [None] * (4 - len(classifications or []))),
+        chat,
+    ]
 
 
 @pytest.fixture
@@ -515,3 +543,185 @@ async def test_update_api_returns_complete_response_and_error_statuses(mock_serv
     assert [response.json()["detail"]["code"] for response in responses[1:]] == [
         "FAQ_VERSION_CONFLICT", "FAQ_NOT_FOUND", "FAQ_UPDATE_FAILED",
     ]
+
+
+@pytest.mark.anyio
+async def test_import_template_is_empty_xlsx_with_dynamic_labels_and_fixed_positions():
+    repository = AsyncMock()
+    repository.list_type_labels.return_value = {f"FAQ_TYPE_{i}": f"現在ラベル{i}" for i in range(1, 5)}
+    content = await FaqService(repository).create_import_template()
+    workbook = load_workbook(BytesIO(content))
+    sheet = workbook["FAQ一括登録更新"]
+    assert [cell.value for cell in sheet[1]] == [
+        *FAQ_IMPORT_FIXED_HEADERS, "現在ラベル1", "現在ラベル2", "現在ラベル3", "現在ラベル4", "チャット利用",
+    ]
+    assert sheet.max_row == 1 and sheet.freeze_panes == "A2"
+
+
+@pytest.mark.anyio
+async def test_import_template_api_filename_and_content_type(mock_service):
+    mock_service.create_import_template.return_value = b"xlsx"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/faqs/import-template")
+    assert response.status_code == 200 and response.content == b"xlsx"
+    assert response.headers["content-disposition"] == "attachment; filename=faq_import_template.xlsx"
+    assert response.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("filename,content,code", [
+    ("faqs.xls", b"xls", "FAQ_IMPORT_INVALID_FORMAT"),
+    ("faqs.xlsm", b"xlsm", "FAQ_IMPORT_INVALID_FORMAT"),
+    ("faqs.xlsx", b"not-a-zip", "FAQ_IMPORT_INVALID_FORMAT"),
+    ("faqs.xlsx", b"x" * (10 * 1024 * 1024 + 1), "FAQ_IMPORT_FILE_TOO_LARGE"),
+])
+async def test_import_rejects_xls_xlsm_corrupt_and_oversize(filename, content, code):
+    repository = AsyncMock()
+    upload = UploadFile(file=BytesIO(content), filename=filename)
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).import_excel(upload)
+    assert error.value.code == code
+    repository.create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_import_rejects_empty_invalid_extra_and_wrong_order_columns():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    service = FaqService(repository)
+    with pytest.raises(FaqError) as empty:
+        await service.import_excel(make_import_file())
+    assert empty.value.code == "FAQ_IMPORT_EMPTY"
+
+    for headers in [
+        [*FAQ_IMPORT_FIXED_HEADERS[:-1], *[f"表示区分{i}" for i in range(1, 5)], "チャット利用"],
+        [*FAQ_IMPORT_FIXED_HEADERS, *[f"表示区分{i}" for i in range(1, 5)], "チャット利用", "余分"],
+        ["質問", "ID", *FAQ_IMPORT_FIXED_HEADERS[2:], *[f"表示区分{i}" for i in range(1, 5)], "チャット利用"],
+    ]:
+        with pytest.raises(FaqError) as invalid:
+            await service.import_excel(make_import_file([import_row()], headers=headers))
+        assert invalid.value.code == "FAQ_IMPORT_INVALID_COLUMNS"
+
+
+@pytest.mark.anyio
+async def test_import_row_limit_accepts_1000_and_rejects_1001():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = []
+    repository.create.return_value = 1
+    service = FaqService(repository)
+    rows = [import_row(question=f"質問{i}") for i in range(1000)]
+    result = await service.import_excel(make_import_file(rows))
+    assert result.created_count == result.processed_count == 1000
+    assert repository.create.await_count == 1000
+
+    with pytest.raises(FaqError) as too_many:
+        await service.import_excel(make_import_file([*rows, import_row(question="1001行目")]))
+    assert too_many.value.code == "FAQ_IMPORT_TOO_MANY_ROWS"
+
+
+@pytest.mark.anyio
+async def test_import_creates_and_updates_all_fields_with_gap_compaction_and_type_scoped_values():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = [SimpleNamespace(id=7, version=4)]
+    repository.create.return_value = 20
+    repository.update.return_value = True
+    rows = [
+        import_row(
+            question=" 新規質問 ", answer=" 回答1行目\n回答2行目 ",
+            similar=[" 類似A ", None, "類似B"], classifications=[" 値1 ", "値2", "値3", "値4"], chat="公開",
+        ),
+        import_row(faq_id=7, question="更新質問", answer="更新回答", similar=["更新類似"], classifications=[None, "値2"], chat="非公開"),
+    ]
+    result = await FaqService(repository).import_excel(make_import_file(rows))
+    assert result.model_dump() == {"created_count": 1, "updated_count": 1, "processed_count": 2}
+    assert repository.create.await_args.kwargs == {
+        "question": "新規質問", "answer": "回答1行目\n回答2行目",
+        "similar_questions": ["類似A", "類似B"],
+        "classifications": [(1, 10), (2, 20), (3, 30), (4, 40)], "chat_enabled": True,
+    }
+    assert repository.update.await_args.args == (7,)
+    assert repository.update.await_args.kwargs == {
+        "version": 4, "question": "更新質問", "answer": "更新回答",
+        "similar_questions": ["更新類似"], "classifications": [(2, 20)], "chat_enabled": False,
+    }
+    repository.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_import_collects_multiple_row_errors_with_excel_rows_columns_and_no_writes():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = []
+    rows = [
+        import_row(faq_id="abc", question=" ", answer="a" * 1001, similar=["s" * 501], classifications=["不存在"], chat="true"),
+        import_row(faq_id=999, question="正常", answer="正常", chat=""),
+    ]
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).import_excel(make_import_file(rows))
+    assert error.value.code == "FAQ_IMPORT_VALIDATION_ERROR"
+    actual = {(item.row, item.column, item.code) for item in error.value.errors or []}
+    assert (2, "ID", "FAQ_ID_INVALID") in actual
+    assert (2, "質問", "FAQ_QUESTION_REQUIRED") in actual
+    assert (2, "回答", "FAQ_ANSWER_TOO_LONG") in actual
+    assert (2, "類似質問1", "FAQ_SIMILAR_QUESTION_TOO_LONG") in actual
+    assert (2, "表示区分1", "FAQ_CLASSIFICATION_NOT_FOUND") in actual
+    assert (2, "チャット利用", "FAQ_CHAT_ENABLED_INVALID") in actual
+    assert (3, "ID", "FAQ_NOT_FOUND") in actual
+    assert (3, "チャット利用", "FAQ_CHAT_ENABLED_INVALID") in actual
+    repository.create.assert_not_awaited()
+    repository.update.assert_not_awaited()
+    repository.rollback.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_import_rejects_duplicate_ids_and_formula_without_evaluating_it():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = [SimpleNamespace(id=7, version=1)]
+    upload = make_import_file([
+        import_row(faq_id=7, question="=1+1"),
+        import_row(faq_id=7, question="別質問"),
+    ])
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).import_excel(upload)
+    actual = [(item.row, item.column, item.code) for item in error.value.errors or []]
+    assert (2, "質問", "FAQ_IMPORT_FORMULA_NOT_ALLOWED") in actual
+    assert (2, "ID", "FAQ_ID_DUPLICATE") in actual and (3, "ID", "FAQ_ID_DUPLICATE") in actual
+    repository.update.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_import_db_failure_rolls_back_new_and_update_together():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = [SimpleNamespace(id=7, version=2)]
+    repository.create.return_value = 20
+    repository.update.side_effect = RuntimeError("DB failed")
+    with pytest.raises(FaqError) as error:
+        await FaqService(repository).import_excel(make_import_file([
+            import_row(question="新規"), import_row(faq_id=7, question="更新"),
+        ]))
+    assert error.value.code == "FAQ_IMPORT_FAILED"
+    repository.rollback.assert_awaited_once()
+    repository.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_import_api_success_and_structured_validation_errors(mock_service):
+    mock_service.import_excel.side_effect = [
+        {"created_count": 2, "updated_count": 1, "processed_count": 3},
+        FaqError("FAQ_IMPORT_VALIDATION_ERROR", "入力内容にエラーがあります。", [
+            FaqImportRowError(row=3, column="質問", code="FAQ_QUESTION_REQUIRED", message="質問を入力してください。"),
+        ]),
+    ]
+    file_content = make_import_file([import_row()]).file.read()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        success = await client.post("/api/v1/faqs/import", files={"file": ("faqs.xlsx", file_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+        invalid = await client.post("/api/v1/faqs/import", files={"file": ("faqs.xlsx", file_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    assert success.status_code == 200 and success.json() == {"created_count": 2, "updated_count": 1, "processed_count": 3}
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"]["errors"] == [{
+        "row": 3, "column": "質問", "code": "FAQ_QUESTION_REQUIRED", "message": "質問を入力してください。",
+    }]

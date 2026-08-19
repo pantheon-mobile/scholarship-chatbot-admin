@@ -27,6 +27,13 @@
 .empty { height: 100px !important; color: #68717a; text-align: center !important; }
 .loading { padding: 45px; text-align: center; }
 .paginationWrap { padding: 14px 0 4px; }
+.importBody { display: grid; gap: 14px; }
+.importHelp { margin: 0; }
+.hiddenFileInput { display: none; }
+.importFileName { min-height: 42px; display: flex; align-items: center; padding: 9px 12px; border: 1px solid #c8ccd0; border-radius: 4px; background: #f7f8fa; color: #34383c; overflow-wrap: anywhere; }
+.importError { padding: 10px 12px; border: 1px solid #edb6b6; border-radius: 4px; background: #fff7f7; color: #b60000; font-size: 14px; line-height: 1.5; }
+.importErrorList { max-height: 190px; overflow-y: auto; margin: 0; padding: 10px 12px 10px 34px; border: 1px solid #edb6b6; border-radius: 4px; background: #fff7f7; color: #b60000; font-size: 14px; line-height: 1.65; }
+.importFooterButton { width: calc((100% - 12px) / 2); min-width: 0; }
 
 @media (max-width: 1500px) {
   .filterGrid { grid-template-columns: repeat(4, minmax(150px, 1fr)); }

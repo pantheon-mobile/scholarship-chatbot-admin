@@ -58,8 +58,21 @@ export type FaqListResponse = {
   order: SortOrder;
 };
 
+export type FaqImportRowError = {
+  row: number;
+  column: string;
+  code: string;
+  message: string;
+};
+
+export type FaqImportResponse = {
+  created_count: number;
+  updated_count: number;
+  processed_count: number;
+};
+
 export class FaqApiError extends Error {
-  constructor(message: string, public status: number, public code?: string) {
+  constructor(message: string, public status: number, public code?: string, public errors: FaqImportRowError[] = []) {
     super(message);
   }
 }

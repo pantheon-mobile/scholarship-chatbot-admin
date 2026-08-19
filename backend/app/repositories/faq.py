@@ -57,6 +57,20 @@ class FaqRepository:
         )).all()
         return {str(row.type_code): str(row.display_label) for row in rows}
 
+    async def list_import_classifications(self) -> list[FaqClassificationType]:
+        return list((await self.session.execute(
+            select(FaqClassificationType)
+            .options(selectinload(FaqClassificationType.values))
+            .order_by(FaqClassificationType.display_order)
+        )).scalars().unique().all())
+
+    async def get_for_update_many(self, faq_ids: list[int]) -> list[Faq]:
+        if not faq_ids:
+            return []
+        return list((await self.session.execute(
+            select(Faq).where(Faq.id.in_(faq_ids)).with_for_update()
+        )).scalars().all())
+
     async def list(self, filters: FaqFilters, type_ids: dict[str, int], *, paginate: bool = True) -> tuple[list[Faq], int, int]:
         conditions = self.conditions(filters, type_ids)
         count_stmt = select(func.count(Faq.id))

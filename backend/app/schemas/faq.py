@@ -98,3 +98,16 @@ class FaqBulkDeleteRequest(BaseModel):
 
 class FaqBulkDeleteResponse(BaseModel):
     deleted_count: int
+
+
+class FaqImportRowError(BaseModel):
+    row: int
+    column: str
+    code: str
+    message: str
+
+
+class FaqImportResponse(BaseModel):
+    created_count: int
+    updated_count: int
+    processed_count: int
