@@ -6,6 +6,8 @@ from app.api.v1.data_sources import router as data_sources_router
 from app.api.v1.categories import router as categories_router
 from app.api.v1.faq_classifications import router as faq_classifications_router
 from app.api.v1.faqs import router as faqs_router
+from app.api.v1.analytics import router as analytics_router
+from app.api.v1.dashboard import router as dashboard_router
 
 app = FastAPI(title="Scholarship Chatbot Admin Backend")
 
@@ -23,3 +25,5 @@ app.include_router(data_sources_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
 app.include_router(faq_classifications_router, prefix="/api/v1")
 app.include_router(faqs_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")

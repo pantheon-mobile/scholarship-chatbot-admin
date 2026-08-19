@@ -177,3 +177,20 @@ docker compose up --build
 - 最大ファイルサイズは10MB、最大データ行数は1000行です。エラーはExcel上の行番号・列名単位で返し、エラー行Excelは生成しません。
 - 全行の事前検証に成功した場合だけ反映し、新規・更新・類似質問・区分割当を1トランザクションで全件成功または全件ロールバックします。更新行はDBでロックし、現在のversionを基準に`version + 1`とします。
 - 一括登録／更新でもAI同期、Bedrock、OpenSearch、Knowledge Base処理は行いません。下書き列・下書き状態も扱いません。
+
+## CB-201 analytics and dashboard MVP
+
+- 1アクセスはCB-101チャット画面が正常に初期表示された1回です。再読み込みは新規アクセス、SPA内操作と質問送信はアクセスに含めません。アクセスユーザ数は期間内`visitor_id`のdistinctです。
+- 1チャットは最初の質問送信から次の新規チャット開始までです。画面を開いただけでは計上せず、同じチャットの2問目以降は同じ`chat_session_id`を使います。
+- 1応答は質問送信から回答表示完了まで正常に完了した組です。`processing_status=COMPLETED`かつ`answer_type`が`FAQ`、`GENERATED_AI`、`NO_ANSWER`のものだけを数え、`FAILED`や通信・技術エラーは含めません。
+- 有効回答は`FAQ + GENERATED_AI`、回答NGは`NO_ANSWER`だけです。回答率は`有効回答数 / 応答数 × 100`です。
+- 評価なしは有効回答を母集団として`有効回答数 - Good数 - Bad数`、満足度は`Good数 / (Good数 + Bad数) × 100`です。分母0の平均・率はAPIで`null`、画面で「－」を表示します。
+- Good／Badは1応答につき現在値を最大1件保持し、`PUT`で変更できます。取消APIはありません。コメントは前後空白を除去し、空文字をNULLへ正規化します。正式上限が未定のためMVPのDB・API上限は1000文字です。
+- Good／Bad、評価なし、コメントは`feedback.created_at`ではなく対象interactionの`question_submitted_at`へ帰属し、現在の評価状態で過去期間も再集計します。
+- DB日時は`TIMESTAMPTZ`でUTC保存します。Dashboardは`Asia/Tokyo`へ変換し、From当日00:00以上、To翌日00:00未満で集計します。初期期間は当月1日～当日です。
+- 利用者識別子は`ANALYTICS_IDENTITY_SECRET`を使うHMAC-SHA256で疑似化し、実名、メール、学籍番号、認証主体IDそのものを保存しません。匿名利用者はCB-101が生成・維持するUUIDを渡します。本番環境では十分に長い環境固有秘密鍵をSecret Manager等から設定してください。
+- Analytics APIは質問本文・回答本文を受理・保存しません。アクセス、セッション、interactionはUUIDを冪等キーとし、同一UUID・同一内容の再送は成功、異なる内容は`IDEMPOTENCY_CONFLICT`等の409です。
+- CB-101は将来、正常初期表示時に`POST /api/v1/analytics/accesses`、最初の質問時に`POST /api/v1/analytics/chat-sessions`、質問送信時にinteraction開始、表示完了／失敗時にcompletion、評価時にfeedbackを呼びます。回答種別は表示文言から推測せず、回答処理Backendの構造化値を送信します。
+- DashboardはPostgreSQLのCOUNT、DISTINCT、FILTER、AVG、MIN、MAX、GROUP BYを使う7クエリ固定のリアルタイム集計です。全件Python集計、Redis、summary table、materialized view、background batch、cronは使用しません。
+- 時間帯・曜日は20260811版に必要な情報を過不足なく示すMVP判断として、外部チャートライブラリを追加せず既存Tableで表示します。
+- 利用統計・評価データの保持期間は未確定です。自動削除は実装せず、本番運用前に保持期間、閲覧権限、削除手順を確定する必要があります。

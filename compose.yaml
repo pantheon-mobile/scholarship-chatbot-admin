@@ -27,6 +27,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scholarship
       - BACKEND_PORT=8000
       - UPLOAD_DIR=/app/storage/uploads
+      - ANALYTICS_IDENTITY_SECRET=local-development-analytics-secret-change-in-production
     volumes:
       - backend_uploads:/app/storage/uploads
     command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"]

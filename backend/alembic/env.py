@@ -12,6 +12,7 @@ from app.models.data_source import DataSource, DataSourceClassificationValue, Da
 from app.models.category import Category
 from app.models.faq_classification import FaqClassificationType, FaqClassificationValue
 from app.models.faq import Faq, FaqClassificationAssignment, FaqSimilarQuestion
+from app.models.analytics import AccessLog, AnalyticsVisitor, ChatFeedback, ChatInteraction, ChatSession
 
 config = context.config
 fileConfig(config.config_file_name)

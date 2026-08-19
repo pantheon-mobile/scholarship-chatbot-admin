@@ -1,0 +1,26 @@
+.periodForm {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid #c9cdd1;
+  background: #f7f7f7;
+}
+
+.periodForm label { width: 220px; }
+.periodForm button { margin-left: 6px; }
+.periodSeparator { padding-bottom: 8px; font-weight: 700; }
+.error { margin-bottom: 20px; padding: 12px 15px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 15px; }
+.loading { margin: 32px 0; color: #555; }
+.dashboardContent { display: grid; gap: 28px; }
+.sectionTitle { min-height: 48px; display: flex; align-items: center; margin: 0; padding: 0 18px; border: 1px solid #c9cdd1; border-bottom: 0; background: #ededed; font-size: 20px; font-weight: 700; }
+.metricsTable { table-layout: fixed; }
+.metricLabel { width: 30%; background: #f7f7f7; font-weight: 600; }
+.metricValue { width: 20%; text-align: right; font-variant-numeric: tabular-nums; }
+.breakdownGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+.breakdownGrid td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1400px) {
+  .breakdownGrid { grid-template-columns: 1fr; }
+}
