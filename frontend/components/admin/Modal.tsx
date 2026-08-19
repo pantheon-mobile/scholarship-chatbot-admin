@@ -1,10 +1,12 @@
 "use client";
 
 import { ReactNode, useEffect, useId, useRef } from "react";
+import { AdminIcon } from "./AdminIcon";
 import { Button, ButtonVariant } from "./Button";
 import styles from "./admin.module.css";
 
 type ModalVariant = "default" | "danger";
+type ModalSize = "default" | "wide";
 
 type ModalProps = {
   open: boolean;
@@ -13,6 +15,8 @@ type ModalProps = {
   footer?: ReactNode;
   error?: ReactNode;
   variant?: ModalVariant;
+  size?: ModalSize;
+  showCloseButton?: boolean;
   confirmLabel?: string;
   cancelLabel?: string;
   confirmVariant?: ButtonVariant;
@@ -40,6 +44,8 @@ export function Modal({
   footer,
   error,
   variant = "default",
+  size = "default",
+  showCloseButton = false,
   confirmLabel = "OK",
   cancelLabel = "キャンセル",
   confirmVariant,
@@ -133,7 +139,7 @@ export function Modal({
     >
       <section
         ref={dialogRef}
-        className={styles.modal}
+        className={`${styles.modal} ${size === "wide" ? styles.modalWide : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -144,6 +150,7 @@ export function Modal({
       >
         <header className={styles.modalHeader}>
           <h2 id={titleId}>{title}</h2>
+          {showCloseButton && <Button className={styles.modalHeaderClose} variant="text" aria-label="閉じる" icon={<AdminIcon name="close" size={20} />} onClick={onClose} disabled={busy} />}
         </header>
         <div id={bodyId} className={styles.modalBody}>
           {children}

@@ -159,3 +159,11 @@ docker compose up --build
 - dirtyは初期取得値との実差分で判定し、類似質問の内容と順番も比較します。未変更時または入力不正時は更新ボタンを無効化します。
 - 未保存状態の一覧・キャンセル・Sidebar遷移とブラウザ更新／終了には離脱確認を適用します。更新成功後はCB-208 FAQ一覧へ遷移します。
 - FAQ更新後のBedrock、Knowledge Base、OpenSearch等へのAI同期は行いません。下書き状態・下書き保存・draft APIも実装しません。
+
+## CB-211 FAQ reference MVP
+
+- CB-211は独立ページではなく、CB-208 FAQ一覧の「参照」から開く読み取り専用Modalです。既存の`GET /api/v1/faqs/{id}`で詳細を取得します。
+- 回答はプレーンテキストとして改行を保持し、`http`／`https` URLだけを安全にリンク表示します。HTMLやJavaScriptは解釈しません。
+- Modal内の編集操作はCB-210へ遷移し、削除操作は参照Modalを閉じて既存のFAQ削除確認Modalと`DELETE /api/v1/faqs/{id}?version=`を利用します。
+- 参照Modalを閉じてもCB-208の検索、ソート、ページ、表示件数、選択状態を維持します。削除成功時は一覧とFAQ総数を再取得します。
+- FAQ参照時に下書き状態やAI検索、Bedrock、OpenSearch等の処理は追加しません。

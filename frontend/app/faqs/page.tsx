@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
   AdminIcon, AdminLayout, Button, Checkbox, FormField, Modal, PageHeader, Pagination,
   SelectField, SortableHeader, StatusBadge, Table, TableCell, TableFrame, TableHeaderCell, TableRow,
 } from "@/components/admin";
+import { FaqReferenceModal } from "@/components/faqs/FaqReferenceModal";
 import { fetchFaqClassifications } from "@/lib/faqClassificationsApi";
-import { bulkDeleteFaqs, deleteFaq, exportFaqs, fetchFaqs } from "@/lib/faqsApi";
-import { Faq, FaqApiError, FaqFilters, FaqListResponse, FaqSortColumn } from "@/types/faq";
+import { bulkDeleteFaqs, deleteFaq, exportFaqs, fetchFaq, fetchFaqs } from "@/lib/faqsApi";
+import { Faq, FaqApiError, FaqDetail, FaqFilters, FaqListResponse, FaqSortColumn } from "@/types/faq";
 import { FaqClassificationType } from "@/types/faqClassification";
 import styles from "./page.module.css";
 
@@ -32,6 +33,14 @@ export default function FaqsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pageModal, setPageModal] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [referenceId, setReferenceId] = useState<number | null>(null);
+  const [referenceDetail, setReferenceDetail] = useState<FaqDetail | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [deleteFromReference, setDeleteFromReference] = useState(false);
+  const referenceRequestRef = useRef(0);
+  const referenceTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const safeFocusRef = useRef<HTMLButtonElement | null>(null);
 
   const load = useCallback(async (nextFilters = filters) => {
     setLoading(true);
@@ -64,15 +73,90 @@ export default function FaqsPage() {
 
   const confirmDelete = async () => {
     if (!deleteRows.length) return;
+    const targets = [...deleteRows];
+    const startedFromReference = deleteFromReference;
     setBusy(true);
     try {
-      if (deleteRows.length === 1) await deleteFaq(deleteRows[0].id, deleteRows[0].version);
-      else await bulkDeleteFaqs(deleteRows.map(({ id, version }) => ({ id, version })));
+      if (targets.length === 1) await deleteFaq(targets[0].id, targets[0].version);
+      else await bulkDeleteFaqs(targets.map(({ id, version }) => ({ id, version })));
       setDeleteRows([]);
-      await load(filters);
+      const visibleDeleted = targets.filter((target) => rows.some((row) => row.id === target.id)).length;
+      if (filters.page > 1 && visibleDeleted === rows.length) {
+        setFilters((current) => ({ ...current, page: current.page - 1 }));
+      } else {
+        await load(filters);
+      }
+      if (startedFromReference) {
+        const target = safeFocusRef.current;
+        window.setTimeout(() => target?.focus(), 0);
+        referenceTriggerRef.current = null;
+      }
+      setDeleteFromReference(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(reason instanceof FaqApiError && reason.code === "FAQ_VERSION_CONFLICT"
+        ? "他の操作で情報が更新されています。再読み込みしてください。"
+        : reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
+  };
+
+  const openReference = async (faqId: number, trigger: HTMLButtonElement) => {
+    if (referenceLoading || referenceId !== null) return;
+    const requestId = referenceRequestRef.current + 1;
+    referenceRequestRef.current = requestId;
+    referenceTriggerRef.current = trigger;
+    setReferenceId(faqId);
+    setReferenceDetail(null);
+    setReferenceError(null);
+    setReferenceLoading(true);
+    try {
+      const detail = await fetchFaq(faqId);
+      if (referenceRequestRef.current === requestId) setReferenceDetail(detail);
+    } catch (reason) {
+      if (referenceRequestRef.current === requestId) {
+        setReferenceError(reason instanceof Error ? reason.message : "FAQの取得に失敗しました。");
+      }
+    } finally {
+      if (referenceRequestRef.current === requestId) setReferenceLoading(false);
+    }
+  };
+
+  const closeReference = () => {
+    if (busy) return;
+    referenceRequestRef.current += 1;
+    setReferenceId(null);
+    setReferenceDetail(null);
+    setReferenceError(null);
+    setReferenceLoading(false);
+  };
+
+  const editReference = () => {
+    if (!referenceDetail || busy) return;
+    const faqId = referenceDetail.id;
+    closeReference();
+    router.push(`/faqs/${faqId}/edit`);
+  };
+
+  const deleteReference = () => {
+    if (!referenceDetail || busy) return;
+    const target = referenceDetail;
+    closeReference();
+    setError(null);
+    setDeleteFromReference(true);
+    setDeleteRows([target]);
+  };
+
+  const closeDeleteModal = () => {
+    if (busy) return;
+    setDeleteRows([]);
+    setError(null);
+    if (deleteFromReference) {
+      const target = referenceTriggerRef.current;
+      window.setTimeout(() => {
+        if (target?.isConnected) target.focus();
+        else safeFocusRef.current?.focus();
+      }, 0);
+    }
+    setDeleteFromReference(false);
   };
 
   const download = async () => {
@@ -101,7 +185,7 @@ export default function FaqsPage() {
         <Button variant="text" onClick={() => setNotice("FAQ登録フォーマットのダウンロードは未実装です。")}>フォーマットをダウンロード</Button>
       </div>} />
       <div className={styles.summary}>FAQ数　{result?.total_count ?? 0}件</div>
-      <Button className={styles.addButton} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/faqs/new")}>FAQ新規追加</Button>
+      <Button ref={safeFocusRef} className={styles.addButton} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/faqs/new")}>FAQ新規追加</Button>
 
       <div className={styles.filterGrid}>
         <FormField label="キーワード" wrapperClassName={styles.keyword} placeholder="質問／回答のキーワードを入力" value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} />
@@ -146,7 +230,7 @@ export default function FaqsPage() {
               <TableCell className={styles.chatColumn}><StatusBadge tone={row.chat_enabled ? "success" : "neutral"}>{row.chat_enabled ? "公開" : "非公開"}</StatusBadge></TableCell>
               <TableCell className={styles.dateColumn}>{new Date(row.updated_at).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</TableCell>
               <TableCell className={styles.actionsColumn}><div className={styles.rowActions}>
-                <Button variant="text" onClick={() => setNotice("FAQ参照Modalは未実装です。")}>参照</Button>
+                <Button variant="text" onClick={(event) => openReference(row.id, event.currentTarget)}>参照</Button>
                 <Button variant="text" onClick={() => router.push(`/faqs/${row.id}/edit`)}>編集</Button>
                 <Button variant="text" focusTone="danger" onClick={() => { setError(null); setDeleteRows([row]); }}>削除</Button>
               </div></TableCell>
@@ -157,7 +241,18 @@ export default function FaqsPage() {
       </>}
     </div>
 
-    <Modal open={Boolean(deleteRows.length)} title={deleteRows.length > 1 ? "FAQの一括削除" : "FAQの削除"} variant="danger" confirmLabel="削除する" busy={busy} error={error} onConfirm={confirmDelete} onClose={() => { setDeleteRows([]); setError(null); }}>
+    <FaqReferenceModal
+      open={referenceId !== null}
+      detail={referenceDetail}
+      classificationTypes={classificationTypes}
+      loading={referenceLoading}
+      busy={busy}
+      error={referenceError}
+      onClose={closeReference}
+      onEdit={editReference}
+      onDelete={deleteReference}
+    />
+    <Modal open={Boolean(deleteRows.length)} title={deleteRows.length > 1 ? "FAQの一括削除" : "FAQの削除"} variant="danger" confirmLabel="削除する" busy={busy} error={error} onConfirm={confirmDelete} onClose={closeDeleteModal}>
       {deleteRows.length > 1 ? `選択した${deleteRows.length}件のFAQを削除します。` : `FAQ「${deleteRows[0]?.question ?? ""}」を削除します。`}<br />この操作は元に戻せません。<br />本当に削除しますか？
     </Modal>
     <Modal open={pageModal} title="ページがありません" cancelLabel="閉じる" onClose={() => setPageModal(false)}>指定されたページは存在しません。</Modal>
