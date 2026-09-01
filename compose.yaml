@@ -27,10 +27,53 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scholarship
       - BACKEND_PORT=8000
       - UPLOAD_DIR=/app/storage/uploads
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - INGESTION_S3_BUCKET=${INGESTION_S3_BUCKET:-}
+      - INGESTION_ORIGINAL_PREFIX=${INGESTION_ORIGINAL_PREFIX:-documents/admin/originals/}
       - ANALYTICS_IDENTITY_SECRET=local-development-analytics-secret-change-in-production
     volumes:
       - backend_uploads:/app/storage/uploads
     command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+
+  ingestion-worker:
+    build:
+      context: ./backend
+    profiles: ["worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scholarship
+      - UPLOAD_DIR=/app/storage/uploads
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - INGESTION_S3_BUCKET=${INGESTION_S3_BUCKET:-}
+      - INGESTION_ORIGINAL_PREFIX=${INGESTION_ORIGINAL_PREFIX:-documents/admin/originals/}
+      - INGESTION_PROCESSOR_MODE=${INGESTION_PROCESSOR_MODE:-aws}
+      - INGESTION_PROCESSOR_URL=${INGESTION_PROCESSOR_URL:-}
+      - INGESTION_PROCESSOR_TIMEOUT_SECONDS=${INGESTION_PROCESSOR_TIMEOUT_SECONDS:-1800}
+      - INGESTION_WORKER_MAX_JOBS=${INGESTION_WORKER_MAX_JOBS:-1000}
+      - INGESTION_PDF_KNOWLEDGE_BASE_ID=${INGESTION_PDF_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_PDF_DATA_SOURCE_ID=${INGESTION_PDF_DATA_SOURCE_ID:-}
+      - INGESTION_WEB_KNOWLEDGE_BASE_ID=${INGESTION_WEB_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_WEB_DATA_SOURCE_ID=${INGESTION_WEB_DATA_SOURCE_ID:-}
+      - INGESTION_EXCEL_KNOWLEDGE_BASE_ID=${INGESTION_EXCEL_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_EXCEL_DATA_SOURCE_ID=${INGESTION_EXCEL_DATA_SOURCE_ID:-}
+      - INGESTION_WORD_KNOWLEDGE_BASE_ID=${INGESTION_WORD_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_WORD_DATA_SOURCE_ID=${INGESTION_WORD_DATA_SOURCE_ID:-}
+      - INGESTION_PPT_KNOWLEDGE_BASE_ID=${INGESTION_PPT_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_PPT_DATA_SOURCE_ID=${INGESTION_PPT_DATA_SOURCE_ID:-}
+      - INGESTION_TEXT_KNOWLEDGE_BASE_ID=${INGESTION_TEXT_KNOWLEDGE_BASE_ID:-}
+      - INGESTION_TEXT_DATA_SOURCE_ID=${INGESTION_TEXT_DATA_SOURCE_ID:-}
+      - PDF_VISION_MODEL_ID=${PDF_VISION_MODEL_ID:-}
+      - PDF_VISION_MIN_CHARS_PER_PAGE=${PDF_VISION_MIN_CHARS_PER_PAGE:-100}
+      - WEB_CRAWL_MAX_DEPTH=${WEB_CRAWL_MAX_DEPTH:-5}
+      - WEB_CRAWL_MAX_PAGES=${WEB_CRAWL_MAX_PAGES:-500}
+      - KNOWLEDGE_BASE_SYNC_TIMEOUT_SECONDS=${KNOWLEDGE_BASE_SYNC_TIMEOUT_SECONDS:-1800}
+    volumes:
+      - backend_uploads:/app/storage/uploads:ro
+    command: ["sh", "-c", "alembic upgrade head && python -m app.worker"]
 
   db:
     image: postgres:16

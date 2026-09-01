@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.category import Category
 from app.models.classification import ClassificationType, ClassificationValue
-from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite
+from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite, IngestionJob
 from app.schemas.data_source import DataSourceFilters, DeleteTarget, FileDataSourceUpdateRequest, WebsiteDataSourceUpdateRequest
 
 
@@ -192,6 +192,7 @@ class DataSourceRepository:
             self.session.add(row)
             rows.append(row)
         await self.session.flush()
+        await self.enqueue_ingestion_jobs([int(row.id) for row in rows], scheduled_at=now)
         return [int(row.id) for row in rows]
 
     async def update_file_attributes(
@@ -270,7 +271,29 @@ class DataSourceRepository:
         )
         self.session.add(row)
         await self.session.flush()
+        await self.enqueue_ingestion_jobs([int(row.id)], scheduled_at=datetime.now(timezone.utc))
         return int(row.id)
+
+    async def enqueue_ingestion_jobs(
+        self,
+        data_source_ids: list[int],
+        *,
+        scheduled_at: datetime,
+        max_attempts: int = 3,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        self.session.add_all([
+            IngestionJob(
+                data_source_id=data_source_id,
+                status="QUEUED",
+                scheduled_at=scheduled_at,
+                attempt_count=0,
+                max_attempts=max_attempts,
+                created_at=now,
+                updated_at=now,
+            )
+            for data_source_id in data_source_ids
+        ])
 
     async def update_website_attributes(
         self,

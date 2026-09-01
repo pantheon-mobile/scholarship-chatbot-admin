@@ -43,3 +43,6 @@ class LocalStorage:
 
     def exists(self, storage_key: str) -> bool:
         return self._final_path(storage_key).is_file()
+
+    def read(self, storage_key: str) -> bytes:
+        return self._final_path(storage_key).read_bytes()

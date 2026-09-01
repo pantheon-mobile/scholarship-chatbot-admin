@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
@@ -33,7 +34,8 @@ from app.services.data_source_service import (
     WebsiteDataSourceRequiredError,
     WebsiteDataSourceUpdateError,
 )
-from app.storage import LocalStorage
+from app.storage import LocalStorage, S3Storage
+from app.storage.base import StorageAdapter
 
 
 router = APIRouter()
@@ -43,7 +45,12 @@ def get_service(session: AsyncSession = Depends(get_db)) -> DataSourceService:
     return DataSourceService(DataSourceRepository(session))
 
 
-def get_storage() -> LocalStorage:
+def get_storage() -> StorageAdapter:
+    if os.getenv("STORAGE_BACKEND", "local").lower() == "s3":
+        return S3Storage(
+            os.getenv("INGESTION_S3_BUCKET", ""),
+            os.getenv("INGESTION_ORIGINAL_PREFIX", "documents/admin/originals/"),
+        )
     return LocalStorage()
 
 
@@ -107,7 +114,7 @@ async def create_file_data_sources(
     answer_source_enabled: bool = Form(default=True),
     reference_link_visible: bool = Form(default=True),
     service: DataSourceService = Depends(get_service),
-    storage: LocalStorage = Depends(get_storage),
+    storage: StorageAdapter = Depends(get_storage),
 ):
     try:
         items = await service.create_file_sources(

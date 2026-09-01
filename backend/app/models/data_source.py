@@ -32,6 +32,7 @@ class DataSource(Base):
     file = relationship("DataSourceFile", back_populates="data_source", uselist=False, cascade="all, delete-orphan")
     website = relationship("DataSourceWebsite", back_populates="data_source", uselist=False, cascade="all, delete-orphan")
     classification_links = relationship("DataSourceClassificationValue", back_populates="data_source", cascade="all, delete-orphan")
+    processing_jobs = relationship("IngestionJob", back_populates="data_source", cascade="all, delete-orphan")
     category = relationship("Category")
 
 
@@ -64,3 +65,33 @@ class DataSourceClassificationValue(Base):
     data_source = relationship("DataSource", back_populates="classification_links")
     classification_type = relationship("ClassificationType")
     classification_value = relationship("ClassificationValue")
+
+
+class IngestionJob(Base):
+    __tablename__ = "ingestion_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')",
+            name="ck_ingestion_jobs_status",
+        ),
+        CheckConstraint("attempt_count >= 0", name="ck_ingestion_jobs_attempt_count"),
+        CheckConstraint("max_attempts >= 1", name="ck_ingestion_jobs_max_attempts"),
+    )
+
+    id: Mapped[int] = Column(BigInteger, primary_key=True, index=True)
+    data_source_id: Mapped[int] = Column(
+        ForeignKey("data_sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = Column(String(20), nullable=False, index=True, default="QUEUED")
+    scheduled_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, index=True)
+    started_at: Mapped[datetime | None] = Column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = Column(DateTime(timezone=True), nullable=True)
+    attempt_count: Mapped[int] = Column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = Column(Integer, nullable=False, default=3)
+    worker_id: Mapped[str | None] = Column(String(200), nullable=True)
+    error_code: Mapped[str | None] = Column(String(100), nullable=True)
+    error_message: Mapped[str | None] = Column(Text, nullable=True)
+    created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
+
+    data_source = relationship("DataSource", back_populates="processing_jobs")

@@ -56,10 +56,22 @@ docker compose up --build
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
 - 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可は未実装です。
 
+## Nightly ingestion worker foundation
+
+- ファイルまたはWebサイトの登録と同じDBトランザクションで`ingestion_jobs`へ`QUEUED`ジョブを作成します。登録直後のデータソース状態は`PREPARING`です。
+- 専用ワーカーは`python -m app.worker`で起動し、実行時刻を過ぎたジョブを古い順に1件ずつ処理します。PostgreSQLの`FOR UPDATE SKIP LOCKED`により、複数ワーカーを起動しても同じジョブを重複処理しません。
+- 処理開始時は`TRAINING`、成功時は`AVAILABLE`、最終失敗時は`ERROR`へ更新します。失敗は最大3回まで5分×試行回数の間隔で再試行し、エラーコードとメッセージをDBへ保存します。
+- 標準の`aws`モードではワーカー自身がMarkdown変換、Webクロール、S3配置、Knowledge Base同期まで実行します。別サービスへ処理を委譲する場合だけ`INGESTION_PROCESSOR_MODE=http`と`INGESTION_PROCESSOR_URL`を設定します。
+- PDFはテキスト抽出を標準とし、画像が存在して1ページ平均抽出文字数が既定100文字未満の場合だけVision Markdownへ切り替えます。判定方式、理由、ページ数、画像数、抽出文字数をS3 sidecar metadataへ記録します。
+- Webは登録URLと同一ホストかつ登録パス配下だけをクロールします。既定は深度5、最大500ページで、robots.txtに従います。
+- Excel、Word、PowerPointはPoC結果に基づきMarkdownをKB用成果物とします。PDF、Web、Excel、Word、PowerPointごとにS3 prefix、Knowledge Base ID、Data Source IDを環境変数で分離します。
+- ローカル確認では必要なAWS環境変数を設定して`docker compose --profile worker run --rm ingestion-worker`を実行します。本番ではEventBridge Schedulerから同じコンテナをECS Fargateタスクとして夜間起動する想定です。
+- APIサーバーとワーカーは別コンテナなのでCPU・メモリ負荷を分離できます。DB、S3、Bedrockへの負荷は残るため、初期運用はワーカー1台・逐次処理とします。
+
 ## CB-203 local file upload MVP
 
-- MVPの実ファイルは`UPLOAD_DIR`（Docker Composeでは`/app/storage/uploads`）へ保存し、named volumeでコンテナ再起動後も保持します。ストレージ処理はAdapterへ分離し、将来S3 Adapterへ交換できる構成です。
-- 新規登録時の状態は`PREPARING`です。Bedrock Knowledge Base同期と`PREPARING`以降の自動状態遷移は実装していません。
+- ローカルでは実ファイルを`UPLOAD_DIR`へ保存します。本番では`STORAGE_BACKEND=s3`として`INGESTION_S3_BUCKET`の`documents/admin/originals/`配下へ保存し、APIコンテナとFargateワーカーの双方から参照します。
+- 新規登録時の状態は`PREPARING`で、夜間処理待ちジョブを同時登録します。変換プロセッサ接続後はワーカーが状態を自動更新します。
 - CB-203では任意のカテゴリを選択でき、複数ファイル登録時は同じ`category_id`を全ファイルへ設定します。`category_name`には書き込みません。
 - 既存データソースと同じ元ファイル名でも別データソースとして新規登録します。UUIDベースの`storage_key`により保存済みファイルを上書きしません。
 - タイトルを省略した場合は拡張子を含む元ファイル名を登録します。複数ファイルでは個別の元ファイル名をタイトルにします。
@@ -83,7 +95,7 @@ docker compose up --build
 - 同じURLが既に存在しても、自動更新・重複排除は行わず別データソースとして新規登録します。
 - CB-205ではカテゴリを任意選択でき、正式な`category_id`へ登録します。`category_name`には書き込みません。
 - 登録時は`source_type=WEB`、`format=Web`、`status=PREPARING`、`size_bytes=NULL`、`character_count=NULL`、`last_fetched_at=NULL`、`version=1`です。
-- Web取得、スクレイピング、本文抽出、Bedrock同期、再学習、ingestion jobは実行せず、`PREPARING`以降の自動状態遷移も行いません。
+- Web取得、スクレイピング、本文抽出、Bedrock同期、再学習は夜間ワーカーから外部プロセッサへ依頼します。登録API内では重い処理を実行しません。
 
 ## CB-206 website attribute edit MVP
 
