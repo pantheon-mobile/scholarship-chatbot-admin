@@ -1,0 +1,18 @@
+services:
+  backend:
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:?AWS_PROFILEを設定してください}
+      AWS_SDK_LOAD_CONFIG: "1"
+      STORAGE_BACKEND: s3
+      INGESTION_S3_BUCKET: ${INGESTION_S3_BUCKET:?INGESTION_S3_BUCKETを設定してください}
+      CHAT_KNOWLEDGE_BASE_ID: ${CHAT_KNOWLEDGE_BASE_ID:?CHAT_KNOWLEDGE_BASE_IDを設定してください}
+      CHAT_MODEL_ARN: ${CHAT_MODEL_ARN:?CHAT_MODEL_ARNを設定してください}
+    volumes:
+      - ${AWS_CONFIG_DIR:?AWS_CONFIG_DIRを設定してください}:/root/.aws:ro
+  ingestion-worker:
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:?AWS_PROFILEを設定してください}
+      AWS_SDK_LOAD_CONFIG: "1"
+      STORAGE_BACKEND: s3
+    volumes:
+      - ${AWS_CONFIG_DIR:?AWS_CONFIG_DIRを設定してください}:/root/.aws:ro

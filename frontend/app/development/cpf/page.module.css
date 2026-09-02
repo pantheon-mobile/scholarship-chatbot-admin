@@ -1,0 +1,19 @@
+.main { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(145deg, #eef5fb, #f8fafc); }
+.card { width: min(560px, 100%); padding: 40px; border-radius: 18px; background: #fff; box-shadow: 0 14px 44px rgba(25, 46, 80, .14); }
+.badge { width: fit-content; margin: 0 auto 12px; padding: 5px 12px; border-radius: 999px; background: #fff1d6; color: #8a4b08; font-size: 13px; font-weight: 800; }
+.card h1 { margin: 0; color: #18243a; font-size: 30px; text-align: center; }
+.description { margin: 14px 0 28px; color: #475467; line-height: 1.7; text-align: center; }
+.form { display: grid; gap: 20px; }
+.roles { display: flex; gap: 28px; margin: 0; padding: 16px 18px 18px; border: 1px solid #cbd5e1; border-radius: 10px; }
+.roles legend { padding: 0 7px; color: #344054; font-weight: 700; }
+.roles label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.roles input { width: 18px; height: 18px; accent-color: #1769aa; }
+.field { display: grid; gap: 8px; color: #344054; font-weight: 700; }
+.field input { min-height: 48px; padding: 10px 13px; border: 1px solid #98a2b3; border-radius: 9px; background: #fff; color: #101828; font: inherit; }
+.field input:focus { outline: 3px solid rgba(23, 105, 170, .2); border-color: #1769aa; }
+.submit { min-height: 52px; border: 0; border-radius: 10px; background: #1769aa; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; }
+.submit:hover:not(:disabled) { background: #0f568d; }
+.submit:disabled { cursor: not-allowed; opacity: .55; }
+.error { margin: 0; color: #b42318; font-weight: 700; }
+.notice { margin: 22px 0 0; color: #667085; font-size: 13px; text-align: center; }
+@media (max-width: 560px) { .card { padding: 28px 22px; } .roles { display: grid; gap: 12px; } }

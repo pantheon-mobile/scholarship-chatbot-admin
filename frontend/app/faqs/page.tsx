@@ -8,7 +8,9 @@ import {
   SelectField, SortableHeader, StatusBadge, Table, TableCell, TableFrame, TableHeaderCell, TableRow,
 } from "@/components/admin";
 import { FaqReferenceModal } from "@/components/faqs/FaqReferenceModal";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchFaqClassifications } from "@/lib/faqClassificationsApi";
+import { isSystemAdmin } from "@/lib/permissions";
 import { bulkDeleteFaqs, deleteFaq, downloadFaqImportTemplate, exportFaqs, fetchFaq, fetchFaqs, importFaqs } from "@/lib/faqsApi";
 import { Faq, FaqApiError, FaqDetail, FaqFilters, FaqImportRowError, FaqListResponse, FaqSortColumn } from "@/types/faq";
 import { FaqClassificationType } from "@/types/faqClassification";
@@ -22,6 +24,7 @@ const emptyFilters: FaqFilters = {
 
 export default function FaqsPage() {
   const router = useRouter();
+  const auth = useAuth();
   const [draft, setDraft] = useState(emptyFilters);
   const [filters, setFilters] = useState(emptyFilters);
   const [result, setResult] = useState<FaqListResponse | null>(null);
@@ -242,7 +245,7 @@ export default function FaqsPage() {
   return <AdminLayout activeMenu="faq" contentWidth="wide" contentAlign="start" onNavigate={(href) => router.push(href)}>
     <div className={styles.page}>
       <PageHeader title="FAQ一覧" actions={<div className={styles.topActions}>
-        <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/faq-classifications")}>区分を設定する</Button>
+        {isSystemAdmin(auth.user?.role ?? "admin") && <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/faq-classifications")}>区分を設定する</Button>}
         <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={download} disabled={busy}>一覧をダウンロード</Button>
         <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => setImportOpen(true)} disabled={importBusy}>FAQを一括登録／更新</Button>
         <Button variant="text" onClick={downloadTemplate} disabled={templateBusy}>{templateBusy ? "ダウンロード中..." : "フォーマットをダウンロード"}</Button>

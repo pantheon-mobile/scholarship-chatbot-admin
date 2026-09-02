@@ -1,6 +1,6 @@
 import { FaqCreate, FaqDetail, FaqFilters, FaqImportResponse, FaqImportRowError, FaqListResponse, FaqApiError, FaqUpdate } from "@/types/faq";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 function queryString(filters: FaqFilters, includePaging = true) {
   const params = new URLSearchParams();

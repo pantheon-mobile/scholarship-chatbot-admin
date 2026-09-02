@@ -1,6 +1,6 @@
 import { FileUploadApiError, FileUploadForm, FileUploadResponse } from "@/types/dataSourceFileUpload";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function createFileDataSources(values: FileUploadForm): Promise<FileUploadResponse> {
   const form = new FormData();

@@ -1,0 +1,8 @@
+.filters { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; padding: 18px; border: 1px solid #c9cdd1; background: #f7f7f7; }
+.filters label { width: 210px; }
+.filters > span { padding-bottom: 9px; }
+.note { padding: 12px 15px; background: #eef6ff; color: #344054; }
+.error { padding: 12px 15px; background: #fff2f2; color: #b01818; }
+.empty { padding: 24px; text-align: center; color: #667085; }
+.paging { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 20px; }
+@media (max-width: 760px) { .filters { align-items: stretch; flex-direction: column; } .filters label { width: auto; } .filters > span { display: none; } }

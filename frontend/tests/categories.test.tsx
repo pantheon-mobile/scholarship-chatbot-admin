@@ -104,7 +104,7 @@ describe("CB-213 categories", () => {
     await renderPage();
     fireEvent.click(screen.getByLabelText("全般を折り畳む"));
     fireEvent.click(screen.getByLabelText("全カテゴリを選択"));
-    fireEvent.click(screen.getAllByRole("button", { name: "削除", exact: true })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^削除$/ })[0]);
     expect(screen.getByText(/選択した5件のカテゴリ/)).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
     fireEvent.click(screen.getByLabelText("給付を選択"));
@@ -126,7 +126,7 @@ describe("CB-213 categories", () => {
   it("一括削除は明示選択したIDとversionを送る", async () => {
     await renderPage();
     fireEvent.click(screen.getByLabelText("全カテゴリを選択"));
-    fireEvent.click(screen.getAllByRole("button", { name: "削除", exact: true })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^削除$/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: "削除する" }));
     await waitFor(() => expect(api.bulkDeleteCategories).toHaveBeenCalledWith(categories.map(({ id, version }) => ({ id, version }))));
   });

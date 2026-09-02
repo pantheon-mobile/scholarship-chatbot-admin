@@ -1,6 +1,6 @@
 import { Category, CategoryApiError, CategoryDeleteTarget, CategoryListResponse, CategoryWriteValues } from "@/types/category";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function parseError(response: Response, fallback: string): Promise<never> {
   let message = fallback;

@@ -24,6 +24,16 @@ docker compose up --build
 
 - `http://localhost:3000`
 
+開発用AWSへ接続する場合は、AWS SSOログイン後に`.env.aws-dev.example`を`.env.aws-dev`へコピーし、実値を設定して次を実行します。
+
+```bash
+aws sso login --profile scholarship-dev
+docker compose --env-file .env.aws-dev -f compose.yaml -f compose.aws-dev.yaml up --build
+docker compose --env-file .env.aws-dev -f compose.yaml -f compose.aws-dev.yaml --profile worker run --rm ingestion-worker
+```
+
+`AWS_CONFIG_DIR`にはローカルのAWS設定ディレクトリの絶対パスを指定します。CPFだけは`/development/cpf`の模擬画面を使い、S3・Bedrock Knowledge Baseは開発用AWS実環境へ接続します。
+
 4. The frontend calls the backend health endpoint at `/api/v1/health`.
 
 ## Project structure
@@ -36,6 +46,25 @@ docker compose up --build
 
 - Frontend build and lint are exercised in CI
 - Backend tests are executed with `pytest`
+
+## AWS development environment
+
+`infrastructure/`にAWS CDK定義があります。VPC、ECS Fargate（Frontend／Backend）、RDS PostgreSQL、S3、ECR、ALB、および毎日01:00 JSTに起動する取り込みワーカーを作成します。
+
+```bash
+cd infrastructure
+npm ci
+npx cdk bootstrap
+npm run synth
+npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn=... \
+  --parameters PDFKnowledgeBaseId=... --parameters PDFDataSourceId=... \
+  --parameters WEBKnowledgeBaseId=... --parameters WEBDataSourceId=... \
+  --parameters EXCELKnowledgeBaseId=... --parameters EXCELDataSourceId=... \
+  --parameters WORDKnowledgeBaseId=... --parameters WORDDataSourceId=... \
+  --parameters PPTKnowledgeBaseId=... --parameters PPTDataSourceId=...
+```
+
+初回デプロイ前にFrontend／BackendのDockerイメージをCDK出力のECRへ`latest`タグでPushします。Frontendは同一ALBの`/api/*`を利用するため、`NEXT_PUBLIC_API_URL`を空文字にしてビルドします。CDKの実デプロイ、DNS、ACM証明書、CPF本物の公開鍵設定は、開発用ドメインとCPF回答が確定してから行います。
 
 ## Notes
 
@@ -64,7 +93,7 @@ docker compose up --build
 - 標準の`aws`モードではワーカー自身がMarkdown変換、Webクロール、S3配置、Knowledge Base同期まで実行します。別サービスへ処理を委譲する場合だけ`INGESTION_PROCESSOR_MODE=http`と`INGESTION_PROCESSOR_URL`を設定します。
 - PDFはテキスト抽出を標準とし、画像が存在して1ページ平均抽出文字数が既定100文字未満の場合だけVision Markdownへ切り替えます。判定方式、理由、ページ数、画像数、抽出文字数をS3 sidecar metadataへ記録します。
 - Webは登録URLと同一ホストかつ登録パス配下だけをクロールします。既定は深度5、最大500ページで、robots.txtに従います。
-- Excel、Word、PowerPointはPoC結果に基づきMarkdownをKB用成果物とします。PDF、Web、Excel、Word、PowerPointごとにS3 prefix、Knowledge Base ID、Data Source IDを環境変数で分離します。
+- WordはPoCの3方式比較結果に基づき、DOCX原本を変換せずにWord専用S3 prefixへ配置し、Word専用Knowledge Baseへ同期します。ExcelとPowerPointはMarkdownをKB用成果物とします。PDF、Web、Excel、Word、PowerPointごとにS3 prefix、Knowledge Base ID、Data Source IDを環境変数で分離します。
 - ローカル確認では必要なAWS環境変数を設定して`docker compose --profile worker run --rm ingestion-worker`を実行します。本番ではEventBridge Schedulerから同じコンテナをECS Fargateタスクとして夜間起動する想定です。
 - APIサーバーとワーカーは別コンテナなのでCPU・メモリ負荷を分離できます。DB、S3、Bedrockへの負荷は残るため、初期運用はワーカー1台・逐次処理とします。
 
@@ -206,3 +235,18 @@ docker compose up --build
 - DashboardはPostgreSQLのCOUNT、DISTINCT、FILTER、AVG、MIN、MAX、GROUP BYを使う7クエリ固定のリアルタイム集計です。全件Python集計、Redis、summary table、materialized view、background batch、cronは使用しません。
 - 時間帯・曜日は20260811版に必要な情報を過不足なく示すMVP判断として、外部チャートライブラリを追加せず既存Tableで表示します。
 - 利用統計・評価データの保持期間は未確定です。自動削除は実装せず、本番運用前に保持期間、閲覧権限、削除手順を確定する必要があります。
+
+## CPF SSO受信とチャット入口
+
+- 開発環境では`APP_ENV=development`かつ`ENABLE_DEVELOPMENT_CPF_MOCK=true`の場合だけ、`/development/cpf`のCPF模擬ログインを利用できます。氏名、利用者ID、システム管理者／職員を入力すると、最大5分の開発用JWTを発行し、既存と同じ独自セッションCookieへ一度だけ交換してダッシュボードへ遷移します。
+- 開発用JWTは`CPF_DEVELOPMENT_JWT_SECRET`（32文字以上）で署名します。本番・お客様共有環境では`ENABLE_DEVELOPMENT_CPF_MOCK=false`にし、開発用APIを404で拒否してください。開発用署名方式は実CPFのRS256検証とは分離しています。
+
+- CPFは`/sso/cpf#token=<JWT>`へ遷移します。Frontendは最初にURL fragmentを消去し、JWTを`POST /api/v1/auth/cpf`へ一度だけ送ります。JWTをLocal Storage、Session Storage、Cookie、画面、ログには保存しません。
+- BackendはRS256署名、`iss=cpf`、文字列の`aud=chatbot`、`purpose=sso`、`sub`、`name`、`role`、`site`、`iat`、`exp`、UUID形式の`jti`を検証します。公開鍵は`CPF_PUBLIC_KEYS`または`CPF_PUBLIC_KEY_PATHS`で複数指定でき、鍵切替期間の併用に対応します。
+- 使用済み`jti`はJWT期限までDBで保持し、同じJWTの再利用を拒否します。検証成功後はランダムな独自セッションを発行し、ハッシュだけをDBへ保存します。
+- 独自セッションCookieは`HttpOnly`、`Secure`、`SameSite=Lax`です。本番ではHTTPSを必須とし、`AUTH_COOKIE_SECURE=true`を使用してください。有効時間の初期値は8時間です。
+- 初期許可ロールは`admin,staff`です。`student`の利用可否はCPF側との確認後に`CPF_ACCEPTED_ROLES`で変更します。利用者キーはCPF内での重複を避けるため`site:sub`とします。
+- 認証後は管理画面のダッシュボード`/`へ移動します。管理画面Headerの「チャットサイト」から、同じ独自セッションを使ってCB-101の`/chat`へ移動します。
+- 管理画面・分析API・チャットAPIは独自セッションと`admin`／`staff`ロールを検証します。HeaderはCPFの`name`（空の場合は`sub`）を表示し、ログアウト時はDBセッションとCookieを破棄します。
+- CB-101は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続し、会話セッション、出典表示、Good／Bad、利用統計を扱います。回答生成はtemperature 0、既定HYBRID検索・Top 5です。
+- Frontendは既知の脆弱性修正を含むNext.js 16.3.4、Vitest 3.2.6へ更新し、`package-lock.json`と`npm ci`で依存を固定しています。

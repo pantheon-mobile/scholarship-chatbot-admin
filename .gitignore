@@ -6,7 +6,6 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 pnpm-lock.yaml
 
 # Python
@@ -21,6 +20,7 @@ venv/
 .venv/
 .env
 .env.*
+!.env.aws-dev.example
 uv.lock
 
 # Docker
@@ -32,3 +32,6 @@ docker-compose.override.yml
 .idea/
 *.sublime-workspace
 *.sublime-project
+
+# AWS CDK generated output
+infrastructure/cdk.out/

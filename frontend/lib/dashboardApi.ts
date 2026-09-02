@@ -1,6 +1,6 @@
 import { DashboardApiError, DashboardResponse } from "@/types/dashboard";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function fetchDashboard(fromDate: string, toDate: string): Promise<DashboardResponse> {
   const parameters = new URLSearchParams({ from: fromDate, to: toDate });

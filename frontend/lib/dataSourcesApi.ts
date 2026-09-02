@@ -1,6 +1,6 @@
 import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteDataSourceCreate, WebsiteDataSourceUpdate } from "@/types/dataSource";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 function queryString(filters: DataSourceFilters, includePage = true) {
   const params = new URLSearchParams();

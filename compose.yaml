@@ -32,6 +32,26 @@ services:
       - INGESTION_S3_BUCKET=${INGESTION_S3_BUCKET:-}
       - INGESTION_ORIGINAL_PREFIX=${INGESTION_ORIGINAL_PREFIX:-documents/admin/originals/}
       - ANALYTICS_IDENTITY_SECRET=local-development-analytics-secret-change-in-production
+      - APP_ENV=development
+      - ENABLE_DEVELOPMENT_CPF_MOCK=${ENABLE_DEVELOPMENT_CPF_MOCK:-true}
+      - CPF_DEVELOPMENT_JWT_SECRET=${CPF_DEVELOPMENT_JWT_SECRET:-local-development-cpf-jwt-secret-change-before-shared-use}
+      - CPF_DEVELOPMENT_JWT_TTL_SECONDS=${CPF_DEVELOPMENT_JWT_TTL_SECONDS:-300}
+      - CPF_PUBLIC_KEYS=${CPF_PUBLIC_KEYS:-}
+      - CPF_PUBLIC_KEY_PATHS=${CPF_PUBLIC_KEY_PATHS:-}
+      - CPF_JWT_ISSUER=${CPF_JWT_ISSUER:-cpf}
+      - CPF_JWT_AUDIENCE=${CPF_JWT_AUDIENCE:-chatbot}
+      - CPF_ACCEPTED_ROLES=${CPF_ACCEPTED_ROLES:-admin,staff}
+      - CPF_JWT_LEEWAY_SECONDS=${CPF_JWT_LEEWAY_SECONDS:-30}
+      - CPF_JWT_MAX_TTL_SECONDS=${CPF_JWT_MAX_TTL_SECONDS:-360}
+      - AUTH_SESSION_TTL_SECONDS=${AUTH_SESSION_TTL_SECONDS:-28800}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - AUTH_COOKIE_DOMAIN=${AUTH_COOKIE_DOMAIN:-}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - CHAT_KNOWLEDGE_BASE_ID=${CHAT_KNOWLEDGE_BASE_ID:-}
+      - CHAT_MODEL_ARN=${CHAT_MODEL_ARN:-}
+      - CHAT_SEARCH_TYPE=${CHAT_SEARCH_TYPE:-HYBRID}
+      - CHAT_NUMBER_OF_RESULTS=${CHAT_NUMBER_OF_RESULTS:-5}
+      - CHAT_MAX_TOKENS=${CHAT_MAX_TOKENS:-1200}
     volumes:
       - backend_uploads:/app/storage/uploads
     command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"]

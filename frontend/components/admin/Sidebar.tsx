@@ -1,17 +1,18 @@
 import styles from "./admin.module.css";
 import { AdminIcon, AdminIconName } from "./AdminIcon";
+import { AdminRole, isSystemAdmin } from "@/lib/permissions";
 
 export type AdminMenuKey = "dashboard" | "data-sources" | "faq" | "categories" | "chat-history" | "usage";
 
-type MenuItem = { key: AdminMenuKey; label: string; icon: AdminIconName; href: string };
+type MenuItem = { key: AdminMenuKey; label: string; icon: AdminIconName; href: string; systemAdminOnly?: boolean };
 
 const menuItems: MenuItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: "dashboard", href: "/" },
-  { key: "data-sources", label: "データソース管理", icon: "database", href: "/data-sources" },
+  { key: "data-sources", label: "データソース管理", icon: "database", href: "/data-sources", systemAdminOnly: true },
   { key: "faq", label: "ＦＡＱ管理", icon: "help", href: "/faqs" },
-  { key: "categories", label: "カテゴリ設定", icon: "list", href: "/categories" },
+  { key: "categories", label: "カテゴリ設定", icon: "list", href: "/categories", systemAdminOnly: true },
   { key: "chat-history", label: "チャット履歴", icon: "chat", href: "/chat-history" },
-  { key: "usage", label: "利用状況管理", icon: "chart", href: "/usage" },
+  { key: "usage", label: "利用状況管理", icon: "chart", href: "/usage", systemAdminOnly: true },
 ];
 
 type SidebarProps = {
@@ -20,10 +21,12 @@ type SidebarProps = {
   showMenuTrigger?: boolean;
   collapsed?: boolean;
   onToggle?: () => void;
+  role?: AdminRole;
 };
 
-export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, collapsed = false, onToggle }: SidebarProps) {
+export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, collapsed = false, onToggle, role = "admin" }: SidebarProps) {
   const currentYear = new Date().getFullYear();
+  const visibleMenuItems = menuItems.filter((item) => !item.systemAdminOnly || isSystemAdmin(role));
 
   return (
     <aside className={`${styles.sidebar} ${showMenuTrigger ? styles.sidebarWithMenuTrigger : ""}`} aria-label="管理サイドバー">
@@ -31,7 +34,7 @@ export function Sidebar({ activeMenu, onNavigate, showMenuTrigger = false, colla
         <AdminIcon name="menu" size={34} />
       </button>}
       <nav aria-label="管理メニュー">
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           <button
             key={item.key}
             type="button"

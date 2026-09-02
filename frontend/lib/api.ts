@@ -1,6 +1,6 @@
 import { ClassificationType } from "@/types/dataSourceTypes";
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function fetchDataSourceTypes(): Promise<ClassificationType[]> {
   const res = await fetch(`${apiBase}/api/v1/data-source-types`, { cache: "no-store" });

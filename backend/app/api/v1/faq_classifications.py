@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.api.v1.auth import require_system_admin_session
 from app.repositories.faq_classification import FaqClassificationRepository
 from app.schemas.faq_classification import (
     FaqClassificationLabelUpdate,
@@ -36,7 +37,7 @@ async def list_faq_classifications(service: FaqClassificationService = Depends(g
     return FaqClassificationListResponse(items=await service.list_types())
 
 
-@router.get("/faq-classifications/export")
+@router.get("/faq-classifications/export", dependencies=[Depends(require_system_admin_session)])
 async def export_faq_classifications(service: FaqClassificationService = Depends(get_service)):
     content = await service.export_excel()
     filename = f"classification{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
@@ -47,7 +48,7 @@ async def export_faq_classifications(service: FaqClassificationService = Depends
     )
 
 
-@router.patch("/faq-classifications/{type_id}", response_model=FaqClassificationTypeResponse)
+@router.patch("/faq-classifications/{type_id}", response_model=FaqClassificationTypeResponse, dependencies=[Depends(require_system_admin_session)])
 async def update_faq_classification_label(
     type_id: int,
     payload: FaqClassificationLabelUpdate,
@@ -59,7 +60,7 @@ async def update_faq_classification_label(
         raise api_error(error) from None
 
 
-@router.post("/faq-classifications/{type_id}/values", response_model=FaqClassificationTypeResponse, status_code=201)
+@router.post("/faq-classifications/{type_id}/values", response_model=FaqClassificationTypeResponse, status_code=201, dependencies=[Depends(require_system_admin_session)])
 async def create_faq_classification_value(
     type_id: int,
     payload: FaqClassificationValueCreate,
@@ -71,7 +72,7 @@ async def create_faq_classification_value(
         raise api_error(error) from None
 
 
-@router.put("/faq-classifications/{type_id}/values/{value_id}", response_model=FaqClassificationTypeResponse)
+@router.put("/faq-classifications/{type_id}/values/{value_id}", response_model=FaqClassificationTypeResponse, dependencies=[Depends(require_system_admin_session)])
 async def update_faq_classification_value(
     type_id: int,
     value_id: int,
@@ -84,7 +85,7 @@ async def update_faq_classification_value(
         raise api_error(error) from None
 
 
-@router.delete("/faq-classifications/{type_id}/values/{value_id}", status_code=204)
+@router.delete("/faq-classifications/{type_id}/values/{value_id}", status_code=204, dependencies=[Depends(require_system_admin_session)])
 async def delete_faq_classification_value(
     type_id: int,
     value_id: int,
@@ -98,7 +99,7 @@ async def delete_faq_classification_value(
         raise api_error(error) from None
 
 
-@router.patch("/faq-classifications/{type_id}/values/order", response_model=FaqClassificationTypeResponse)
+@router.patch("/faq-classifications/{type_id}/values/order", response_model=FaqClassificationTypeResponse, dependencies=[Depends(require_system_admin_session)])
 async def reorder_faq_classification_values(
     type_id: int,
     payload: FaqClassificationOrderUpdate,

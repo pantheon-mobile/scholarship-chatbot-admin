@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminIcon } from "../components/admin/AdminIcon";
 import { AdminLayout } from "../components/admin/AdminLayout";
 import styles from "../components/admin/admin.module.css";
+import { Sidebar } from "../components/admin/Sidebar";
 
 afterEach(cleanup);
 
@@ -53,8 +54,29 @@ describe("AdminLayout", () => {
 
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "チャットサイト" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "東京太郎" })).not.toBeNull();
+    expect(screen.getByText("東京太郎")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
     expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
+  });
+
+  it("チャットサイトから認証済みチャット画面へ遷移する", () => {
+    const onNavigate = vi.fn();
+    render(<AdminLayout activeMenu="dashboard" onNavigate={onNavigate}>本文</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "チャットサイト" }));
+
+    expect(onNavigate).toHaveBeenCalledWith("/chat");
+  });
+
+  it("職員にはシステム管理者専用メニューを表示しない", () => {
+    render(<Sidebar activeMenu="dashboard" role="staff" onNavigate={() => undefined} />);
+
+    expect(screen.getByRole("button", { name: "ダッシュボード" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "ＦＡＱ管理" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "チャット履歴" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "データソース管理" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "カテゴリ設定" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "利用状況管理" })).toBeNull();
   });
 
   it("ハンバーガーでアイコン表示へ切り替え、折りたたみ中もメニュー遷移できる", () => {
