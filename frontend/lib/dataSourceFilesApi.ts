@@ -1,4 +1,5 @@
 import { FileUploadApiError, FileUploadForm, FileUploadResponse } from "@/types/dataSourceFileUpload";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -14,7 +15,7 @@ export async function createFileDataSources(values: FileUploadForm): Promise<Fil
   form.append("answer_source_enabled", String(values.answer_source_enabled));
   form.append("reference_link_visible", String(values.reference_link_visible));
 
-  const response = await fetch(`${apiBase}/api/v1/data-sources/files`, { method: "POST", body: form });
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/files`, { method: "POST", body: form });
   if (!response.ok) {
     let message = "ファイルの追加に失敗しました。";
     let code: string | undefined;

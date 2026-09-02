@@ -59,6 +59,12 @@ describe("AdminLayout", () => {
     expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
   });
 
+  it("黒いヘッダー上でログイン利用者名を白色表示する", () => {
+    render(<AdminLayout activeMenu="dashboard" userName="笠井 美治" onNavigate={() => undefined}>本文</AdminLayout>);
+
+    expect(screen.getByText("笠井 美治").classList.contains(styles.userName)).toBe(true);
+  });
+
   it("チャットサイトから認証済みチャット画面へ遷移する", () => {
     const onNavigate = vi.fn();
     render(<AdminLayout activeMenu="dashboard" onNavigate={onNavigate}>本文</AdminLayout>);

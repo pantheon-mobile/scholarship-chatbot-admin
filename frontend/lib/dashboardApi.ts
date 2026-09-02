@@ -1,10 +1,11 @@
 import { DashboardApiError, DashboardResponse } from "@/types/dashboard";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function fetchDashboard(fromDate: string, toDate: string): Promise<DashboardResponse> {
   const parameters = new URLSearchParams({ from: fromDate, to: toDate });
-  const response = await fetch(`${apiBase}/api/v1/dashboard?${parameters}`, { cache: "no-store" });
+  const response = await authenticatedFetch(`${apiBase}/api/v1/dashboard?${parameters}`, { cache: "no-store" });
   if (!response.ok) {
     let message = "ダッシュボードの集計に失敗しました。";
     let code: string | undefined;

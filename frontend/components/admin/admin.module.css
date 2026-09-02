@@ -34,7 +34,7 @@
 .headerActions { display: flex; align-items: center; gap: 10px; }
 .headerActions button { min-height: 42px; padding: 10px 20px; border-radius: 6px; font: inherit; font-size: 17px; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; }
 .chatSiteButton { border: 1px solid #3d5afe; color: #fff; background: #3d5afe; }
-.userName { color: #24272a; font-weight: 600; }
+.userName { color: #fff; font-weight: 600; }
 .userButton { border: 2px solid #fff; color: #fff; background: #17191b; }
 .headerActions button:focus-visible { outline: 2px solid rgb(255 255 255 / 70%); outline-offset: 2px; }
 

@@ -1,9 +1,10 @@
 import { ClassificationType } from "@/types/dataSourceTypes";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function fetchDataSourceTypes(): Promise<ClassificationType[]> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types`, { cache: "no-store" });
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types`, { cache: "no-store" });
   if (!res.ok) {
     throw new Error("一覧の取得に失敗しました。");
   }
@@ -11,7 +12,7 @@ export async function fetchDataSourceTypes(): Promise<ClassificationType[]> {
 }
 
 export async function updateTypeLabel(typeId: number, display_label: string, version: number): Promise<ClassificationType> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/${typeId}`, {
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/${typeId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ display_label, version }),
@@ -23,7 +24,7 @@ export async function updateTypeLabel(typeId: number, display_label: string, ver
 }
 
 export async function addClassificationValue(typeId: number, value_name: string): Promise<ClassificationType> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/${typeId}/values`, {
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/${typeId}/values`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ value_name }),
@@ -35,7 +36,7 @@ export async function addClassificationValue(typeId: number, value_name: string)
 }
 
 export async function updateClassificationValue(typeId: number, valueId: number, value_name: string, version: number): Promise<ClassificationType> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/${valueId}`, {
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/${valueId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ value_name, version }),
@@ -47,7 +48,7 @@ export async function updateClassificationValue(typeId: number, valueId: number,
 }
 
 export async function deleteClassificationValue(typeId: number, valueId: number, version: number): Promise<void> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/${valueId}?version=${version}`, {
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/${valueId}?version=${version}`, {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -56,7 +57,7 @@ export async function deleteClassificationValue(typeId: number, valueId: number,
 }
 
 export async function reorderClassificationValues(typeId: number, orderedIds: number[]): Promise<void> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/order`, {
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/${typeId}/values/order`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(orderedIds),
@@ -67,7 +68,7 @@ export async function reorderClassificationValues(typeId: number, orderedIds: nu
 }
 
 export async function exportClassificationTypes(): Promise<Blob> {
-  const res = await fetch(`${apiBase}/api/v1/data-source-types/export`);
+  const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types/export`);
   if (!res.ok) {
     throw new Error("Excelのダウンロードに失敗しました。");
   }
