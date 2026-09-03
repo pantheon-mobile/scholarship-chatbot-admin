@@ -76,6 +76,8 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         DB_HOST: database.dbInstanceEndpointAddress, DB_PORT: database.dbInstanceEndpointPort,
         DB_NAME: "scholarship", DB_USER: "scholarship_admin",
         CHAT_KNOWLEDGE_BASE_ID: chatKnowledgeBaseId, CHAT_MODEL_ARN: chatModelArn,
+        PDF_VISION_MODEL_ID: chatModelArn,
+        ...ingestionIds,
       },
       secrets: {
         DB_PASSWORD: ecs.Secret.fromSecretsManager(database.secret!, "password"),
@@ -107,13 +109,21 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         AWS_REGION: this.region, STORAGE_BACKEND: "s3", INGESTION_S3_BUCKET: bucket.bucketName,
         DB_HOST: database.dbInstanceEndpointAddress, DB_PORT: database.dbInstanceEndpointPort,
         DB_NAME: "scholarship", DB_USER: "scholarship_admin", INGESTION_PROCESSOR_MODE: "aws",
+        PDF_VISION_MODEL_ID: chatModelArn,
         ...ingestionIds,
       },
       secrets: { DB_PASSWORD: ecs.Secret.fromSecretsManager(database.secret!, "password") },
     });
     bucket.grantReadWrite(workerTask.taskRole);
     workerTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["bedrock:StartIngestionJob", "bedrock:GetIngestionJob", "bedrock:InvokeModel"], resources: ["*"] }));
-    new scheduler.Schedule(this, "NightlyIngestion", {
+    backendContainer.addEnvironment("INGESTION_ECS_CLUSTER_ARN", cluster.clusterArn);
+    backendContainer.addEnvironment("INGESTION_ECS_TASK_DEFINITION_ARN", workerTask.taskDefinitionArn);
+    backendContainer.addEnvironment("INGESTION_ECS_SUBNET_IDS", vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnetIds.join(","));
+    backendContainer.addEnvironment("INGESTION_ECS_SECURITY_GROUP_IDS", taskSecurityGroup.securityGroupId);
+    backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["ecs:RunTask"], resources: [workerTask.taskDefinitionArn] }));
+    backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["iam:PassRole"], resources: [workerTask.taskRole.roleArn, workerTask.executionRole!.roleArn] }));
+    backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["bedrock:StartIngestionJob", "bedrock:GetIngestionJob", "bedrock:InvokeModel"], resources: ["*"] }));
+    const nightlyIngestion = new scheduler.Schedule(this, "NightlyIngestion", {
       schedule: scheduler.ScheduleExpression.cron({ minute: "0", hour: "1", timeZone: cdk.TimeZone.ASIA_TOKYO }),
       target: new schedulerTargets.EcsRunFargateTask(cluster, { taskDefinition: workerTask, securityGroups: [taskSecurityGroup], vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS } }),
     });
@@ -122,5 +132,6 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     new cdk.CfnOutput(this, "DocumentsBucketName", { value: bucket.bucketName });
     new cdk.CfnOutput(this, "FrontendRepositoryUri", { value: frontendRepo.repositoryUri });
     new cdk.CfnOutput(this, "BackendRepositoryUri", { value: backendRepo.repositoryUri });
+    new cdk.CfnOutput(this, "NightlyIngestionScheduleName", { value: nightlyIngestion.scheduleName });
   }
 }

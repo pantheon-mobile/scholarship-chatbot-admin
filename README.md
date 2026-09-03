@@ -83,7 +83,7 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
 - 一覧Excelは検索結果の確認用であり、未確定の一括更新用フォーマットではありません。一括更新機能はMVP対象外です。
 - `data_source_classification_values`は既存CB-207テーブルへの複合一意制約追加を避け、単純な外部キーで構成します。種別値が指定種別に属することは`DataSourceService.validate_classification_assignments`で必ず検証します。
 - 0002の12件は画面動作確認用サンプルです。`source_type`と`［サンプル］`付きtitleで冪等判定するMVP用seedであり、正式データ投入時に廃止または見直します。
-- 実ファイルダウンロード、Web取得・再学習、Knowledge Base同期、認証・認可は未実装です。
+- 実ファイルのS3保存、Web取得、形式別変換、Knowledge Base同期、CPF認証・ロール認可を実装済みです。正式環境でのウイルススキャン、DNS／ACM、CPF本物の公開鍵設定は別途必要です。
 
 ## Nightly ingestion worker foundation
 
@@ -94,7 +94,7 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
 - PDFはテキスト抽出を標準とし、画像が存在して1ページ平均抽出文字数が既定100文字未満の場合だけVision Markdownへ切り替えます。判定方式、理由、ページ数、画像数、抽出文字数をS3 sidecar metadataへ記録します。
 - Webは登録URLと同一ホストかつ登録パス配下だけをクロールします。既定は深度5、最大500ページで、robots.txtに従います。
 - WordはPoCの3方式比較結果に基づき、DOCX原本を変換せずにWord専用S3 prefixへ配置し、Word専用Knowledge Baseへ同期します。ExcelとPowerPointはMarkdownをKB用成果物とします。PDF、Web、Excel、Word、PowerPointごとにS3 prefix、Knowledge Base ID、Data Source IDを環境変数で分離します。
-- ローカル確認では必要なAWS環境変数を設定して`docker compose --profile worker run --rm ingestion-worker`を実行します。本番ではEventBridge Schedulerから同じコンテナをECS Fargateタスクとして夜間起動する想定です。
+- ローカル確認では必要なAWS環境変数を設定して`docker compose --profile worker run --rm ingestion-worker`を実行します。AWSでは「今すぐ実行」と毎日01:00 JSTのEventBridge Schedulerが、どちらも同じECS Fargate専用ワーカーを起動します。
 - APIサーバーとワーカーは別コンテナなのでCPU・メモリ負荷を分離できます。DB、S3、Bedrockへの負荷は残るため、初期運用はワーカー1台・逐次処理とします。
 
 ## CB-203 local file upload MVP
