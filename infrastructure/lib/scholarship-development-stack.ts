@@ -19,6 +19,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const parameter = (name: string, description: string) => new cdk.CfnParameter(this, name, { type: "String", default: "", description }).valueAsString;
     const chatKnowledgeBaseId = parameter("ChatKnowledgeBaseId", "CB-101が検索するBedrock Knowledge Base ID");
     const chatModelArn = parameter("ChatModelArn", "CB-101が回答生成に使用するBedrock model ARN");
+    const cpfPublicKeysByKid = parameter("CpfPublicKeysByKid", "kidをキー、PEM公開鍵を値とするJSONオブジェクト");
+    const cpfFacultyReturnUrl = parameter("CpfFacultyReturnUrl", "認証失敗時に戻るCPF教職員URL");
+    const cpfStudentReturnUrl = parameter("CpfStudentReturnUrl", "認証失敗時に戻るCPF学生URL（学生対応開始までは空で可）");
     const ingestionIds = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].flatMap(kind => [
       [`INGESTION_${kind}_KNOWLEDGE_BASE_ID`, parameter(`${kind}KnowledgeBaseId`, `${kind}用Knowledge Base ID`)],
       [`INGESTION_${kind}_DATA_SOURCE_ID`, parameter(`${kind}DataSourceId`, `${kind}用Data Source ID`)],
@@ -77,6 +80,11 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         DB_NAME: "scholarship", DB_USER: "scholarship_admin",
         CHAT_KNOWLEDGE_BASE_ID: chatKnowledgeBaseId, CHAT_MODEL_ARN: chatModelArn,
         PDF_VISION_MODEL_ID: chatModelArn,
+        CPF_PUBLIC_KEYS_BY_KID: cpfPublicKeysByKid,
+        CPF_FACULTY_RETURN_URL: cpfFacultyReturnUrl,
+        CPF_STUDENT_RETURN_URL: cpfStudentReturnUrl,
+        CPF_JWT_ISSUER: "cpf", CPF_JWT_AUDIENCE: "chatbot", CPF_ACCEPTED_ROLES: "admin,staff",
+        CPF_JWT_MAX_TTL_SECONDS: "360", AUTH_SESSION_TTL_SECONDS: "28800",
         ...ingestionIds,
       },
       secrets: {

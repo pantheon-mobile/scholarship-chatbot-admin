@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { exchangeCpfToken } from "@/lib/authApi";
+import { CpfExchangeError, exchangeCpfToken } from "@/lib/authApi";
 import styles from "./page.module.css";
 
 export default function CpfSsoPage() {
   const router = useRouter();
   const started = useRef(false);
   const [error, setError] = useState("");
+  const [returnUrl, setReturnUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (started.current) return;
@@ -26,7 +27,14 @@ export default function CpfSsoPage() {
 
     exchangeCpfToken(token)
       .then(() => router.replace("/"))
-      .catch(() => setError("認証に失敗しました。CPFからもう一度アクセスしてください。"));
+      .catch((reason: unknown) => {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "認証に失敗しました。CPFからもう一度アクセスしてください。",
+        );
+        if (reason instanceof CpfExchangeError) setReturnUrl(reason.returnUrl);
+      });
   }, [router]);
 
   return (
@@ -37,7 +45,7 @@ export default function CpfSsoPage() {
           <>
             <p className={styles.error}>{error}</p>
             <p className={styles.help}>この画面を再読み込みせず、CPFのメニューから入り直してください。</p>
-            <Link href="/" className={styles.link}>トップへ戻る</Link>
+            {returnUrl && <Link href={returnUrl} className={styles.link}>CPFへ戻る</Link>}
           </>
         ) : (
           <>

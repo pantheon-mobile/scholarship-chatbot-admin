@@ -15,6 +15,7 @@ from app.services.auth_service import (
     AuthService,
     CpfAuthenticationError,
     issue_development_cpf_token,
+    load_cpf_public_keys,
 )
 
 
@@ -34,7 +35,7 @@ def key_pair():
     )
 
 
-def make_token(private_key: bytes, **overrides) -> str:
+def make_token(private_key: bytes, *, headers: dict | None = None, **overrides) -> str:
     now = int(time.time())
     claims = {
         "iss": "cpf",
@@ -49,7 +50,7 @@ def make_token(private_key: bytes, **overrides) -> str:
         "exp": now + 300,
     }
     claims.update(overrides)
-    return jwt.encode(claims, private_key, algorithm="RS256")
+    return jwt.encode(claims, private_key, algorithm="RS256", headers=headers)
 
 
 @pytest.mark.anyio
@@ -69,6 +70,34 @@ async def test_exchange_creates_chatbot_session_once(key_pair):
     session = repository.create_session_once.await_args.kwargs["session"]
     assert session.token_hash != raw_token
     assert session.user_key == "faculty:user-001"
+
+
+@pytest.mark.anyio
+async def test_kid_selects_matching_public_key_and_rejects_unknown_kid(key_pair):
+    private_key, public_key = key_pair
+    repository = AsyncMock()
+    repository.create_session_once.return_value = True
+    service = AuthService(repository, {"cpf-chatbot-stg-202609": public_key})
+
+    _, user = await service.exchange_cpf_token(
+        make_token(private_key, headers={"kid": "cpf-chatbot-stg-202609"})
+    )
+    assert user.subject == "user-001"
+
+    with pytest.raises(CpfAuthenticationError, match="unknown CPF kid"):
+        await service.exchange_cpf_token(
+            make_token(private_key, headers={"kid": "cpf-chatbot-stg-202610"})
+        )
+
+
+def test_loads_public_keys_by_kid_from_json(monkeypatch, key_pair):
+    _, public_key = key_pair
+    # JSON must carry PEM newlines as escaped characters, as it will in an environment variable.
+    monkeypatch.setenv(
+        "CPF_PUBLIC_KEYS_BY_KID",
+        '{"cpf-chatbot-stg-202609": "' + public_key.replace("\n", "\\n") + '"}',
+    )
+    assert load_cpf_public_keys() == {"cpf-chatbot-stg-202609": public_key}
 
 
 @pytest.mark.anyio
@@ -98,11 +127,13 @@ async def test_api_sets_http_only_session_cookie_and_hides_auth_reason(monkeypat
     service = AsyncMock()
     service.exchange_cpf_token.side_effect = CpfAuthenticationError("secret diagnostic")
     app.dependency_overrides[get_service] = lambda: service
+    monkeypatch.setenv("CPF_FACULTY_RETURN_URL", "https://cpf-stg.example/faculty/")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
         rejected = await client.post("/api/v1/auth/cpf", json={"token": "invalid"})
     assert rejected.status_code == 401
     assert "secret diagnostic" not in rejected.text
+    assert rejected.json()["detail"]["return_url"] == "https://cpf-stg.example/faculty/"
 
     from app.schemas.auth import AuthenticatedUserResponse
 

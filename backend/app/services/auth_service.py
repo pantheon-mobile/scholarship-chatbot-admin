@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import time
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -100,7 +102,38 @@ def verify_development_cpf_token(token: str) -> dict:
     return claims
 
 
-def load_cpf_public_keys() -> list[str]:
+def load_cpf_public_keys() -> dict[str, str] | list[str]:
+    keyed: dict[str, str] = {}
+    inline_by_kid = os.getenv("CPF_PUBLIC_KEYS_BY_KID", "").strip()
+    paths_by_kid = os.getenv("CPF_PUBLIC_KEY_PATHS_BY_KID", "").strip()
+    try:
+        if inline_by_kid:
+            values = json.loads(inline_by_kid)
+            if not isinstance(values, dict):
+                raise ValueError
+            keyed.update(
+                {
+                    str(kid): str(value).replace("\\n", "\n")
+                    for kid, value in values.items()
+                }
+            )
+        if paths_by_kid:
+            values = json.loads(paths_by_kid)
+            if not isinstance(values, dict):
+                raise ValueError
+            keyed.update(
+                {
+                    str(kid): Path(str(path)).read_text(encoding="utf-8")
+                    for kid, path in values.items()
+                }
+            )
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
+        raise AuthConfigurationError("CPF kid public key configuration is invalid") from exc
+    if keyed:
+        if any(not kid.strip() or not key.strip() for kid, key in keyed.items()):
+            raise AuthConfigurationError("CPF kid public key configuration is invalid")
+        return keyed
+
     keys: list[str] = []
     inline = os.getenv("CPF_PUBLIC_KEYS", "").strip()
     if inline:
@@ -116,11 +149,27 @@ def load_cpf_public_keys() -> list[str]:
     return keys
 
 
-def verify_cpf_token(token: str, public_keys: list[str], *, now: float | None = None) -> dict:
+def verify_cpf_token(
+    token: str,
+    public_keys: Mapping[str, str] | list[str],
+    *,
+    now: float | None = None,
+) -> dict:
     current_time = time.time() if now is None else now
     claims = None
     last_error: Exception | None = None
-    for public_key in public_keys:
+    if isinstance(public_keys, Mapping):
+        try:
+            header = jwt.get_unverified_header(token)
+        except jwt.PyJWTError as exc:
+            raise CpfAuthenticationError("invalid CPF token header") from exc
+        kid = header.get("kid")
+        if not isinstance(kid, str) or kid not in public_keys:
+            raise CpfAuthenticationError("unknown CPF kid")
+        candidate_keys = [public_keys[kid]]
+    else:
+        candidate_keys = public_keys
+    for public_key in candidate_keys:
         try:
             candidate = jwt.decode(
                 token,
@@ -172,7 +221,11 @@ def verify_cpf_token(token: str, public_keys: list[str], *, now: float | None = 
 
 
 class AuthService:
-    def __init__(self, repository: AuthRepository, public_keys: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        repository: AuthRepository,
+        public_keys: Mapping[str, str] | list[str] | None = None,
+    ) -> None:
         self.repository = repository
         self.public_keys = public_keys
 

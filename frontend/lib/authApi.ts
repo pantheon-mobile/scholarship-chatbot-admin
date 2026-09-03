@@ -11,6 +11,13 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
+export class CpfExchangeError extends Error {
+  constructor(message: string, public readonly returnUrl: string | null = null) {
+    super(message);
+    this.name = "CpfExchangeError";
+  }
+}
+
 export async function exchangeCpfToken(token: string): Promise<AuthenticatedUser> {
   const response = await fetch(`${apiBase}/api/v1/auth/cpf`, {
     method: "POST",
@@ -18,7 +25,21 @@ export async function exchangeCpfToken(token: string): Promise<AuthenticatedUser
     credentials: "include",
     body: JSON.stringify({ token }),
   });
-  if (!response.ok) throw new Error(await parseError(response));
+  if (!response.ok) {
+    try {
+      const payload = await response.json() as {
+        detail?: string | { message?: string; return_url?: string | null };
+      };
+      const detail = payload.detail;
+      if (detail && typeof detail === "object") {
+        throw new CpfExchangeError(detail.message ?? "認証に失敗しました。", detail.return_url ?? null);
+      }
+      throw new CpfExchangeError(typeof detail === "string" ? detail : "認証に失敗しました。");
+    } catch (error) {
+      if (error instanceof CpfExchangeError) throw error;
+      throw new CpfExchangeError("認証に失敗しました。");
+    }
+  }
   return response.json();
 }
 

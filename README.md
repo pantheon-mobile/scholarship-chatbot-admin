@@ -242,10 +242,11 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
 - 開発用JWTは`CPF_DEVELOPMENT_JWT_SECRET`（32文字以上）で署名します。本番・お客様共有環境では`ENABLE_DEVELOPMENT_CPF_MOCK=false`にし、開発用APIを404で拒否してください。開発用署名方式は実CPFのRS256検証とは分離しています。
 
 - CPFは`/sso/cpf#token=<JWT>`へ遷移します。Frontendは最初にURL fragmentを消去し、JWTを`POST /api/v1/auth/cpf`へ一度だけ送ります。JWTをLocal Storage、Session Storage、Cookie、画面、ログには保存しません。
-- BackendはRS256署名、`iss=cpf`、文字列の`aud=chatbot`、`purpose=sso`、`sub`、`name`、`role`、`site`、`iat`、`exp`、UUID形式の`jti`を検証します。公開鍵は`CPF_PUBLIC_KEYS`または`CPF_PUBLIC_KEY_PATHS`で複数指定でき、鍵切替期間の併用に対応します。
+- BackendはRS256署名、`iss=cpf`、文字列の`aud=chatbot`、`purpose=sso`、`sub`、`name`、`role`、`site`、`iat`、`exp`、UUID形式の`jti`を検証します。公開鍵は`CPF_PUBLIC_KEYS_BY_KID`または`CPF_PUBLIC_KEY_PATHS_BY_KID`へJSONオブジェクト形式で設定し、JWT Headerの`kid`で選択します。鍵切替期間は旧・新の2つの`kid`を併記します。従来の`CPF_PUBLIC_KEYS`／`CPF_PUBLIC_KEY_PATHS`も互換用に利用できます。
 - 使用済み`jti`はJWT期限までDBで保持し、同じJWTの再利用を拒否します。検証成功後はランダムな独自セッションを発行し、ハッシュだけをDBへ保存します。
 - 独自セッションCookieは`HttpOnly`、`Secure`、`SameSite=Lax`です。本番ではHTTPSを必須とし、`AUTH_COOKIE_SECURE=true`を使用してください。有効時間の初期値は8時間です。
 - 初期許可ロールは`admin,staff`です。`student`の利用可否はCPF側との確認後に`CPF_ACCEPTED_ROLES`で変更します。利用者キーはCPF内での重複を避けるため`site:sub`とします。
+- 認証失敗時は`CPF_FACULTY_RETURN_URL`、学生対応後は`CPF_STUDENT_RETURN_URL`を戻り先に使用します。JWTを検証できない場合の既定は教職員側です。
 - 認証後は管理画面のダッシュボード`/`へ移動します。管理画面Headerの「チャットサイト」から、同じ独自セッションを使ってCB-101の`/chat`へ移動します。
 - 管理画面・分析API・チャットAPIは独自セッションと`admin`／`staff`ロールを検証します。HeaderはCPFの`name`（空の場合は`sub`）を表示し、ログアウト時はDBセッションとCookieを破棄します。
 - CB-101は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続し、本人別の会話履歴、出典表示、Good／Bad理由、利用統計をDBへ保存します。回答生成はtemperature 0、既定HYBRID検索・Top 5です。

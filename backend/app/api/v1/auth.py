@@ -1,5 +1,6 @@
 import os
 
+import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,6 +68,22 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
+def _cpf_return_url(token: str) -> str | None:
+    site = "faculty"
+    try:
+        unverified = jwt.decode(token, options={"verify_signature": False})
+        if unverified.get("site") == "student":
+            site = "student"
+    except jwt.PyJWTError:
+        pass
+    variable = (
+        "CPF_STUDENT_RETURN_URL"
+        if site == "student"
+        else "CPF_FACULTY_RETURN_URL"
+    )
+    return os.getenv(variable, "").strip() or None
+
+
 @router.post("/cpf", response_model=AuthenticatedUserResponse)
 async def exchange_cpf_token(
     payload: CpfTokenExchangeRequest,
@@ -78,7 +95,14 @@ async def exchange_cpf_token(
     except AuthConfigurationError:
         raise HTTPException(status_code=503, detail="SSO設定が完了していません。") from None
     except CpfAuthenticationError:
-        raise HTTPException(status_code=401, detail="CPFからもう一度アクセスしてください。") from None
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "CPF_AUTHENTICATION_FAILED",
+                "message": "CPFからもう一度アクセスしてください。",
+                "return_url": _cpf_return_url(payload.token),
+            },
+        ) from None
     _set_session_cookie(response, session_token)
     return user
 
