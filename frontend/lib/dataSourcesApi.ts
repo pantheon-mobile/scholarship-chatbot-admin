@@ -32,6 +32,14 @@ export async function fetchDataSources(filters: DataSourceFilters): Promise<Data
   return response.json();
 }
 
+export async function runIngestionNow(): Promise<{ message: string }> {
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/ingestion/run-now`, {
+    method: "POST",
+  });
+  if (!response.ok) return parseError(response, "取り込み処理を開始できませんでした。");
+  return response.json();
+}
+
 export async function fetchDataSource(id: number): Promise<DataSource> {
   const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/${id}`, { cache: "no-store" });
   if (!response.ok) return parseError(response, "データソース情報の取得に失敗しました。");

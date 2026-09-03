@@ -248,5 +248,6 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
 - 初期許可ロールは`admin,staff`です。`student`の利用可否はCPF側との確認後に`CPF_ACCEPTED_ROLES`で変更します。利用者キーはCPF内での重複を避けるため`site:sub`とします。
 - 認証後は管理画面のダッシュボード`/`へ移動します。管理画面Headerの「チャットサイト」から、同じ独自セッションを使ってCB-101の`/chat`へ移動します。
 - 管理画面・分析API・チャットAPIは独自セッションと`admin`／`staff`ロールを検証します。HeaderはCPFの`name`（空の場合は`sub`）を表示し、ログアウト時はDBセッションとCookieを破棄します。
-- CB-101は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続し、会話セッション、出典表示、Good／Bad、利用統計を扱います。回答生成はtemperature 0、既定HYBRID検索・Top 5です。
+- CB-101は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続し、本人別の会話履歴、出典表示、Good／Bad理由、利用統計をDBへ保存します。回答生成はtemperature 0、既定HYBRID検索・Top 5です。
+- チャット画面のタイトル、初期メッセージ、入力欄文言、枠色、BotアイコンURL、履歴表示、メンテナンス表示、Good／Badの案内・選択肢は`CHAT_UI_*`、`CHAT_HISTORY_ENABLED`、`CHAT_MAINTENANCE_*`、`CHAT_*_FEEDBACK_*`で環境別に変更できます。選択肢は`|`区切りです。生成指示は`CHAT_SYSTEM_PROMPT`（最大5000文字、`$search_results$`と`$query$`が必須）で変更できます。
 - Frontendは既知の脆弱性修正を含むNext.js 16.3.4、Vitest 3.2.6へ更新し、`package-lock.json`と`npm ci`で依存を固定しています。

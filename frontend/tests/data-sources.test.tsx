@@ -7,6 +7,7 @@ const push = vi.fn();
 const api = vi.hoisted(() => ({
   fetchDataSources: vi.fn(), updateAnswerSource: vi.fn(), updateReferenceLink: vi.fn(),
   deleteDataSource: vi.fn(), bulkDeleteDataSources: vi.fn(), exportDataSources: vi.fn(),
+  runIngestionNow: vi.fn(),
   fetchDataSourceTypes: vi.fn(),
   fetchCategories: vi.fn(),
 }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   api.deleteDataSource.mockResolvedValue(undefined);
   api.bulkDeleteDataSources.mockResolvedValue(2);
   api.exportDataSources.mockResolvedValue(new Blob(["xlsx"]));
+  api.runIngestionNow.mockResolvedValue({ message: "待機中のデータソースの処理を開始しました。" });
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:test") });
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
@@ -162,5 +164,13 @@ describe("CB-202 data sources", () => {
     await waitFor(() => expect(api.exportDataSources).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "種別を設定する" }));
     expect(push).toHaveBeenCalledWith("/data-source-types");
+  });
+
+  it("今すぐ実行を受け付けて処理中表示にする", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "今すぐ実行" }));
+    await waitFor(() => expect(api.runIngestionNow).toHaveBeenCalledOnce());
+    expect((await screen.findByRole("status")).textContent).toContain("状態は自動更新されます");
+    expect((screen.getByRole("button", { name: "処理中..." }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

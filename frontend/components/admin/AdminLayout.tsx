@@ -34,6 +34,7 @@ export function AdminLayout({
     <div className={`${styles.adminShell} ${collapsible && sidebarCollapsed ? styles.sidebarCollapsed : ""}`}>
       <Header
         userName={userName ?? auth.user?.display_name ?? auth.user?.subject}
+        userId={auth.user?.subject}
         variant={chromeVariant}
         onChatSite={() => onNavigate("/chat")}
         onLogout={() => { void auth.logout(); }}

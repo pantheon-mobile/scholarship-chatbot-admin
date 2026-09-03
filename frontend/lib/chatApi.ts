@@ -1,4 +1,4 @@
-import { ChatAnswer } from "@/types/chat";
+import { ChatAnswer, ChatHistoryDetail, ChatHistorySummary, ChatUiConfig } from "@/types/chat";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -20,6 +20,16 @@ async function analytics(path: string, method: string, body: unknown) {
 
 export const recordChatAccess = (id: string, identifier: string, at: string) => analytics("accesses", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, accessed_at: at });
 export const startTrackedChat = (id: string, identifier: string, at: string) => analytics("chat-sessions", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, started_at: at });
-export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at });
-export const completeTrackedInteraction = (id: string, answerType: string | null, at?: string) => analytics(`interactions/${id}/completion`, "PATCH", answerType ? { processing_status: "COMPLETED", answer_type: answerType, answer_displayed_at: at } : { processing_status: "FAILED" });
-export const submitFeedback = (id: string, rating: "GOOD" | "BAD") => analytics(`interactions/${id}/feedback`, "PUT", { rating, comment: null });
+export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string, question: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at, question_text: question });
+export const completeTrackedInteraction = (id: string, answerType: string | null, at?: string, answer?: string, citations?: unknown[]) => analytics(`interactions/${id}/completion`, "PATCH", answerType ? { processing_status: "COMPLETED", answer_type: answerType, answer_displayed_at: at, answer_text: answer, citations: citations ?? [] } : { processing_status: "FAILED" });
+export const submitFeedback = (id: string, rating: "GOOD" | "BAD", comment?: string) => analytics(`interactions/${id}/feedback`, "PUT", { rating, comment: comment || null });
+
+async function chatGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${apiBase}/api/v1/chat/${path}`, { credentials: "include" });
+  if (!response.ok) throw new Error(await detail(response));
+  return response.json();
+}
+
+export const fetchChatConfig = () => chatGet<ChatUiConfig>("config");
+export const fetchChatHistory = () => chatGet<ChatHistorySummary[]>("sessions");
+export const fetchChatHistoryDetail = (id: string) => chatGet<ChatHistoryDetail>(`sessions/${id}`);

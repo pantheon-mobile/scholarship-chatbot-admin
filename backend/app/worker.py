@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 
+import app.models  # noqa: F401 -- register all ORM models before querying jobs
 from app.core.db import SessionLocal
 from app.repositories.ingestion_job import IngestionJobRepository
 from app.services.ingestion_processor import AwsIngestionProcessor, HttpIngestionProcessor

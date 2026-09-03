@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from pathlib import PurePosixPath
 from urllib.parse import urlparse
@@ -8,6 +9,16 @@ from urllib.parse import urlparse
 import boto3
 
 from app.schemas.chat import ChatCitation, ChatMessageResponse
+
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_CHAT_PROMPT = (
+    "あなたは大学の奨学金案内チャットボットです。"
+    "検索結果に記載された事実だけを使い、日本語で簡潔かつ正確に回答してください。"
+    "情報が不足する場合は推測せず、確認先または不足している情報を案内してください。"
+    "検索結果:\n$search_results$\n\n質問:$query$"
+)
 
 
 class ChatConfigurationError(Exception):
@@ -23,6 +34,7 @@ class ChatService:
         self.region = os.getenv("AWS_REGION", "ap-northeast-1")
         self.knowledge_base_id = os.getenv("CHAT_KNOWLEDGE_BASE_ID", "").strip()
         self.model_arn = os.getenv("CHAT_MODEL_ARN", "").strip()
+        self.prompt = os.getenv("CHAT_SYSTEM_PROMPT", DEFAULT_CHAT_PROMPT).strip() or DEFAULT_CHAT_PROMPT
         self.client = client
 
     async def answer(
@@ -30,6 +42,8 @@ class ChatService:
     ) -> ChatMessageResponse:
         if not self.knowledge_base_id or not self.model_arn:
             raise ChatConfigurationError("CHAT_KNOWLEDGE_BASE_ID and CHAT_MODEL_ARN are required")
+        if len(self.prompt) > 5000 or "$search_results$" not in self.prompt or "$query$" not in self.prompt:
+            raise ChatConfigurationError("CHAT_SYSTEM_PROMPT must be within 5000 characters and contain required placeholders")
         try:
             response = await asyncio.to_thread(
                 self._retrieve_and_generate, question.strip(), bedrock_session_id
@@ -37,6 +51,7 @@ class ChatService:
         except ChatConfigurationError:
             raise
         except Exception as error:
+            logger.exception("Bedrock chat response failed")
             raise ChatGenerationError("Bedrock response failed") from error
         answer = str(response.get("output", {}).get("text", "")).strip()
         if not answer:
@@ -69,16 +84,10 @@ class ChatService:
                             "textInferenceConfig": {
                                 "maxTokens": int(os.getenv("CHAT_MAX_TOKENS", "1200")),
                                 "temperature": 0,
-                                "topP": 1,
                             }
                         },
                         "promptTemplate": {
-                            "textPromptTemplate": (
-                                "あなたは大学の奨学金案内チャットボットです。"
-                                "検索結果に記載された事実だけを使い、日本語で簡潔かつ正確に回答してください。"
-                                "情報が不足する場合は推測せず、確認先または不足している情報を案内してください。"
-                                "検索結果:\n$search_results$\n\n質問:$query$"
-                            )
+                            "textPromptTemplate": self.prompt
                         },
                     },
                 },

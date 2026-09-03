@@ -29,13 +29,15 @@
 
 .brand { display: flex; align-items: center; font-size: 23px; font-weight: 700; letter-spacing: .025em; white-space: nowrap; }
 .schoolIcon { width: 32px; height: 32px; display: inline-grid; place-items: center; margin-right: 15px; }
-.user { display: flex; align-items: center; gap: 29px; font-size: 17px; font-weight: 700; white-space: nowrap; }
-.menuIcon { width: 32px; height: 32px; display: inline-grid; place-items: center; }
 .headerActions { display: flex; align-items: center; gap: 10px; }
 .headerActions button { min-height: 42px; padding: 10px 20px; border-radius: 6px; font: inherit; font-size: 17px; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; }
 .chatSiteButton { border: 1px solid #3d5afe; color: #fff; background: #3d5afe; }
-.userName { color: #fff; font-weight: 600; }
-.userButton { border: 2px solid #fff; color: #fff; background: #17191b; }
+.headerUserWrap { position: relative; }
+.headerActions .userMenuButton { border: 0; color: #fff; background: transparent; }
+.headerUserMenu { position: absolute; top: 50px; right: 0; width: 240px; display: grid; gap: 8px; padding: 14px; border: 1px solid #d7dce3; border-radius: 8px; background: #fff; color: #202838; box-shadow: 0 8px 28px rgb(0 0 0 / 14%); }
+.headerUserMenu span { overflow-wrap: anywhere; font-size: 15px; font-weight: 500; }
+.headerActions .headerUserMenu button { min-height: 34px; padding: 7px; border: 1px solid #adb7c5; border-radius: 5px; background: #fff; color: #202838; font-size: 15px; }
+.headerActions .headerUserMenu button:hover { background: #f3f6f9; }
 .headerActions button:focus-visible { outline: 2px solid rgb(255 255 255 / 70%); outline-offset: 2px; }
 
 .sidebar {

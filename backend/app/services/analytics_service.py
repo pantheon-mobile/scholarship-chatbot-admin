@@ -117,11 +117,12 @@ class AnalyticsService:
                     existing.chat_session_id != session_id
                     or existing.sequence_number != payload.sequence_number
                     or existing.question_submitted_at != payload.question_submitted_at
+                    or existing.question_text != payload.question_text
                 ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じ応答IDに異なる内容が指定されています。")
                 return existing
             row = await self.repository.create_interaction(
-                payload.id, session_id, payload.sequence_number, payload.question_submitted_at, now,
+                payload.id, session_id, payload.sequence_number, payload.question_submitted_at, payload.question_text, now,
             )
             await self.repository.commit()
             return row
@@ -135,6 +136,7 @@ class AnalyticsService:
                 existing.chat_session_id == session_id
                 and existing.sequence_number == payload.sequence_number
                 and existing.question_submitted_at == payload.question_submitted_at
+                and existing.question_text == payload.question_text
             ):
                 return existing
             raise AnalyticsError("INTERACTION_SEQUENCE_CONFLICT", "同じチャット内の質問順序が重複しています。") from error
@@ -150,6 +152,8 @@ class AnalyticsService:
                     and row.answer_type == payload.answer_type
                     and row.answer_displayed_at == payload.answer_displayed_at
                     and row.faq_id == payload.faq_id
+                    and row.answer_text == payload.answer_text
+                    and (row.citations or []) == payload.citations
                 ):
                     await self.repository.commit()
                     return row
@@ -162,6 +166,8 @@ class AnalyticsService:
             row.answer_type = payload.answer_type
             row.answer_displayed_at = payload.answer_displayed_at
             row.faq_id = payload.faq_id
+            row.answer_text = payload.answer_text
+            row.citations = payload.citations
             row.updated_at = datetime.now(timezone.utc)
             await self.repository.commit()
             return row

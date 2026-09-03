@@ -93,6 +93,7 @@ class InteractionCreateRequest(BaseModel):
     id: UUID
     sequence_number: int = Field(ge=1)
     question_submitted_at: datetime
+    question_text: str = Field(min_length=1, max_length=2000)
 
     _timezone = field_validator("question_submitted_at")(require_timezone)
 
@@ -104,13 +105,15 @@ class InteractionCompletionRequest(BaseModel):
     answer_type: AnswerType | None = None
     answer_displayed_at: datetime | None = None
     faq_id: int | None = Field(default=None, ge=1)
+    answer_text: str | None = Field(default=None, max_length=20000)
+    citations: list[dict[str, str | None]] = Field(default_factory=list)
 
     _timezone = field_validator("answer_displayed_at")(lambda value: require_timezone(value) if value else value)
 
     @model_validator(mode="after")
     def validate_state(self):
         if self.processing_status == "FAILED":
-            if self.answer_type is not None or self.answer_displayed_at is not None or self.faq_id is not None:
+            if self.answer_type is not None or self.answer_displayed_at is not None or self.faq_id is not None or self.answer_text is not None:
                 raise ValueError("FAILEDでは回答種別、表示完了日時、FAQ IDを指定できません。")
             return self
         if self.answer_type is None or self.answer_displayed_at is None:
@@ -119,6 +122,8 @@ class InteractionCompletionRequest(BaseModel):
             raise ValueError("FAQ回答ではFAQ IDが必要です。")
         if self.answer_type != "FAQ" and self.faq_id is not None:
             raise ValueError("FAQ回答以外ではFAQ IDを指定できません。")
+        if self.answer_text is None:
+            raise ValueError("COMPLETEDでは回答本文が必要です。")
         return self
 
 
@@ -133,6 +138,9 @@ class InteractionResponse(BaseModel):
     processing_status: ProcessingStatus
     answer_type: AnswerType | None
     faq_id: int | None
+    question_text: str | None
+    answer_text: str | None
+    citations: list[dict[str, str | None]] | None
     created_at: datetime
     updated_at: datetime
 

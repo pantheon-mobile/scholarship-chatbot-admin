@@ -12,7 +12,7 @@ import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import {
   bulkDeleteDataSources, deleteDataSource, exportDataSources, fetchDataSources,
-  updateAnswerSource, updateReferenceLink,
+  runIngestionNow, updateAnswerSource, updateReferenceLink,
 } from "@/lib/dataSourcesApi";
 import { ClassificationType } from "@/types/dataSourceTypes";
 import { Category } from "@/types/category";
@@ -46,6 +46,9 @@ export default function DataSourcesPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [startingIngestion, setStartingIngestion] = useState(false);
+  const [monitoringIngestion, setMonitoringIngestion] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pageModal, setPageModal] = useState(false);
   const [deleteRows, setDeleteRows] = useState<DataSource[]>([]);
@@ -71,6 +74,25 @@ export default function DataSourcesPage() {
       .then(([types, categoryResult]) => { setClassificationTypes(types); setCategories(categoryResult.items); })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  useEffect(() => {
+    if (!monitoringIngestion) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const data = await fetchDataSources(filters);
+        setResult(data);
+        const processing = data.items.some((item) => item.status === "PREPARING" || item.status === "TRAINING");
+        if (!processing) {
+          setMonitoringIngestion(false);
+          setNotice("取り込み処理が完了しました。");
+        }
+      } catch (err) {
+        setMonitoringIngestion(false);
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [filters, monitoringIngestion]);
 
   const rows = result?.items ?? [];
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
@@ -137,6 +159,21 @@ export default function DataSourcesPage() {
     }
   };
 
+  const startIngestion = async () => {
+    setStartingIngestion(true);
+    setError(null);
+    try {
+      const response = await runIngestionNow();
+      setNotice(response.message + " 状態は自動更新されます。");
+      setMonitoringIngestion(true);
+      await load(filters);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setStartingIngestion(false);
+    }
+  };
+
   return (
     <AdminLayout activeMenu="data-sources" contentWidth="wide" contentAlign="start" onNavigate={(href) => router.push(href)}>
       <div className={styles.page}>
@@ -153,7 +190,10 @@ export default function DataSourcesPage() {
         <div className={styles.addActions}>
           <Button className={styles.primaryAction} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/data-sources/files/new")}>ファイル追加</Button>
           <Button className={styles.primaryAction} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/data-sources/websites/new")}>Webサイト追加</Button>
+          <Button className={styles.primaryAction} variant="secondary" onClick={startIngestion} disabled={startingIngestion || monitoringIngestion}>{startingIngestion ? "開始中..." : monitoringIngestion ? "処理中..." : "今すぐ実行"}</Button>
         </div>
+
+        {notice && <div className={styles.notice} role="status">{notice}</div>}
 
         <div className={styles.filterGrid}>
           <FormField label="キーワード" wrapperClassName={styles.keyword} placeholder="キーワードを入力" value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} />

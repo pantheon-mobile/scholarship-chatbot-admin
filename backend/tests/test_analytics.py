@@ -32,9 +32,16 @@ def repository():
     return repo
 
 
-def test_requests_reject_plaintext_messages_and_naive_datetimes():
-    with pytest.raises(ValidationError):
-        AccessCreateRequest(id=uuid4(), identity=identity(), accessed_at=NOW, question="保存禁止")
+def test_requests_store_chat_content_and_reject_naive_datetimes():
+    interaction = InteractionCreateRequest(
+        id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text=" 申請期限は？ ",
+    )
+    assert interaction.question_text == " 申請期限は？ "
+    completed = InteractionCompletionRequest(
+        processing_status="COMPLETED", answer_type="GENERATED_AI",
+        answer_displayed_at=NOW, answer_text="回答", citations=[{"title": "案内", "uri": "s3://bucket/doc"}],
+    )
+    assert completed.answer_text == "回答" and completed.citations[0]["title"] == "案内"
     with pytest.raises(ValidationError):
         AccessCreateRequest(id=uuid4(), identity=identity(), accessed_at=NOW.replace(tzinfo=None))
     with pytest.raises(ValidationError):
@@ -108,7 +115,7 @@ async def test_chat_session_and_interaction_start_follow_session_boundary():
     repo.create_interaction.return_value = interaction
     result = await service.start_interaction(
         session_id,
-        InteractionCreateRequest(id=interaction_id, sequence_number=1, question_submitted_at=NOW + timedelta(seconds=1)),
+        InteractionCreateRequest(id=interaction_id, sequence_number=1, question_submitted_at=NOW + timedelta(seconds=1), question_text="質問"),
     )
     assert result is interaction
     repo.create_interaction.assert_awaited_once()
@@ -120,14 +127,14 @@ async def test_interaction_missing_session_and_duplicate_sequence_errors():
     service = AnalyticsService(repo, identity_secret="secret")
     repo.get_chat_session.return_value = None
     with pytest.raises(AnalyticsError) as missing:
-        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW))
+        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"))
     assert missing.value.code == "CHAT_SESSION_NOT_FOUND"
 
     repo.get_chat_session.return_value = SimpleNamespace(started_at=NOW)
     repo.get_interaction.return_value = None
     repo.create_interaction.side_effect = IntegrityError("insert", {}, Exception("unique"))
     with pytest.raises(AnalyticsError) as conflict:
-        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW))
+        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"))
     assert conflict.value.code == "INTERACTION_SEQUENCE_CONFLICT"
 
 
@@ -137,13 +144,13 @@ async def test_completion_supports_all_answer_types(answer_type, faq_id):
     repo = repository()
     row = SimpleNamespace(
         processing_status="PROCESSING", answer_type=None, answer_displayed_at=None, faq_id=None,
-        question_submitted_at=NOW, updated_at=NOW,
+        question_submitted_at=NOW, updated_at=NOW, answer_text=None, citations=None,
     )
     repo.get_interaction.return_value = row
     repo.faq_exists.return_value = True
     payload = InteractionCompletionRequest(
         processing_status="COMPLETED", answer_type=answer_type,
-        answer_displayed_at=NOW + timedelta(seconds=2), faq_id=faq_id,
+        answer_displayed_at=NOW + timedelta(seconds=2), faq_id=faq_id, answer_text="回答",
     )
     result = await AnalyticsService(repo, "secret").complete_interaction(uuid4(), payload)
     assert result.processing_status == "COMPLETED" and result.answer_type == answer_type
@@ -156,7 +163,7 @@ async def test_failed_completion_has_no_answer_and_is_idempotent():
     repo = repository()
     row = SimpleNamespace(
         processing_status="PROCESSING", answer_type=None, answer_displayed_at=None, faq_id=None,
-        question_submitted_at=NOW, updated_at=NOW,
+        question_submitted_at=NOW, updated_at=NOW, answer_text=None, citations=None,
     )
     repo.get_interaction.return_value = row
     service = AnalyticsService(repo, "secret")

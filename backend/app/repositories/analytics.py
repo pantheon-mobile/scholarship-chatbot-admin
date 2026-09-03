@@ -52,7 +52,8 @@ class AnalyticsRepository:
         return (await self.session.execute(statement)).scalar_one_or_none()
 
     async def create_interaction(
-        self, interaction_id: UUID, session_id: UUID, sequence_number: int, question_submitted_at: datetime, now: datetime,
+        self, interaction_id: UUID, session_id: UUID, sequence_number: int, question_submitted_at: datetime,
+        question_text: str, now: datetime,
     ) -> ChatInteraction:
         row = ChatInteraction(
             id=interaction_id,
@@ -63,6 +64,9 @@ class AnalyticsRepository:
             answer_type=None,
             answer_displayed_at=None,
             faq_id=None,
+            question_text=question_text,
+            answer_text=None,
+            citations=None,
             created_at=now,
             updated_at=now,
         )

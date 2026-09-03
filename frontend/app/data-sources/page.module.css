@@ -13,6 +13,7 @@
 .countControls { display: flex; align-items: center; gap: 12px; font-size: 15px; }
 .pageSize { width: 76px; }
 .error { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 14px; }
+.notice { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #9fc5ef; background: #eef7ff; color: #145a96; font-size: 14px; }
 .tableFrame { overflow-x: auto !important; border-radius: 2px !important; }
 .dataTable { min-width: 1450px; table-layout: fixed !important; font-size: 13px !important; }
 .dataTable th, .dataTable td { height: 54px !important; padding: 6px 8px !important; }

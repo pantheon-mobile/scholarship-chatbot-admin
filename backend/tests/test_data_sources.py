@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from openpyxl import load_workbook
 from pydantic import ValidationError
 
-from app.api.v1.data_sources import get_service
+from app.api.v1.data_sources import get_ingestion_launcher, get_service
 from app.main import app
 from app.repositories.data_source import DataSourceRepository
 from app.schemas.data_source import (
@@ -133,6 +133,17 @@ async def test_empty_bulk_delete_is_422(mock_service):
         response = await client.post("/api/v1/data-sources/bulk-delete", json={"items": []})
     assert response.status_code == 422
     mock_service.bulk_delete.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_run_ingestion_now_starts_worker_in_background(mock_service):
+    launcher = AsyncMock()
+    app.dependency_overrides[get_ingestion_launcher] = lambda: launcher
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/data-sources/ingestion/run-now")
+    assert response.status_code == 202
+    assert response.json() == {"message": "待機中のデータソースの処理を開始しました。"}
+    launcher.assert_awaited_once_with()
 
 
 @pytest.mark.anyio

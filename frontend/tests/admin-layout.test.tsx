@@ -54,15 +54,20 @@ describe("AdminLayout", () => {
 
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "チャットサイト" })).not.toBeNull();
-    expect(screen.getByText("東京太郎")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
+    const userMenuButton = screen.getByRole("button", { name: "東京太郎 ▾" });
+    expect(userMenuButton).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "ログアウト" })).toBeNull();
+    fireEvent.click(userMenuButton);
+    expect(screen.getByText("ID：-")).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "閉じる" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "ログアウト" })).not.toBeNull();
     expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
   });
 
   it("黒いヘッダー上でログイン利用者名を白色表示する", () => {
     render(<AdminLayout activeMenu="dashboard" userName="笠井 美治" onNavigate={() => undefined}>本文</AdminLayout>);
 
-    expect(screen.getByText("笠井 美治").classList.contains(styles.userName)).toBe(true);
+    expect(screen.getByRole("button", { name: "笠井 美治 ▾" }).classList.contains(styles.userMenuButton)).toBe(true);
   });
 
   it("チャットサイトから認証済みチャット画面へ遷移する", () => {

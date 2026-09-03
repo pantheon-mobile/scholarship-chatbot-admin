@@ -6,7 +6,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 COPY package.json package-lock.json ./
 COPY tsconfig.json ./
-COPY .eslintrc.json ./
+COPY eslint.config.mjs ./
 COPY next-env.d.ts ./
 COPY vitest.config.mts ./
 COPY app ./app
@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/package-lock.json ./
 COPY --from=builder /app/tsconfig.json ./
-COPY --from=builder /app/.eslintrc.json ./
+COPY --from=builder /app/eslint.config.mjs ./
 COPY --from=builder /app/next-env.d.ts ./
 COPY --from=builder /app/vitest.config.mts ./
 COPY --from=builder /app/node_modules ./node_modules

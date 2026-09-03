@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import JSON, BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
@@ -78,6 +78,9 @@ class ChatInteraction(Base):
     processing_status: Mapped[str] = Column(String(20), nullable=False)
     answer_type: Mapped[str | None] = Column(String(20), nullable=True)
     faq_id: Mapped[int | None] = Column(ForeignKey("faqs.id", ondelete="SET NULL"), nullable=True)
+    question_text: Mapped[str | None] = Column(Text, nullable=True)
+    answer_text: Mapped[str | None] = Column(Text, nullable=True)
+    citations: Mapped[list | None] = Column(JSON, nullable=True)
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     chat_session = relationship("ChatSession", back_populates="interactions")

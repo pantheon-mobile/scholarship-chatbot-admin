@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,11 +34,16 @@ from app.services.data_source_service import (
     WebsiteDataSourceRequiredError,
     WebsiteDataSourceUpdateError,
 )
+from app.services.ingestion_launcher import launch_ingestion_worker
 from app.storage import LocalStorage, S3Storage
 from app.storage.base import StorageAdapter
 
 
 router = APIRouter()
+
+
+def get_ingestion_launcher():
+    return launch_ingestion_worker
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> DataSourceService:
@@ -145,6 +150,15 @@ async def create_website_data_source(
     except WebsiteDataSourceCreateError as exc:
         status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
         raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
+
+
+@router.post("/data-sources/ingestion/run-now", status_code=202)
+async def run_ingestion_now(
+    background_tasks: BackgroundTasks,
+    launcher=Depends(get_ingestion_launcher),
+):
+    background_tasks.add_task(launcher)
+    return {"message": "待機中のデータソースの処理を開始しました。"}
 
 
 @router.get("/data-sources/{data_source_id}", response_model=DataSourceResponse)
