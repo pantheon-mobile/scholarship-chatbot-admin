@@ -37,7 +37,9 @@ export function AdminLayout({
         userId={auth.user?.subject}
         variant={chromeVariant}
         onChatSite={() => onNavigate("/chat")}
-        onLogout={() => { void auth.logout(); }}
+        onLogout={() => {
+          void auth.logout().then(() => onNavigate("/development/cpf"));
+        }}
       />
       <Sidebar
         activeMenu={activeMenu}

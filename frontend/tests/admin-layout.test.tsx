@@ -79,6 +79,16 @@ describe("AdminLayout", () => {
     expect(onNavigate).toHaveBeenCalledWith("/chat");
   });
 
+  it("ログアウト後に開発用CPF画面へ遷移する", async () => {
+    const onNavigate = vi.fn();
+    render(<AdminLayout activeMenu="dashboard" onNavigate={onNavigate}>本文</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "東京太郎 ▾" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "ログアウト" }));
+
+    await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/development/cpf"));
+  });
+
   it("職員にはシステム管理者専用メニューを表示しない", () => {
     render(<Sidebar activeMenu="dashboard" role="staff" onNavigate={() => undefined} />);
 
