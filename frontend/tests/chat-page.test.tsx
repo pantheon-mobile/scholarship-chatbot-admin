@@ -6,8 +6,9 @@ const api = vi.hoisted(() => ({
   fetchChatHistoryDetail: vi.fn(), recordChatAccess: vi.fn(), sendChatMessage: vi.fn(),
   startTrackedChat: vi.fn(), startTrackedInteraction: vi.fn(), submitFeedback: vi.fn(), updateChatHistoryTitle: vi.fn(),
 }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("../components/auth/AuthProvider", () => ({
   useAuth: () => ({ user: { subject: "staff-001", display_name: "開発 職員", role: "staff", site: "faculty" }, logout: vi.fn() }),
 }));
@@ -16,6 +17,7 @@ vi.mock("../lib/chatApi", () => api);
 import ChatPage from "../app/chat/page";
 
 beforeEach(() => {
+  router.push.mockReset();
   Object.values(api).forEach((mock) => mock.mockReset());
   api.fetchChatConfig.mockResolvedValue({
     title: "試験チャット", initial_message: "最初の案内", input_placeholder: "質問を入力", question_max_length: 200,
@@ -53,13 +55,14 @@ describe("CB-101 チャットUI", () => {
     await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), "GOOD", "分かりやすい：助かりました"));
   });
 
-  it("利用者名ボタンからIDとログアウトメニューを表示する", () => {
+  it("利用者名ボタンからIDと操作メニューを表示し、閉じるで管理画面へ戻る", () => {
     render(<ChatPage />);
     expect(screen.queryByRole("button", { name: "ログアウト" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "開発 職員 ▾" }));
     expect(screen.getByText("ID：staff-001")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "閉じる" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "ログアウト" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(router.push).toHaveBeenCalledWith("/");
+    expect(screen.queryByRole("button", { name: "ログアウト" })).toBeNull();
   });
 
   it("新規チャットでは案内メッセージ枠を表示しない", async () => {
