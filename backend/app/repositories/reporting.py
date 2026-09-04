@@ -34,6 +34,10 @@ class ReportingRepository:
         rows = (await self.session.execute(text(f"""
             SELECT s.id AS session_id,
                    v.visitor_key,
+                   v.subject,
+                   v.display_name,
+                   v.role,
+                   v.site,
                    s.started_at,
                    s.ended_at,
                    COUNT(i.id)::bigint AS response_count,
@@ -49,7 +53,8 @@ class ReportingRepository:
             LEFT JOIN chat_interactions i ON i.chat_session_id = s.id
             LEFT JOIN chat_feedback f ON f.interaction_id = i.id
             WHERE s.started_at >= :start_at AND s.started_at < :end_at {filters}
-            GROUP BY s.id, v.visitor_key, s.started_at, s.ended_at
+            GROUP BY s.id, v.visitor_key, v.subject, v.display_name, v.role, v.site,
+                     s.started_at, s.ended_at
             ORDER BY s.started_at DESC, s.id DESC
             LIMIT :limit OFFSET :offset
         """), parameters)).mappings().all()

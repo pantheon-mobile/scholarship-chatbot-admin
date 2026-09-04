@@ -53,7 +53,18 @@ class ReportingService:
             page_size=page_size,
             total_count=total,
             items=[ChatHistoryItem(
-                **{key: value for key, value in row.items() if key != "visitor_key"},
-                user_label="自分" if current.role == "staff" else f"利用者-{row['visitor_key'][:12]}",
+                **{
+                    key: value for key, value in row.items()
+                    if key not in {"visitor_key", "subject", "display_name", "role", "site"}
+                },
+                user_label=(
+                    "自分"
+                    if current.role == "staff"
+                    else (row.get("display_name") or row.get("subject") or f"利用者-{row['visitor_key'][:12]}")
+                ),
+                user_id=row.get("subject"),
+                user_name=row.get("display_name"),
+                user_role=row.get("role"),
+                user_site=row.get("site"),
             ) for row in rows],
         )

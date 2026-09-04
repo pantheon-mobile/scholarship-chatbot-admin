@@ -1,6 +1,10 @@
 export type ChatHistoryItem = {
   session_id: string;
   user_label: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+  user_site: string | null;
   started_at: string;
   ended_at: string | null;
   response_count: number;

@@ -30,12 +30,24 @@ async def test_staff_chat_history_is_limited_to_own_hmac(monkeypatch):
 
 @pytest.mark.anyio
 async def test_admin_chat_history_can_read_all_users():
-    repository = SimpleNamespace(chat_histories=AsyncMock(return_value=(0, [])))
+    now = datetime(2026, 9, 4, tzinfo=timezone.utc)
+    repository = SimpleNamespace(chat_histories=AsyncMock(return_value=(1, [{
+        "session_id": "6bb51b07-3ad5-434c-84d8-cf79fa3df274",
+        "visitor_key": "a" * 64,
+        "subject": "F0000003", "display_name": "理科大 職員", "role": "staff", "site": "faculty",
+        "started_at": now, "ended_at": None, "response_count": 1, "completed_count": 1,
+        "failed_count": 0, "faq_count": 1, "generated_ai_count": 0, "no_answer_count": 0,
+        "good_count": 1, "bad_count": 0,
+    }])))
     current = SimpleNamespace(role="admin", site="faculty", subject="admin-001")
 
-    await ReportingService(repository).chat_histories(date(2026, 9, 1), date(2026, 9, 1), 1, 20, current)
+    result = await ReportingService(repository).chat_histories(date(2026, 9, 1), date(2026, 9, 4), 1, 20, current)
 
     assert repository.chat_histories.await_args.kwargs["visitor_key"] is None
+    assert result.items[0].user_name == "理科大 職員"
+    assert result.items[0].user_id == "F0000003"
+    assert result.items[0].user_role == "staff"
+    assert result.items[0].user_site == "faculty"
 
 
 def decoded_csv(response):

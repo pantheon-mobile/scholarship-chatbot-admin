@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 class ChatHistoryItem(BaseModel):
     session_id: UUID
     user_label: str
+    user_id: str | None = None
+    user_name: str | None = None
+    user_role: str | None = None
+    user_site: str | None = None
     started_at: datetime
     ended_at: datetime | None
     response_count: int
