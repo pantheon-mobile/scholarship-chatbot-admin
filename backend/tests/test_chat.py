@@ -66,12 +66,14 @@ async def test_chat_accepts_configured_prompt_with_required_placeholders(monkeyp
 @pytest.mark.anyio
 async def test_chat_ui_config_uses_system_settings(monkeypatch):
     monkeypatch.setenv("CHAT_UI_TITLE", "設定済みチャット")
+    monkeypatch.setenv("CHAT_INPUT_PLACEHOLDER", "質問内容を入力")
     monkeypatch.setenv("CHAT_HISTORY_ENABLED", "true")
     monkeypatch.setenv("CHAT_BAD_FEEDBACK_OPTIONS", "回答が違う|情報が不足")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/chat/config")
     assert response.status_code == 200
     assert response.json()["title"] == "設定済みチャット"
+    assert response.json()["input_placeholder"] == "質問内容を入力"
     assert response.json()["history_enabled"] is True
     assert response.json()["bad_options"] == ["回答が違う", "情報が不足"]
 

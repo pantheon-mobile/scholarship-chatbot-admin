@@ -45,7 +45,7 @@ async def get_chat_config(_current_user: AuthSession = Depends(require_authentic
     return ChatUiConfigResponse(
         title=os.getenv("CHAT_UI_TITLE", "東京理科大学奨学金問合せチャット"),
         initial_message=os.getenv("CHAT_INITIAL_MESSAGE", "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。"),
-        input_placeholder=os.getenv("CHAT_INPUT_PLACEHOLDER", "奨学金について質問を入力してください"),
+        input_placeholder=os.getenv("CHAT_INPUT_PLACEHOLDER", "質問を入力してください"),
         question_max_length=max(1, min(int(os.getenv("CHAT_QUESTION_MAX_LENGTH", "2000")), 5000)),
         frame_color=os.getenv("CHAT_FRAME_COLOR", "#171a1d"),
         bot_icon_url=os.getenv("CHAT_BOT_ICON_URL") or None,

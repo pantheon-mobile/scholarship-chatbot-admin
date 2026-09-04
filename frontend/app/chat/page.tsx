@@ -11,7 +11,7 @@ import styles from "./page.module.css";
 
 const fallbackConfig: ChatUiConfig = {
   title: "東京理科大学奨学金問合せチャット", initial_message: "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
-  input_placeholder: "奨学金について質問を入力してください", question_max_length: 2000, frame_color: "#171a1d", bot_icon_url: null,
+  input_placeholder: "質問を入力してください", question_max_length: 2000, frame_color: "#171a1d", bot_icon_url: null,
   history_enabled: true, maintenance_enabled: false, maintenance_message: "現在メンテナンス中です。時間をおいて再度お試しください。",
   good_message: "ご評価ありがとうございます。よろしければ理由をお聞かせください。", bad_message: "改善のため、回答が役に立たなかった理由をお聞かせください。",
   good_options: ["知りたい内容だった", "分かりやすかった", "参照資料が役立った"], bad_options: ["回答が違う", "情報が不足している", "分かりにくい", "参照資料が適切でない"],
