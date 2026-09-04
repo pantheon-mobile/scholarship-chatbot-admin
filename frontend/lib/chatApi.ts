@@ -18,7 +18,9 @@ async function analytics(path: string, method: string, body: unknown) {
   if (!response.ok) throw new Error("利用状況を記録できませんでした。");
 }
 
-export const recordChatAccess = (id: string, identifier: string, at: string) => analytics("accesses", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, accessed_at: at });
+const recordAccess = (id: string, identifier: string, at: string, surface: "CHAT" | "ADMIN") => analytics("accesses", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, accessed_at: at, surface });
+export const recordChatAccess = (id: string, identifier: string, at: string) => recordAccess(id, identifier, at, "CHAT");
+export const recordAdminAccess = (id: string, identifier: string, at: string) => recordAccess(id, identifier, at, "ADMIN");
 export const startTrackedChat = (id: string, identifier: string, at: string) => analytics("chat-sessions", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, started_at: at });
 export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string, question: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at, question_text: question });
 export const completeTrackedInteraction = (id: string, answerType: string | null, at?: string, answer?: string, citations?: unknown[], faqId?: number | null) => analytics(`interactions/${id}/completion`, "PATCH", answerType ? { processing_status: "COMPLETED", answer_type: answerType, answer_displayed_at: at, answer_text: answer, citations: citations ?? [], faq_id: faqId ?? null } : { processing_status: "FAILED" });

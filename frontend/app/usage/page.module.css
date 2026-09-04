@@ -1,6 +1,11 @@
-.filters { display: flex; align-items: flex-end; gap: 16px; padding: 18px; border: 1px solid #c9cdd1; background: #f7f7f7; }
-.filters label { width: 210px; }
-.filters > span { padding-bottom: 9px; }
-.downloads { display: grid; justify-items: start; gap: 14px; margin-top: 24px; padding: 24px; border: 1px solid #d0d5dd; }
-.downloads h2 { margin: 0 0 8px; }
+.section { position: relative; min-height: 116px; padding: 18px 20px 22px; border-bottom: 1px solid #c9cdd1; }
+.section h2 { margin: 0 0 16px; font-size: 18px; }
+.userFilters { position: absolute; top: 12px; left: 48%; width: 300px; }
+.grid { display: grid; grid-template-columns: minmax(450px, 1fr) minmax(260px, .7fr); align-items: end; gap: 10px 34px; max-width: 900px; margin-bottom: 16px; }
+.grid > label { max-width: 320px; }
+.period { display: flex; align-items: center; gap: 10px; }
+.period > span:first-child { min-width: 74px; font-weight: 700; }
+.period label { width: 155px; }
+.section button { margin-left: 20px; }
 .error { padding: 12px 15px; background: #fff2f2; color: #b01818; }
+@media (max-width: 900px) { .userFilters { position: static; width: 100%; margin-bottom: 16px; }.grid { grid-template-columns: 1fr; }.period { flex-wrap: wrap; }.section button { margin-left: 0; } }

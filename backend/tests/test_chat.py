@@ -91,6 +91,35 @@ def test_chat_filter_excludes_disabled_sources():
     }
 
 
+def test_chat_keeps_citation_title_but_hides_uri_when_link_is_disabled():
+    response = {"citations": [{
+        "retrievedReferences": [{
+            "location": {"s3Location": {"uri": "s3://bucket/guide.md"}},
+            "metadata": {
+                "source_title": "奨学金案内",
+                "source_url": "https://example.com/guide",
+                "reference_link_visible": False,
+            },
+        }],
+    }]}
+
+    citations = ChatService._citations(response)
+
+    assert citations[0].title == "奨学金案内"
+    assert citations[0].uri is None
+
+
+def test_chat_keeps_legacy_citation_link_when_visibility_metadata_is_missing():
+    response = {"citations": [{
+        "retrievedReferences": [{
+            "location": {"webLocation": {"url": "https://example.com/guide"}},
+            "metadata": {"source_title": "奨学金案内"},
+        }],
+    }]}
+
+    assert ChatService._citations(response)[0].uri == "https://example.com/guide"
+
+
 def test_chat_uses_best_enabled_faq_when_similarity_reaches_threshold(monkeypatch):
     monkeypatch.setenv("CHAT_FAQ_MATCH_THRESHOLD", "0.85")
     monkeypatch.setenv("CHAT_CURRENT_ACADEMIC_YEAR", "2026")

@@ -222,6 +222,11 @@ class ChatService:
                 title = str(metadata.get("source_title") or metadata.get("source_file_name") or "参照資料")
                 if title == "参照資料" and uri:
                     title = PurePosixPath(urlparse(str(uri)).path).name or title
+                link_visible = metadata.get("reference_link_visible", True)
+                if isinstance(link_visible, str):
+                    link_visible = link_visible.strip().lower() not in {"false", "0", "no", "off"}
+                if not link_visible:
+                    uri = None
                 key = (title, str(uri) if uri else None)
                 if key in seen:
                     continue

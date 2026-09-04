@@ -47,6 +47,7 @@ class AccessCreateRequest(BaseModel):
     id: UUID
     identity: VisitorIdentity
     accessed_at: datetime
+    surface: Literal["CHAT", "ADMIN"] = "CHAT"
 
     _timezone = field_validator("accessed_at")(require_timezone)
 

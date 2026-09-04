@@ -105,8 +105,7 @@ class DataSourceRepository:
         if result.rowcount != 1:
             await self.session.rollback()
             return False
-        if field == "answer_source_enabled":
-            await self._enqueue_refresh_if_idle(data_source_id)
+        await self._enqueue_refresh_if_idle(data_source_id)
         await self.session.commit()
         return True
 

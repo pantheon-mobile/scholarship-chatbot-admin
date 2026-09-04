@@ -201,6 +201,7 @@ async def test_feedback_upsert_allows_good_to_bad_and_rejects_no_answer():
 def test_model_constraints_fks_and_indexes_match_migration_contract():
     assert {index.name for index in AccessLog.__table__.indexes} == {
         "ix_access_logs_accessed_at", "ix_access_logs_visitor_accessed_at",
+        "ix_access_logs_surface_accessed_at",
     }
     assert "ix_chat_sessions_visitor_started_at" in {index.name for index in ChatSession.__table__.indexes}
     assert "ix_chat_interactions_answer_type_question_submitted_at" in {index.name for index in ChatInteraction.__table__.indexes}

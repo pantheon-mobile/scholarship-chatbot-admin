@@ -30,10 +30,13 @@ class AccessLog(Base):
     __table_args__ = (
         Index("ix_access_logs_accessed_at", "accessed_at"),
         Index("ix_access_logs_visitor_accessed_at", "visitor_id", "accessed_at"),
+        Index("ix_access_logs_surface_accessed_at", "surface", "accessed_at"),
+        CheckConstraint("surface IN ('CHAT', 'ADMIN')", name="ck_access_logs_surface"),
     )
 
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     visitor_id: Mapped[UUID] = Column(ForeignKey("analytics_visitors.id", ondelete="RESTRICT"), nullable=False)
+    surface: Mapped[str] = Column(String(20), nullable=False, default="CHAT")
     accessed_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     recorded_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     visitor = relationship("AnalyticsVisitor")

@@ -112,6 +112,7 @@ class AwsIngestionProcessor:
                 "source_title": data_source.title[:500],
                 "answer_source_enabled": bool(data_source.answer_source_enabled),
                 "answer_priority": data_source.priority,
+                "reference_link_visible": bool(data_source.reference_link_visible),
                 "ingestion_kind": kind,
                 "source_url": artifact.source_url or "",
                 "processed_at": datetime.now(timezone.utc).isoformat(),

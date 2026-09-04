@@ -38,8 +38,8 @@ class AnalyticsRepository:
     async def get_access(self, access_id: UUID) -> AccessLog | None:
         return await self.session.get(AccessLog, access_id)
 
-    async def create_access(self, access_id: UUID, visitor_id: UUID, accessed_at: datetime, recorded_at: datetime) -> AccessLog:
-        row = AccessLog(id=access_id, visitor_id=visitor_id, accessed_at=accessed_at, recorded_at=recorded_at)
+    async def create_access(self, access_id: UUID, visitor_id: UUID, accessed_at: datetime, recorded_at: datetime, surface: str = "CHAT") -> AccessLog:
+        row = AccessLog(id=access_id, visitor_id=visitor_id, accessed_at=accessed_at, recorded_at=recorded_at, surface=surface)
         self.session.add(row)
         await self.session.flush()
         return row

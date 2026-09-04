@@ -54,7 +54,7 @@ class AnalyticsService:
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じイベントIDに異なるアクセス内容が指定されています。")
                 await self.repository.commit()
                 return existing
-            row = await self.repository.create_access(payload.id, visitor_id, payload.accessed_at, now)
+            row = await self.repository.create_access(payload.id, visitor_id, payload.accessed_at, now, payload.surface)
             await self.repository.commit()
             return row
         except AnalyticsError:
