@@ -67,6 +67,8 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
         source_type="FILE",
         format="docx",
         title="奨学金案内",
+        answer_source_enabled=True,
+        priority="HIGH",
         website=None,
         file=SimpleNamespace(
             file_name="guide.docx",
@@ -92,5 +94,7 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
     metadata_upload = processor.s3.put_object.call_args_list[1].kwargs
     assert metadata_upload["Key"].endswith("guide.docx.metadata.json")
     assert b'"ingestion_format": "WORD_DOCX"' in metadata_upload["Body"]
+    assert b'"answer_source_enabled": true' in metadata_upload["Body"]
+    assert b'"answer_priority": "HIGH"' in metadata_upload["Body"]
     processor._synchronize.assert_called_once_with("word-kb", "word-ds")
     assert result.character_count is None

@@ -35,6 +35,8 @@ class ChatGenerationError(Exception):
 
 
 class ChatService:
+    PRIORITY_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
     def __init__(self, client=None) -> None:
         self.region = os.getenv("AWS_REGION", "ap-northeast-1")
         self.knowledge_base_id = os.getenv("CHAT_KNOWLEDGE_BASE_ID", "").strip()
@@ -125,9 +127,11 @@ class ChatService:
 
     def _retrieve_and_generate(self, question: str, bedrock_session_id: str | None):
         client = self.client or boto3.client("bedrock-agent-runtime", region_name=self.region)
+        selected_priority = self._select_priority(client, question)
         vector_config: dict = {
             "numberOfResults": int(os.getenv("CHAT_NUMBER_OF_RESULTS", "5")),
             "overrideSearchType": os.getenv("CHAT_SEARCH_TYPE", "HYBRID"),
+            "filter": self._answer_source_filter(selected_priority),
         }
         request = {
             "input": {"text": question},
@@ -156,6 +160,50 @@ class ChatService:
         if bedrock_session_id:
             request["sessionId"] = bedrock_session_id
         return client.retrieve_and_generate(**request)
+
+    @staticmethod
+    def _answer_source_filter(priority: str | None = None) -> dict:
+        enabled = {"equals": {"key": "answer_source_enabled", "value": True}}
+        if priority is None:
+            return enabled
+        return {"andAll": [
+            enabled,
+            {"equals": {"key": "answer_priority", "value": priority}},
+        ]}
+
+    def _select_priority(self, client, question: str) -> str | None:
+        """Prefer priority when candidates are close, without hiding a clearly better result."""
+        response = client.retrieve(
+            knowledgeBaseId=self.knowledge_base_id,
+            retrievalQuery={"text": question},
+            retrievalConfiguration={"vectorSearchConfiguration": {
+                "numberOfResults": int(os.getenv("CHAT_PRIORITY_CANDIDATE_COUNT", "20")),
+                "overrideSearchType": os.getenv("CHAT_SEARCH_TYPE", "HYBRID"),
+                "filter": self._answer_source_filter(),
+            }},
+        )
+        candidates: list[tuple[float, str]] = []
+        for item in response.get("retrievalResults", []) or []:
+            priority = str((item.get("metadata") or {}).get("answer_priority", "")).upper()
+            if priority not in self.PRIORITY_ORDER:
+                continue
+            try:
+                score = float(item.get("score", 0))
+            except (TypeError, ValueError):
+                score = 0.0
+            candidates.append((score, priority))
+        if not candidates:
+            return None
+        best_score = max(score for score, _priority in candidates)
+        try:
+            tolerance = max(0.0, float(os.getenv("CHAT_PRIORITY_SCORE_TOLERANCE", "0.05")))
+        except ValueError:
+            tolerance = 0.05
+        near_best = {
+            priority for score, priority in candidates
+            if score >= best_score - tolerance
+        }
+        return min(near_best, key=self.PRIORITY_ORDER.__getitem__)
 
     @staticmethod
     def _citations(response: dict) -> list[ChatCitation]:

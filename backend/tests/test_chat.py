@@ -17,6 +17,10 @@ async def test_chat_retrieves_generates_and_returns_unique_citations(monkeypatch
     monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
     monkeypatch.setenv("CHAT_MODEL_ARN", "arn:aws:bedrock:ap-northeast-1::foundation-model/test")
     client = Mock()
+    client.retrieve.return_value = {"retrievalResults": [
+        {"score": 0.91, "metadata": {"answer_priority": "MEDIUM"}},
+        {"score": 0.88, "metadata": {"answer_priority": "HIGH"}},
+    ]}
     client.retrieve_and_generate.return_value = {
         "output": {"text": "貸与奨学金の回答です。"},
         "sessionId": "bedrock-session-1",
@@ -37,6 +41,12 @@ async def test_chat_retrieves_generates_and_returns_unique_citations(monkeypatch
     request = client.retrieve_and_generate.call_args.kwargs
     assert request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["knowledgeBaseId"] == "KB123"
     assert request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["retrievalConfiguration"]["vectorSearchConfiguration"]["overrideSearchType"] == "HYBRID"
+    assert request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["retrievalConfiguration"]["vectorSearchConfiguration"]["filter"] == {
+        "andAll": [
+            {"equals": {"key": "answer_source_enabled", "value": True}},
+            {"equals": {"key": "answer_priority", "value": "HIGH"}},
+        ]
+    }
     inference = request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["generationConfiguration"]["inferenceConfig"]["textInferenceConfig"]
     assert inference["temperature"] == 0
     assert "topP" not in inference
@@ -57,10 +67,28 @@ async def test_chat_accepts_configured_prompt_with_required_placeholders(monkeyp
     monkeypatch.setenv("CHAT_MODEL_ARN", "arn:aws:bedrock:ap-northeast-1::foundation-model/test")
     monkeypatch.setenv("CHAT_SYSTEM_PROMPT", "資料:$search_results$ 質問:$query$")
     client = Mock()
+    client.retrieve.return_value = {"retrievalResults": []}
     client.retrieve_and_generate.return_value = {"output": {"text": "回答"}, "citations": []}
     await ChatService(client).answer("質問")
     prompt = client.retrieve_and_generate.call_args.kwargs["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
     assert prompt == "資料:$search_results$ 質問:$query$"
+
+
+def test_chat_uses_more_relevant_lower_priority_when_score_gap_is_large(monkeypatch):
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    client = Mock()
+    client.retrieve.return_value = {"retrievalResults": [
+        {"score": 0.95, "metadata": {"answer_priority": "LOW"}},
+        {"score": 0.70, "metadata": {"answer_priority": "HIGH"}},
+    ]}
+
+    assert ChatService(client)._select_priority(client, "質問") == "LOW"
+
+
+def test_chat_filter_excludes_disabled_sources():
+    assert ChatService._answer_source_filter() == {
+        "equals": {"key": "answer_source_enabled", "value": True}
+    }
 
 
 def test_chat_uses_best_enabled_faq_when_similarity_reaches_threshold(monkeypatch):

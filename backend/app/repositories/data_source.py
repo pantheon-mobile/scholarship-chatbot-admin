@@ -105,6 +105,8 @@ class DataSourceRepository:
         if result.rowcount != 1:
             await self.session.rollback()
             return False
+        if field == "answer_source_enabled":
+            await self._enqueue_refresh_if_idle(data_source_id)
         await self.session.commit()
         return True
 
@@ -232,6 +234,7 @@ class DataSourceRepository:
             )
             for type_id, value_id in classifications
         ])
+        await self._enqueue_refresh_if_idle(data_source_id)
         await self.session.commit()
         return True
 
@@ -295,6 +298,23 @@ class DataSourceRepository:
             for data_source_id in data_source_ids
         ])
 
+    async def _enqueue_refresh_if_idle(self, data_source_id: int) -> None:
+        active = (await self.session.execute(
+            select(IngestionJob.id).where(
+                IngestionJob.data_source_id == data_source_id,
+                IngestionJob.status.in_(("QUEUED", "RUNNING")),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if active is None:
+            await self.enqueue_ingestion_jobs(
+                [data_source_id], scheduled_at=datetime.now(timezone.utc)
+            )
+        await self.session.execute(
+            update(DataSource).where(DataSource.id == data_source_id).values(
+                status="PREPARING", updated_at=datetime.now(timezone.utc)
+            )
+        )
+
     async def update_website_attributes(
         self,
         data_source_id: int,
@@ -340,6 +360,7 @@ class DataSourceRepository:
             )
             for type_id, value_id in classifications
         ])
+        await self._enqueue_refresh_if_idle(data_source_id)
         await self.session.commit()
         return True
 
