@@ -249,6 +249,6 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
 - 認証失敗時は`CPF_FACULTY_RETURN_URL`、学生対応後は`CPF_STUDENT_RETURN_URL`を戻り先に使用します。JWTを検証できない場合の既定は教職員側です。
 - 認証後は管理画面のダッシュボード`/`へ移動します。管理画面Headerの「チャットサイト」から、同じ独自セッションを使ってCB-101の`/chat`へ移動します。
 - 管理画面・分析API・チャットAPIは独自セッションと`admin`／`staff`ロールを検証します。HeaderはCPFの`name`（空の場合は`sub`）を表示し、ログアウト時はDBセッションとCookieを破棄します。
-- CB-101は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続し、本人別の会話履歴、出典表示、Good／Bad理由、利用統計をDBへ保存します。回答生成はtemperature 0、既定HYBRID検索・Top 5です。
+- CB-101は公開FAQの質問・類似質問を先に照合し、`CHAT_FAQ_MATCH_THRESHOLD`（既定0.85）以上なら最も一致率の高いFAQを回答します。閾値未満の場合は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続してRAG回答を生成します。`CHAT_CURRENT_ACADEMIC_YEAR`（未設定時は日本時間の現在年）より古い年度だけがFAQ本文・質問に含まれる場合は、旧年度情報である旨を回答の先頭に表示します。本人別の会話履歴、FAQ ID、出典、Good／Bad理由、利用統計をDBへ保存します。RAG回答生成はtemperature 0、既定HYBRID検索・Top 5です。
 - チャット画面のタイトル、初期メッセージ、入力欄文言、枠色、BotアイコンURL、履歴表示、メンテナンス表示、Good／Badの案内・選択肢は`CHAT_UI_*`、`CHAT_HISTORY_ENABLED`、`CHAT_MAINTENANCE_*`、`CHAT_*_FEEDBACK_*`で環境別に変更できます。選択肢は`|`区切りです。生成指示は`CHAT_SYSTEM_PROMPT`（最大5000文字、`$search_results$`と`$query$`が必須）で変更できます。
 - Frontendは既知の脆弱性修正を含むNext.js 16.3.4、Vitest 3.2.6へ更新し、`package-lock.json`と`npm ci`で依存を固定しています。

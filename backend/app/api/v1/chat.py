@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.api.v1.auth import require_authenticated_session
 from app.core.db import get_db
 from app.models.analytics import AnalyticsVisitor, ChatInteraction, ChatSession
+from app.models.faq import Faq
 from app.models.auth import AuthSession
 from app.schemas.chat import (
     ChatHistoryDetail, ChatHistoryMessage, ChatHistorySummary, ChatHistoryTitleUpdate, ChatMessageRequest,
@@ -201,10 +202,19 @@ async def send_message(
     payload: ChatMessageRequest,
     _current_user: AuthSession = Depends(require_authenticated_session),
     service: ChatService = Depends(get_service),
+    session: AsyncSession = Depends(get_db),
 ):
     if _flag("CHAT_MAINTENANCE_ENABLED"):
         raise HTTPException(status_code=503, detail=os.getenv("CHAT_MAINTENANCE_MESSAGE", "現在メンテナンス中です。"))
     try:
+        faqs = list((await session.execute(
+            select(Faq)
+            .where(Faq.chat_enabled.is_(True))
+            .options(selectinload(Faq.similar_questions))
+        )).scalars().unique().all())
+        faq_answer = service.answer_from_faq(payload.question, faqs)
+        if faq_answer is not None:
+            return faq_answer
         return await service.answer(payload.question, payload.bedrock_session_id)
     except ChatConfigurationError:
         raise HTTPException(status_code=503, detail="チャット機能の設定が完了していません。") from None

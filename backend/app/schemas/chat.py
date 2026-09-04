@@ -19,6 +19,7 @@ class ChatCitation(BaseModel):
 class ChatMessageResponse(BaseModel):
     answer: str
     answer_type: str
+    faq_id: int | None = None
     bedrock_session_id: str | None = None
     citations: list[ChatCitation]
 

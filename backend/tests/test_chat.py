@@ -63,6 +63,49 @@ async def test_chat_accepts_configured_prompt_with_required_placeholders(monkeyp
     assert prompt == "資料:$search_results$ 質問:$query$"
 
 
+def test_chat_uses_best_enabled_faq_when_similarity_reaches_threshold(monkeypatch):
+    monkeypatch.setenv("CHAT_FAQ_MATCH_THRESHOLD", "0.85")
+    monkeypatch.setenv("CHAT_CURRENT_ACADEMIC_YEAR", "2026")
+    faq = SimpleNamespace(
+        id=12,
+        question="予約採用の進学届はいつ提出しますか？",
+        answer="2026年度は進学後に提出します。",
+        similar_questions=[SimpleNamespace(question="予約採用の進学届の提出時期は？")],
+    )
+
+    result = ChatService.answer_from_faq("予約採用の進学届の提出時期は？", [faq])
+
+    assert result is not None
+    assert result.answer_type == "FAQ"
+    assert result.faq_id == 12
+    assert result.answer == "2026年度は進学後に提出します。"
+
+
+def test_chat_falls_back_when_faq_similarity_is_below_threshold(monkeypatch):
+    monkeypatch.setenv("CHAT_FAQ_MATCH_THRESHOLD", "0.85")
+    faq = SimpleNamespace(
+        id=12, question="予約採用について", answer="回答", similar_questions=[],
+    )
+
+    assert ChatService.answer_from_faq("給付奨学金の家計基準を教えて", [faq]) is None
+
+
+def test_chat_warns_when_matched_faq_is_from_an_older_year(monkeypatch):
+    monkeypatch.setenv("CHAT_FAQ_MATCH_THRESHOLD", "0.85")
+    monkeypatch.setenv("CHAT_CURRENT_ACADEMIC_YEAR", "2026")
+    faq = SimpleNamespace(
+        id=20,
+        question="2025年度の申請期限はいつですか？",
+        answer="2025年4月30日です。",
+        similar_questions=[],
+    )
+
+    result = ChatService.answer_from_faq("2025年度の申請期限はいつですか？", [faq])
+
+    assert result is not None
+    assert result.answer.startswith("※この回答は2025年度以前の情報です。2026年度の最新情報ではない可能性があります。")
+
+
 @pytest.mark.anyio
 async def test_chat_ui_config_uses_system_settings(monkeypatch):
     monkeypatch.setenv("CHAT_UI_TITLE", "設定済みチャット")

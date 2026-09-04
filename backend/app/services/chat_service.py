@@ -3,8 +3,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
+import unicodedata
+from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import PurePosixPath
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import boto3
 
@@ -36,6 +41,61 @@ class ChatService:
         self.model_arn = os.getenv("CHAT_MODEL_ARN", "").strip()
         self.prompt = os.getenv("CHAT_SYSTEM_PROMPT", DEFAULT_CHAT_PROMPT).strip() or DEFAULT_CHAT_PROMPT
         self.client = client
+
+    @staticmethod
+    def _normalize_question(value: str) -> str:
+        normalized = unicodedata.normalize("NFKC", value).casefold()
+        return "".join(character for character in normalized if character.isalnum())
+
+    @classmethod
+    def _similarity(cls, left: str, right: str) -> float:
+        normalized_left = cls._normalize_question(left)
+        normalized_right = cls._normalize_question(right)
+        if not normalized_left or not normalized_right:
+            return 0.0
+        return SequenceMatcher(None, normalized_left, normalized_right).ratio()
+
+    @staticmethod
+    def _faq_threshold() -> float:
+        try:
+            return max(0.0, min(float(os.getenv("CHAT_FAQ_MATCH_THRESHOLD", "0.85")), 1.0))
+        except ValueError:
+            return 0.85
+
+    @staticmethod
+    def _current_academic_year() -> int:
+        try:
+            return int(os.getenv("CHAT_CURRENT_ACADEMIC_YEAR", ""))
+        except ValueError:
+            return datetime.now(ZoneInfo("Asia/Tokyo")).year
+
+    @classmethod
+    def answer_from_faq(cls, question: str, faqs: list) -> ChatMessageResponse | None:
+        best_faq = None
+        best_score = 0.0
+        for faq in faqs:
+            candidate_questions = [faq.question, *(item.question for item in faq.similar_questions)]
+            score = max((cls._similarity(question, candidate) for candidate in candidate_questions), default=0.0)
+            if score > best_score:
+                best_faq = faq
+                best_score = score
+        if best_faq is None or best_score < cls._faq_threshold():
+            return None
+
+        answer = str(best_faq.answer).strip()
+        current_year = cls._current_academic_year()
+        years = [int(value) for value in re.findall(r"(?<!\d)(20\d{2})(?:年度|年)?", f"{best_faq.question}\n{answer}")]
+        if years and max(years) < current_year:
+            answer = (
+                f"※この回答は{max(years)}年度以前の情報です。"
+                f"{current_year}年度の最新情報ではない可能性があります。\n\n{answer}"
+            )
+        return ChatMessageResponse(
+            answer=answer,
+            answer_type="FAQ",
+            faq_id=int(best_faq.id),
+            citations=[],
+        )
 
     async def answer(
         self, question: str, bedrock_session_id: str | None = None

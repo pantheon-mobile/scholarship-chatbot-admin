@@ -52,7 +52,7 @@ export default function ChatPage() {
       await startTrackedInteraction(chatSessionId.current, interactionId, sequence, submittedAt, normalized);
       const result = await sendChatMessage(normalized, bedrockSessionId); const answeredAt = now(); setBedrockSessionId(result.bedrock_session_id || undefined);
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: result.answer, sentAt: answeredAt, citations: result.citations, interactionId, answerType: result.answer_type }]);
-      await completeTrackedInteraction(interactionId, result.answer_type, answeredAt, result.answer, result.citations); await reloadHistory();
+      await completeTrackedInteraction(interactionId, result.answer_type, answeredAt, result.answer, result.citations, result.faq_id); await reloadHistory();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "回答を取得できませんでした。"); await completeTrackedInteraction(interactionId, null).catch(() => undefined); }
     finally { setBusy(false); }
   }
