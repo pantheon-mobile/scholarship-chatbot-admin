@@ -21,7 +21,7 @@ export default function ChatHistoryPage() {
       <SelectField label="チャット回答種別：" value={answerType} onChange={(e) => setAnswerType(e.target.value)}><option value="">（全て）</option><option value="FAQ">FAQ</option><option value="GENERATED_AI">生成AI</option></SelectField>
       <SelectField label="評価：" value={rating} onChange={(e) => setRating(e.target.value)}><option value="">（全て）</option><option value="RATED">Good＆Bad</option><option value="GOOD">Goodのみ</option><option value="BAD">Badのみ</option><option value="NONE">評価なし</option></SelectField>
       <SelectField label="コメント：" value={comment} onChange={(e) => setComment(e.target.value)}><option value="">（全て）</option><option value="WITH">コメント有</option><option value="WITHOUT">コメントなし</option></SelectField>
-      <SelectField label="ユーザ種別：" value={role} onChange={(e) => setRole(e.target.value)}><option value="">（全て）</option><option value="staff">職員（一般）</option><option value="admin">職員（管理者）</option></SelectField>
+      <SelectField label="ユーザ種別：" value={role} onChange={(e) => setRole(e.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField>
       <FormField label="ユーザID：" value={userIds} placeholder="カンマ区切りで複数指定" onChange={(e) => setUserIds(e.target.value)} />
       <Button variant="download" icon={<AdminIcon name="download" size={18} />} disabled={loading} onClick={() => void download()}>{loading ? "作成中..." : "履歴ダウンロード"}</Button>
     </section>

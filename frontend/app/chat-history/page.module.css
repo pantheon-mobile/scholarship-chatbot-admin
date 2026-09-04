@@ -1,8 +1,8 @@
 .formArea { display: grid; grid-template-columns: minmax(0, 420px); align-items: end; gap: 16px; max-width: 520px; padding: 22px 20px; }
-.formArea > label { width: 300px; }
+.formArea > label { display: grid; grid-template-columns: 150px 300px; align-items: center; gap: 12px; width: 462px; }
 .period { display: flex; align-items: center; gap: 12px; }
 .period b { min-width: 122px; }
 .period label { width: 180px; }
 .formArea button { width: fit-content; margin-top: 8px; }
 .error { padding: 12px 15px; background: #fff2f2; color: #b01818; }
-@media (max-width: 800px) { .formArea { grid-template-columns: 1fr; padding: 16px 0; }.formArea > label { width: 100%; }.period { flex-wrap: wrap; }.period label { width: 180px; } }
+@media (max-width: 800px) { .formArea { grid-template-columns: 1fr; padding: 16px 0; }.formArea > label { grid-template-columns: 1fr; width: 100%; }.period { flex-wrap: wrap; }.period label { width: 180px; } }

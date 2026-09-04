@@ -1,11 +1,11 @@
 .section { position: relative; min-height: 116px; padding: 18px 20px 22px; border-bottom: 1px solid #c9cdd1; }
 .section h2 { margin: 0 0 16px; font-size: 18px; }
-.userFilters { width: 320px; margin-bottom: 16px; }
+.userFilters { width: 520px; margin-bottom: 16px; }
+.userFilters label, .grid > label { display: grid; grid-template-columns: 150px 320px; align-items: center; gap: 12px; width: 482px; max-width: none; }
 .grid { display: grid; grid-template-columns: minmax(0, 520px); align-items: end; gap: 14px; max-width: 520px; margin-bottom: 16px; }
-.grid > label { max-width: 320px; }
 .period { display: flex; align-items: center; gap: 10px; }
 .period > span:first-child { min-width: 74px; font-weight: 700; }
 .period label { width: 155px; }
 .section button { margin-left: 20px; }
 .error { padding: 12px 15px; background: #fff2f2; color: #b01818; }
-@media (max-width: 900px) { .userFilters { width: 100%; }.grid { grid-template-columns: 1fr; }.period { flex-wrap: wrap; }.section button { margin-left: 0; } }
+@media (max-width: 900px) { .userFilters { width: 100%; }.userFilters label, .grid > label { grid-template-columns: 1fr; width: 100%; }.grid { grid-template-columns: 1fr; }.period { flex-wrap: wrap; }.section button { margin-left: 0; } }

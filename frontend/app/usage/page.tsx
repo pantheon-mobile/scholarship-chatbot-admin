@@ -38,7 +38,7 @@ export default function UsagePage() {
     {error && <p className={styles.error} role="alert">{error}</p>}
     <section className={styles.section}>
       <h2>【ユーザリスト】</h2>
-      <div className={styles.userFilters}><SelectField label="ユーザ種別：" value={userRole} onChange={(event) => setUserRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員（一般）</option><option value="admin">職員（管理者）</option></SelectField></div>
+      <div className={styles.userFilters}><SelectField label="ユーザ種別：" value={userRole} onChange={(event) => setUserRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField></div>
       <Button variant="download" icon={<AdminIcon name="download" size={18} />} disabled={Boolean(busy)} onClick={() => void download("users")}>{busy === "users" ? "作成中..." : "ユーザリストダウンロード"}</Button>
     </section>
     <section className={styles.section}>
@@ -46,7 +46,7 @@ export default function UsagePage() {
       <div className={styles.grid}>
         <div className={styles.period}><span>期間指定：</span><FormField aria-label="アクセスログFrom" type="date" value={from} onChange={(event) => setFrom(event.target.value)} required /><span>～</span><FormField aria-label="アクセスログTo" type="date" value={to} onChange={(event) => setTo(event.target.value)} required /></div>
         <SelectField label="サイト：" value={accessSurface} onChange={(event) => setAccessSurface(event.target.value)}><option value="">（全て）</option><option value="CHAT">チャット</option><option value="ADMIN">管理サイト</option></SelectField>
-        <SelectField label="ユーザ種別：" value={accessRole} onChange={(event) => setAccessRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員（一般）</option><option value="admin">職員（管理者）</option></SelectField>
+        <SelectField label="ユーザ種別：" value={accessRole} onChange={(event) => setAccessRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField>
         <FormField label="ユーザID：" value={accessUserIds} placeholder="カンマ区切りで複数指定" onChange={(event) => setAccessUserIds(event.target.value)} />
       </div>
       <Button variant="download" icon={<AdminIcon name="download" size={18} />} disabled={Boolean(busy)} onClick={() => void download("access-logs")}>{busy === "access-logs" ? "作成中..." : "アクセスログダウンロード"}</Button>
@@ -57,7 +57,7 @@ export default function UsagePage() {
         <div className={styles.period}><span>期間指定：</span><FormField aria-label="操作ログFrom" type="date" value={from} onChange={(event) => setFrom(event.target.value)} required /><span>～</span><FormField aria-label="操作ログTo" type="date" value={to} onChange={(event) => setTo(event.target.value)} required /></div>
         <SelectField label="サイト：" value={operationSurface} onChange={(event) => setOperationSurface(event.target.value)}><option value="">（全て）</option><option value="CHAT">チャット</option><option value="ADMIN">管理サイト</option></SelectField>
         <SelectField label="操作種別：" value={operationType} onChange={(event) => setOperationType(event.target.value)}><option value="">（全て）</option><option value="CREATE">登録</option><option value="UPDATE">更新</option><option value="DELETE">削除</option><option value="DOWNLOAD">ダウンロード</option><option value="UPLOAD">アップロード</option></SelectField>
-        <SelectField label="ユーザ種別：" value={operationRole} onChange={(event) => setOperationRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員（一般）</option><option value="admin">職員（管理者）</option></SelectField>
+        <SelectField label="ユーザ種別：" value={operationRole} onChange={(event) => setOperationRole(event.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField>
         <FormField label="ユーザID：" value={operationUserIds} placeholder="カンマ区切りで複数指定" onChange={(event) => setOperationUserIds(event.target.value)} />
       </div>
       <Button variant="download" icon={<AdminIcon name="download" size={18} />} disabled={Boolean(busy)} onClick={() => void download("operation-logs")}>{busy === "operation-logs" ? "作成中..." : "操作ログダウンロード"}</Button>
