@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-  completeTrackedInteraction: vi.fn(), fetchChatConfig: vi.fn(), fetchChatHistory: vi.fn(),
+  completeTrackedInteraction: vi.fn(), deleteChatHistory: vi.fn(), fetchChatConfig: vi.fn(), fetchChatHistory: vi.fn(),
   fetchChatHistoryDetail: vi.fn(), recordChatAccess: vi.fn(), sendChatMessage: vi.fn(),
-  startTrackedChat: vi.fn(), startTrackedInteraction: vi.fn(), submitFeedback: vi.fn(),
+  startTrackedChat: vi.fn(), startTrackedInteraction: vi.fn(), submitFeedback: vi.fn(), updateChatHistoryTitle: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -24,6 +24,8 @@ beforeEach(() => {
     good_options: ["分かりやすい"], bad_options: ["回答が違う"],
   });
   api.fetchChatHistory.mockResolvedValue([{ id: "11111111-1111-4111-8111-111111111111", title: "過去の質問", started_at: "2026-09-03T00:00:00Z", updated_at: "2026-09-03T00:01:00Z" }]);
+  api.updateChatHistoryTitle.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111", title: "変更後の名前", started_at: "2026-09-03T00:00:00Z", updated_at: "2026-09-03T00:01:00Z" });
+  api.deleteChatHistory.mockResolvedValue(undefined);
   api.sendChatMessage.mockResolvedValue({ answer: "回答です", answer_type: "GENERATED_AI", bedrock_session_id: "bedrock-1", citations: [] });
   api.recordChatAccess.mockResolvedValue(undefined); api.startTrackedChat.mockResolvedValue(undefined); api.startTrackedInteraction.mockResolvedValue(undefined); api.completeTrackedInteraction.mockResolvedValue(undefined); api.submitFeedback.mockResolvedValue(undefined);
 });
@@ -36,6 +38,7 @@ describe("CB-101 チャットUI", () => {
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /新しいチャット/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /チャット履歴/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
     await screen.findByText("過去の質問");
 
     fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
@@ -65,5 +68,39 @@ describe("CB-101 チャットUI", () => {
     await waitFor(() => expect(api.fetchChatConfig).toHaveBeenCalled());
     expect(screen.queryByText("最初の案内")).toBeNull();
     expect(screen.queryByText("チャットボット")).toBeNull();
+  });
+
+  it("質問・回答本文を検索し、チャット名をEnterで保存またはキャンセルできる", async () => {
+    render(<ChatPage />);
+    fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
+    const search = await screen.findByPlaceholderText("チャットを検索");
+    fireEvent.change(search, { target: { value: "予約採用" } });
+    await waitFor(() => expect(api.fetchChatHistory).toHaveBeenCalledWith("予約採用"));
+
+    fireEvent.click(screen.getByRole("button", { name: "過去の質問のメニュー" }));
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    const title = screen.getByLabelText("チャット名");
+    fireEvent.change(title, { target: { value: "変更後の名前" } });
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(api.updateChatHistoryTitle).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111", "変更後の名前"));
+    await screen.findByText("変更後の名前");
+
+    fireEvent.click(screen.getByRole("button", { name: "変更後の名前のメニュー" }));
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByLabelText("チャット名")).toBeNull();
+  });
+
+  it("共通ダイアログで削除確認し履歴を削除する", async () => {
+    render(<ChatPage />);
+    fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
+    await screen.findByText("過去の質問");
+    fireEvent.click(screen.getByRole("button", { name: "過去の質問のメニュー" }));
+    fireEvent.click(screen.getByRole("button", { name: "削除" }));
+    const dialog = screen.getByRole("dialog", { name: "チャットの削除" });
+    expect(dialog.textContent).toContain("このチャットを削除しますか？");
+    expect(dialog.textContent).toContain("このチャットに戻ることはできなくなります。");
+    fireEvent.click(screen.getByRole("button", { name: /^削除$/ }));
+    await waitFor(() => expect(api.deleteChatHistory).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
   });
 });

@@ -2,7 +2,7 @@ import os
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,7 +11,7 @@ from app.core.db import get_db
 from app.models.analytics import AnalyticsVisitor, ChatInteraction, ChatSession
 from app.models.auth import AuthSession
 from app.schemas.chat import (
-    ChatHistoryDetail, ChatHistoryMessage, ChatHistorySummary, ChatMessageRequest,
+    ChatHistoryDetail, ChatHistoryMessage, ChatHistorySummary, ChatHistoryTitleUpdate, ChatMessageRequest,
     ChatMessageResponse, ChatUiConfigResponse,
 )
 from app.repositories.analytics import AnalyticsRepository
@@ -62,6 +62,7 @@ async def get_chat_config(_current_user: AuthSession = Depends(require_authentic
 @router.get("/sessions", response_model=list[ChatHistorySummary])
 async def list_chat_sessions(
     limit: int = Query(default=100, ge=1, le=200),
+    search: str | None = Query(default=None, max_length=200),
     current_user: AuthSession = Depends(require_authenticated_session),
     session: AsyncSession = Depends(get_db),
 ):
@@ -71,8 +72,14 @@ async def list_chat_sessions(
         .where(AnalyticsVisitor.visitor_key == _visitor_key(current_user))
         .options(selectinload(ChatSession.interactions))
         .order_by(ChatSession.started_at.desc())
-        .limit(limit)
     )
+    normalized_search = search.strip() if search else ""
+    if normalized_search:
+        pattern = f"%{normalized_search}%"
+        statement = statement.join(ChatInteraction, ChatInteraction.chat_session_id == ChatSession.id, isouter=True).where(
+            or_(ChatSession.title.ilike(pattern), ChatInteraction.question_text.ilike(pattern), ChatInteraction.answer_text.ilike(pattern))
+        ).distinct()
+    statement = statement.limit(limit)
     rows = (await session.execute(statement)).scalars().unique().all()
     result = []
     for row in rows:
@@ -81,7 +88,7 @@ async def list_chat_sessions(
         updated_at = max((item.updated_at for item in interactions), default=row.started_at)
         result.append(ChatHistorySummary(
             id=row.id,
-            title=(first_question[:40] + ("…" if len(first_question) > 40 else "")) if first_question else "新しいチャット",
+            title=row.title or ((first_question[:40] + ("…" if len(first_question) > 40 else "")) if first_question else "新しいチャット"),
             started_at=row.started_at,
             updated_at=updated_at,
         ))
@@ -119,8 +126,52 @@ async def get_chat_session_history(
                 answer_type=item.answer_type,
             ))
     first_question = next((item.question_text for item in interactions if item.question_text), None)
-    title = (first_question[:40] + ("…" if len(first_question) > 40 else "")) if first_question else "新しいチャット"
+    title = row.title or ((first_question[:40] + ("…" if len(first_question) > 40 else "")) if first_question else "新しいチャット")
     return ChatHistoryDetail(id=row.id, title=title, messages=messages)
+
+
+async def _owned_chat_session(session_id: UUID, current_user: AuthSession, session: AsyncSession) -> ChatSession:
+    statement = (
+        select(ChatSession)
+        .join(AnalyticsVisitor)
+        .where(
+            ChatSession.id == session_id,
+            AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+        )
+        .options(selectinload(ChatSession.interactions))
+    )
+    row = (await session.execute(statement)).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="チャット履歴が見つかりません。")
+    return row
+
+
+@router.patch("/sessions/{session_id}", response_model=ChatHistorySummary)
+async def update_chat_session_title(
+    session_id: UUID,
+    payload: ChatHistoryTitleUpdate,
+    current_user: AuthSession = Depends(require_authenticated_session),
+    session: AsyncSession = Depends(get_db),
+):
+    row = await _owned_chat_session(session_id, current_user, session)
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="チャット名を入力してください。")
+    row.title = title
+    await session.commit()
+    updated_at = max((item.updated_at for item in row.interactions), default=row.started_at)
+    return ChatHistorySummary(id=row.id, title=row.title, started_at=row.started_at, updated_at=updated_at)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_chat_session(
+    session_id: UUID,
+    current_user: AuthSession = Depends(require_authenticated_session),
+    session: AsyncSession = Depends(get_db),
+):
+    row = await _owned_chat_session(session_id, current_user, session)
+    await session.delete(row)
+    await session.commit()
 
 
 @router.post("/messages", response_model=ChatMessageResponse)

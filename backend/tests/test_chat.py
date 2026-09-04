@@ -1,9 +1,14 @@
-from unittest.mock import Mock
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.api.v1.chat import delete_chat_session, list_chat_sessions, update_chat_session_title
+from app.schemas.chat import ChatHistoryTitleUpdate
 from app.services.chat_service import ChatConfigurationError, ChatService
 
 
@@ -69,3 +74,47 @@ async def test_chat_ui_config_uses_system_settings(monkeypatch):
     assert response.json()["title"] == "設定済みチャット"
     assert response.json()["history_enabled"] is True
     assert response.json()["bad_options"] == ["回答が違う", "情報が不足"]
+
+
+@pytest.mark.anyio
+async def test_chat_history_searches_question_and_answer_content(monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    started_at = datetime.now(timezone.utc)
+    row = SimpleNamespace(
+        id=uuid4(), title=None, started_at=started_at,
+        interactions=[SimpleNamespace(sequence_number=1, question_text="予約採用", answer_text="進学届を提出します", updated_at=started_at)],
+    )
+    result = Mock()
+    result.scalars.return_value.unique.return_value.all.return_value = [row]
+    session = AsyncMock()
+    session.execute.return_value = result
+    current_user = SimpleNamespace(site="faculty", subject="staff-001")
+
+    histories = await list_chat_sessions(limit=100, search="進学届", current_user=current_user, session=session)
+
+    assert histories[0].title == "予約採用"
+    assert "answer_text" in str(session.execute.call_args.args[0])
+
+
+@pytest.mark.anyio
+async def test_chat_history_title_update_and_delete_are_limited_to_owner(monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    started_at = datetime.now(timezone.utc)
+    row = SimpleNamespace(id=uuid4(), title=None, started_at=started_at, interactions=[])
+    result = Mock()
+    result.scalar_one_or_none.return_value = row
+    session = AsyncMock()
+    session.execute.return_value = result
+    current_user = SimpleNamespace(site="faculty", subject="staff-001")
+
+    updated = await update_chat_session_title(
+        row.id, ChatHistoryTitleUpdate(title=" 変更後の名前 "), current_user=current_user, session=session,
+    )
+    assert updated.title == "変更後の名前"
+    assert "visitor_key" in str(session.execute.call_args.args[0])
+    session.commit.assert_awaited_once()
+
+    session.commit.reset_mock()
+    await delete_chat_session(row.id, current_user=current_user, session=session)
+    session.delete.assert_awaited_once_with(row)
+    session.commit.assert_awaited_once()

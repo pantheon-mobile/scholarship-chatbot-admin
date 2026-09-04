@@ -45,6 +45,7 @@ class ChatSession(Base):
 
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     visitor_id: Mapped[UUID] = Column(ForeignKey("analytics_visitors.id", ondelete="RESTRICT"), nullable=False)
+    title: Mapped[str | None] = Column(String(100), nullable=True)
     started_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = Column(DateTime(timezone=True), nullable=True)
     recorded_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)

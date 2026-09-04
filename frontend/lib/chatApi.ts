@@ -30,6 +30,14 @@ async function chatGet<T>(path: string): Promise<T> {
   return response.json();
 }
 
+async function chatWrite<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${apiBase}/api/v1/chat/${path}`, { method, credentials: "include", headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!response.ok) throw new Error(await detail(response));
+  return response.status === 204 ? undefined as T : response.json();
+}
+
 export const fetchChatConfig = () => chatGet<ChatUiConfig>("config");
-export const fetchChatHistory = () => chatGet<ChatHistorySummary[]>("sessions");
+export const fetchChatHistory = (search = "") => chatGet<ChatHistorySummary[]>(`sessions${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ""}`);
 export const fetchChatHistoryDetail = (id: string) => chatGet<ChatHistoryDetail>(`sessions/${id}`);
+export const updateChatHistoryTitle = (id: string, title: string) => chatWrite<ChatHistorySummary>(`sessions/${id}`, "PATCH", { title });
+export const deleteChatHistory = (id: string) => chatWrite<void>(`sessions/${id}`, "DELETE");

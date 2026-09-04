@@ -61,3 +61,7 @@ class ChatHistoryDetail(BaseModel):
     id: UUID
     title: str
     messages: list[ChatHistoryMessage]
+
+
+class ChatHistoryTitleUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
