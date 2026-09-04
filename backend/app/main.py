@@ -57,7 +57,10 @@ async def record_admin_operation(request: Request, call_next):
                 session.add(AdminOperationLog(
                     id=uuid4(),
                     operator_key=operator_key,
+                    operator_subject=current.subject,
+                    operator_display_name=current.display_name,
                     operator_role=current.role,
+                    operator_site=current.site,
                     http_method=request.method,
                     request_path=request.url.path,
                     status_code=response.status_code,

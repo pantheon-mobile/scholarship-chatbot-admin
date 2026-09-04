@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.api.v1.auth import require_authenticated_session
+from app.models.auth import AuthSession
 from app.repositories.analytics import AnalyticsRepository
 from app.schemas.analytics import (
     AccessCreateRequest,
@@ -39,17 +41,31 @@ def api_error(error: AnalyticsError) -> HTTPException:
 
 
 @router.post("/accesses", response_model=AccessResponse, status_code=201)
-async def record_access(payload: AccessCreateRequest, service: AnalyticsService = Depends(get_service)):
+async def record_access(
+    payload: AccessCreateRequest,
+    current: AuthSession = Depends(require_authenticated_session),
+    service: AnalyticsService = Depends(get_service),
+):
     try:
-        return await service.record_access(payload)
+        return await service.record_access(
+            payload, subject=current.subject, display_name=current.display_name,
+            role=current.role, site=current.site,
+        )
     except AnalyticsError as error:
         raise api_error(error) from None
 
 
 @router.post("/chat-sessions", response_model=ChatSessionResponse, status_code=201)
-async def start_chat_session(payload: ChatSessionCreateRequest, service: AnalyticsService = Depends(get_service)):
+async def start_chat_session(
+    payload: ChatSessionCreateRequest,
+    current: AuthSession = Depends(require_authenticated_session),
+    service: AnalyticsService = Depends(get_service),
+):
     try:
-        return await service.start_chat_session(payload)
+        return await service.start_chat_session(
+            payload, subject=current.subject, display_name=current.display_name,
+            role=current.role, site=current.site,
+        )
     except AnalyticsError as error:
         raise api_error(error) from None
 

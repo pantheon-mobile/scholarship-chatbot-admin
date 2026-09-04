@@ -38,7 +38,10 @@ class AdminOperationLog(Base):
 
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     operator_key: Mapped[str] = Column(String(64), nullable=False, index=True)
+    operator_subject: Mapped[str | None] = Column(String(500), nullable=True)
+    operator_display_name: Mapped[str | None] = Column(String(500), nullable=True)
     operator_role: Mapped[str] = Column(String(20), nullable=False)
+    operator_site: Mapped[str | None] = Column(String(20), nullable=True)
     http_method: Mapped[str] = Column(String(10), nullable=False)
     request_path: Mapped[str] = Column(String(1000), nullable=False)
     status_code: Mapped[int] = Column(Integer, nullable=False)

@@ -57,21 +57,24 @@ class ReportingRepository:
 
     async def usage_users(self, start_at: datetime, end_at: datetime) -> list[dict]:
         rows = (await self.session.execute(text("""
-            SELECT v.visitor_key, v.identity_kind, v.created_at, v.last_seen_at,
+            SELECT v.visitor_key, v.identity_kind, v.subject, v.display_name, v.role, v.site,
+                   v.created_at, v.last_seen_at,
                    COUNT(DISTINCT a.id)::bigint AS access_count,
                    COUNT(DISTINCT s.id)::bigint AS chat_count
             FROM analytics_visitors v
             LEFT JOIN access_logs a ON a.visitor_id = v.id AND a.accessed_at >= :start_at AND a.accessed_at < :end_at
             LEFT JOIN chat_sessions s ON s.visitor_id = v.id AND s.started_at >= :start_at AND s.started_at < :end_at
             WHERE a.id IS NOT NULL OR s.id IS NOT NULL
-            GROUP BY v.id, v.visitor_key, v.identity_kind, v.created_at, v.last_seen_at
+            GROUP BY v.id, v.visitor_key, v.identity_kind, v.subject, v.display_name, v.role, v.site,
+                     v.created_at, v.last_seen_at
             ORDER BY v.last_seen_at DESC
         """), {"start_at": start_at, "end_at": end_at})).mappings().all()
         return [dict(row) for row in rows]
 
     async def access_logs(self, start_at: datetime, end_at: datetime) -> list[dict]:
         rows = (await self.session.execute(text("""
-            SELECT a.id, v.visitor_key, v.identity_kind, a.accessed_at, a.recorded_at
+            SELECT a.id, v.visitor_key, v.identity_kind, v.subject, v.display_name, v.role, v.site,
+                   a.accessed_at, a.recorded_at
             FROM access_logs a
             JOIN analytics_visitors v ON v.id = a.visitor_id
             WHERE a.accessed_at >= :start_at AND a.accessed_at < :end_at
@@ -81,7 +84,8 @@ class ReportingRepository:
 
     async def operation_logs(self, start_at: datetime, end_at: datetime) -> list[dict]:
         rows = (await self.session.execute(text("""
-            SELECT id, operator_key, operator_role, http_method, request_path, status_code, operated_at
+            SELECT id, operator_key, operator_subject, operator_display_name, operator_role,
+                   operator_site, http_method, request_path, status_code, operated_at
             FROM admin_operation_logs
             WHERE operated_at >= :start_at AND operated_at < :end_at
             ORDER BY operated_at DESC, id DESC

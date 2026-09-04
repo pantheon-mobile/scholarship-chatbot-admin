@@ -13,12 +13,24 @@ class AnalyticsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_or_create_visitor(self, visitor_key: str, identity_kind: str, now: datetime) -> AnalyticsVisitor:
+    async def get_or_create_visitor(
+        self, visitor_key: str, identity_kind: str, now: datetime, *,
+        subject: str | None = None, display_name: str | None = None,
+        role: str | None = None, site: str | None = None,
+    ) -> AnalyticsVisitor:
         statement = insert(AnalyticsVisitor).values(
-            id=uuid4(), visitor_key=visitor_key, identity_kind=identity_kind, created_at=now, last_seen_at=now,
+            id=uuid4(), visitor_key=visitor_key, identity_kind=identity_kind,
+            subject=subject, display_name=display_name, role=role, site=site,
+            created_at=now, last_seen_at=now,
         ).on_conflict_do_update(
             constraint="uq_analytics_visitors_visitor_key",
-            set_={"last_seen_at": now},
+            set_={
+                "last_seen_at": now,
+                "subject": subject,
+                "display_name": display_name,
+                "role": role,
+                "site": site,
+            },
         ).returning(AnalyticsVisitor.id)
         visitor_id = (await self.session.execute(statement)).scalar_one()
         return (await self.session.execute(select(AnalyticsVisitor).where(AnalyticsVisitor.id == visitor_id))).scalar_one()

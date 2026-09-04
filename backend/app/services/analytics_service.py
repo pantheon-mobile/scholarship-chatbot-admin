@@ -35,14 +35,17 @@ class AnalyticsService:
         message = f"{identity_kind}:{identifier}".encode("utf-8")
         return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
-    async def record_access(self, payload: AccessCreateRequest) -> AccessLog:
+    async def record_access(
+        self, payload: AccessCreateRequest, *, subject: str | None = None,
+        display_name: str | None = None, role: str | None = None, site: str | None = None,
+    ) -> AccessLog:
         now = datetime.now(timezone.utc)
         visitor_id = None
         try:
             visitor = await self.repository.get_or_create_visitor(
                 self.visitor_key(payload.identity.identity_kind, payload.identity.identifier),
-                payload.identity.identity_kind,
-                now,
+                payload.identity.identity_kind, now,
+                subject=subject, display_name=display_name, role=role, site=site,
             )
             visitor_id = visitor.id
             existing = await self.repository.get_access(payload.id)
@@ -64,14 +67,17 @@ class AnalyticsService:
                 return existing
             raise AnalyticsError("IDEMPOTENCY_CONFLICT", "アクセス記録が競合しました。") from error
 
-    async def start_chat_session(self, payload: ChatSessionCreateRequest) -> ChatSession:
+    async def start_chat_session(
+        self, payload: ChatSessionCreateRequest, *, subject: str | None = None,
+        display_name: str | None = None, role: str | None = None, site: str | None = None,
+    ) -> ChatSession:
         now = datetime.now(timezone.utc)
         visitor_id = None
         try:
             visitor = await self.repository.get_or_create_visitor(
                 self.visitor_key(payload.identity.identity_kind, payload.identity.identifier),
-                payload.identity.identity_kind,
-                now,
+                payload.identity.identity_kind, now,
+                subject=subject, display_name=display_name, role=role, site=site,
             )
             visitor_id = visitor.id
             existing = await self.repository.get_chat_session(payload.id)

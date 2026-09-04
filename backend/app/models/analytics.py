@@ -17,6 +17,10 @@ class AnalyticsVisitor(Base):
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     visitor_key: Mapped[str] = Column(String(64), nullable=False)
     identity_kind: Mapped[str] = Column(String(20), nullable=False)
+    subject: Mapped[str | None] = Column(String(500), nullable=True)
+    display_name: Mapped[str | None] = Column(String(500), nullable=True)
+    role: Mapped[str | None] = Column(String(20), nullable=True)
+    site: Mapped[str | None] = Column(String(20), nullable=True)
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
 

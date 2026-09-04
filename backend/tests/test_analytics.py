@@ -76,10 +76,15 @@ async def test_access_records_hashed_visitor_and_is_idempotent():
     repo.create_access.return_value = created
     service = AnalyticsService(repo, identity_secret="secret")
 
-    assert await service.record_access(payload) is created
+    assert await service.record_access(
+        payload, subject="staff-001", display_name="東京 太郎", role="staff", site="faculty",
+    ) is created
     assert await service.record_access(payload) is created
     hashed_key = repo.get_or_create_visitor.await_args_list[0].args[0]
     assert payload.identity.identifier not in hashed_key
+    assert repo.get_or_create_visitor.await_args_list[0].kwargs == {
+        "subject": "staff-001", "display_name": "東京 太郎", "role": "staff", "site": "faculty",
+    }
     repo.create_access.assert_awaited_once()
 
 
