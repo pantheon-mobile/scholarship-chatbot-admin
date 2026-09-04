@@ -1,11 +1,11 @@
 .section { position: relative; min-height: 116px; padding: 18px 20px 22px; border-bottom: 1px solid #c9cdd1; }
 .section h2 { margin: 0 0 16px; font-size: 18px; }
-.userFilters { position: absolute; top: 12px; left: 48%; width: 300px; }
-.grid { display: grid; grid-template-columns: minmax(450px, 1fr) minmax(260px, .7fr); align-items: end; gap: 10px 34px; max-width: 900px; margin-bottom: 16px; }
+.userFilters { width: 320px; margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: minmax(0, 520px); align-items: end; gap: 14px; max-width: 520px; margin-bottom: 16px; }
 .grid > label { max-width: 320px; }
 .period { display: flex; align-items: center; gap: 10px; }
 .period > span:first-child { min-width: 74px; font-weight: 700; }
 .period label { width: 155px; }
 .section button { margin-left: 20px; }
 .error { padding: 12px 15px; background: #fff2f2; color: #b01818; }
-@media (max-width: 900px) { .userFilters { position: static; width: 100%; margin-bottom: 16px; }.grid { grid-template-columns: 1fr; }.period { flex-wrap: wrap; }.section button { margin-left: 0; } }
+@media (max-width: 900px) { .userFilters { width: 100%; }.grid { grid-template-columns: 1fr; }.period { flex-wrap: wrap; }.section button { margin-left: 0; } }

@@ -35,6 +35,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CB-101 チャットUI", () => {
+  it("日本語変換を確定するEnterでは送信しない", async () => {
+    render(<ChatPage />);
+    const input = screen.getByLabelText("質問");
+    fireEvent.change(input, { target: { value: "給付奨学金" } });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229, isComposing: true });
+    expect(api.sendChatMessage).not.toHaveBeenCalled();
+    expect((input as HTMLTextAreaElement).value).toBe("給付奨学金");
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 13, isComposing: false });
+    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("給付奨学金", undefined));
+  });
+
   it("左メニュー、履歴、日時を表示し、Good理由をポップアップからDB APIへ送る", async () => {
     render(<ChatPage />);
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).toBeTruthy();

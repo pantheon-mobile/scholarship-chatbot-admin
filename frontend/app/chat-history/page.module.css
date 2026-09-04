@@ -1,6 +1,6 @@
-.formArea { display: grid; grid-template-columns: 360px 300px; align-items: end; gap: 16px 44px; max-width: 760px; padding: 22px 20px; }
+.formArea { display: grid; grid-template-columns: minmax(0, 420px); align-items: end; gap: 16px; max-width: 520px; padding: 22px 20px; }
 .formArea > label { width: 300px; }
-.period { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; }
+.period { display: flex; align-items: center; gap: 12px; }
 .period b { min-width: 122px; }
 .period label { width: 180px; }
 .formArea button { width: fit-content; margin-top: 8px; }
