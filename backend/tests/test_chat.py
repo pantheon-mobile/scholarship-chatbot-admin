@@ -7,7 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.api.v1.chat import delete_chat_session, list_chat_sessions, update_chat_session_title
+from app.api.v1.chat import delete_chat_session, get_chat_session_history, list_chat_sessions, update_chat_session_title
 from app.schemas.chat import ChatHistoryTitleUpdate
 from app.services.chat_service import ChatConfigurationError, ChatService
 
@@ -82,7 +82,7 @@ async def test_chat_history_searches_question_and_answer_content(monkeypatch):
     started_at = datetime.now(timezone.utc)
     row = SimpleNamespace(
         id=uuid4(), title=None, started_at=started_at,
-        interactions=[SimpleNamespace(sequence_number=1, question_text="予約採用", answer_text="進学届を提出します", updated_at=started_at)],
+        interactions=[SimpleNamespace(sequence_number=1, processing_status="COMPLETED", question_text="予約採用", answer_text="進学届を提出します", updated_at=started_at)],
     )
     result = Mock()
     result.scalars.return_value.unique.return_value.all.return_value = [row]
@@ -94,6 +94,7 @@ async def test_chat_history_searches_question_and_answer_content(monkeypatch):
 
     assert histories[0].title == "予約採用"
     assert "answer_text" in str(session.execute.call_args.args[0])
+    assert "processing_status" in str(session.execute.call_args.args[0])
 
 
 @pytest.mark.anyio
@@ -118,3 +119,32 @@ async def test_chat_history_title_update_and_delete_are_limited_to_owner(monkeyp
     await delete_chat_session(row.id, current_user=current_user, session=session)
     session.delete.assert_awaited_once_with(row)
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_chat_history_detail_excludes_system_error_interactions(monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    submitted_at = datetime.now(timezone.utc)
+    failed = SimpleNamespace(
+        id=uuid4(), sequence_number=1, processing_status="FAILED", question_text="失敗した質問",
+        answer_text=None, answer_displayed_at=None, question_submitted_at=submitted_at,
+        citations=None, feedback=None, answer_type=None,
+    )
+    completed = SimpleNamespace(
+        id=uuid4(), sequence_number=2, processing_status="COMPLETED", question_text="成功した質問",
+        answer_text="成功した回答", answer_displayed_at=submitted_at, question_submitted_at=submitted_at,
+        citations=[], feedback=None, answer_type="GENERATED_AI",
+    )
+    row = SimpleNamespace(id=uuid4(), title=None, interactions=[failed, completed])
+    result = Mock()
+    result.scalar_one_or_none.return_value = row
+    session = AsyncMock()
+    session.execute.return_value = result
+
+    detail = await get_chat_session_history(
+        row.id, current_user=SimpleNamespace(site="faculty", subject="staff-001"), session=session,
+    )
+
+    assert detail.title == "成功した質問"
+    assert [message.content for message in detail.messages] == ["成功した質問", "成功した回答"]
+    assert "失敗した質問" not in [message.content for message in detail.messages]

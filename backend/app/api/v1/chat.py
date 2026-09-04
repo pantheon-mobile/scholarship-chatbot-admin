@@ -66,10 +66,17 @@ async def list_chat_sessions(
     current_user: AuthSession = Depends(require_authenticated_session),
     session: AsyncSession = Depends(get_db),
 ):
+    completed_interaction_exists = select(ChatInteraction.id).where(
+        ChatInteraction.chat_session_id == ChatSession.id,
+        ChatInteraction.processing_status == "COMPLETED",
+    ).correlate(ChatSession).exists()
     statement = (
         select(ChatSession)
         .join(AnalyticsVisitor)
-        .where(AnalyticsVisitor.visitor_key == _visitor_key(current_user))
+        .where(
+            AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+            completed_interaction_exists,
+        )
         .options(selectinload(ChatSession.interactions))
         .order_by(ChatSession.started_at.desc())
     )
@@ -77,13 +84,17 @@ async def list_chat_sessions(
     if normalized_search:
         pattern = f"%{normalized_search}%"
         statement = statement.join(ChatInteraction, ChatInteraction.chat_session_id == ChatSession.id, isouter=True).where(
+            ChatInteraction.processing_status == "COMPLETED",
             or_(ChatSession.title.ilike(pattern), ChatInteraction.question_text.ilike(pattern), ChatInteraction.answer_text.ilike(pattern))
         ).distinct()
     statement = statement.limit(limit)
     rows = (await session.execute(statement)).scalars().unique().all()
     result = []
     for row in rows:
-        interactions = sorted(row.interactions, key=lambda item: item.sequence_number)
+        interactions = sorted(
+            (item for item in row.interactions if item.processing_status == "COMPLETED"),
+            key=lambda item: item.sequence_number,
+        )
         first_question = next((item.question_text for item in interactions if item.question_text), None)
         updated_at = max((item.updated_at for item in interactions), default=row.started_at)
         result.append(ChatHistorySummary(
@@ -101,16 +112,27 @@ async def get_chat_session_history(
     current_user: AuthSession = Depends(require_authenticated_session),
     session: AsyncSession = Depends(get_db),
 ):
+    completed_interaction_exists = select(ChatInteraction.id).where(
+        ChatInteraction.chat_session_id == ChatSession.id,
+        ChatInteraction.processing_status == "COMPLETED",
+    ).correlate(ChatSession).exists()
     statement = (
         select(ChatSession)
         .join(AnalyticsVisitor)
-        .where(ChatSession.id == session_id, AnalyticsVisitor.visitor_key == _visitor_key(current_user))
+        .where(
+            ChatSession.id == session_id,
+            AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+            completed_interaction_exists,
+        )
         .options(selectinload(ChatSession.interactions).selectinload(ChatInteraction.feedback))
     )
     row = (await session.execute(statement)).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="チャット履歴が見つかりません。")
-    interactions = sorted(row.interactions, key=lambda item: item.sequence_number)
+    interactions = sorted(
+        (item for item in row.interactions if item.processing_status == "COMPLETED"),
+        key=lambda item: item.sequence_number,
+    )
     messages: list[ChatHistoryMessage] = []
     for item in interactions:
         if item.question_text:
