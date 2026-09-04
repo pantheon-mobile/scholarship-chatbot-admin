@@ -38,7 +38,6 @@ describe("CB-101 チャットUI", () => {
     expect(screen.getByRole("button", { name: "サイドメニューを閉じる" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /新しいチャット/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /チャット履歴/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
     await screen.findByText("過去の質問");
 
     fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
@@ -72,6 +71,8 @@ describe("CB-101 チャットUI", () => {
 
   it("質問・回答本文を検索し、チャット名をEnterで保存またはキャンセルできる", async () => {
     render(<ChatPage />);
+    await screen.findByText("過去の質問");
+    expect(screen.queryByPlaceholderText("チャットを検索")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
     const search = await screen.findByPlaceholderText("チャットを検索");
     fireEvent.change(search, { target: { value: "予約採用" } });
@@ -89,6 +90,17 @@ describe("CB-101 チャットUI", () => {
     fireEvent.click(screen.getByRole("button", { name: "編集" }));
     fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
     expect(screen.queryByLabelText("チャット名")).toBeNull();
+  });
+
+  it("戻るアイコンで検索モードを終了して通常の履歴表示へ戻る", async () => {
+    render(<ChatPage />);
+    await screen.findByText("過去の質問");
+    fireEvent.click(screen.getByRole("button", { name: /チャット履歴/ }));
+    fireEvent.change(screen.getByPlaceholderText("チャットを検索"), { target: { value: "進学届" } });
+    fireEvent.click(screen.getByRole("button", { name: "検索を終了" }));
+    expect(screen.queryByPlaceholderText("チャットを検索")).toBeNull();
+    expect(screen.getByText("最近の履歴")).toBeTruthy();
+    await waitFor(() => expect(api.fetchChatHistory).toHaveBeenCalledWith(""));
   });
 
   it("共通ダイアログで削除確認し履歴を削除する", async () => {
