@@ -1,11 +1,10 @@
 from logging.config import fileConfig
-import os
-
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+from app.core.db import database_url
 from app.db.base_class import Base
 from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite, IngestionJob
@@ -20,7 +19,7 @@ fileConfig(config.config_file_name)
 
 config.set_main_option(
     "sqlalchemy.url",
-    os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@db:5432/scholarship"),
+    database_url().replace("%", "%%"),
 )
 
 target_metadata = Base.metadata

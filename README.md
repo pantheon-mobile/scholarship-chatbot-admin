@@ -49,14 +49,15 @@ docker compose --env-file .env.aws-dev -f compose.yaml -f compose.aws-dev.yaml -
 
 ## AWS development environment
 
-`infrastructure/`にAWS CDK定義があります。VPC、ECS Fargate（Frontend／Backend）、RDS PostgreSQL、S3、ECR、ALB、および毎日01:00 JSTに起動する取り込みワーカーを作成します。
+`infrastructure/`にAWS CDK定義があります。VPC、ECS Fargate（Frontend／Backend）、RDS PostgreSQL、S3、ECR、ALB、および毎日01:00 JSTに起動する取り込みワーカーを作成します。ローカル開発用のDocker Composeは継続して利用できます。
 
 ```bash
 cd infrastructure
 npm ci
 npx cdk bootstrap
 npm run synth
-npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn=... \
+npm run deploy -- --context config=config/development.json \
+  --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn=... \
   --parameters PDFKnowledgeBaseId=... --parameters PDFDataSourceId=... \
   --parameters WEBKnowledgeBaseId=... --parameters WEBDataSourceId=... \
   --parameters EXCELKnowledgeBaseId=... --parameters EXCELDataSourceId=... \
@@ -64,7 +65,7 @@ npm run deploy -- --parameters ChatKnowledgeBaseId=... --parameters ChatModelArn
   --parameters PPTKnowledgeBaseId=... --parameters PPTDataSourceId=...
 ```
 
-初回デプロイ前にFrontend／BackendのDockerイメージをCDK出力のECRへ`latest`タグでPushします。Frontendは同一ALBの`/api/*`を利用するため、`NEXT_PUBLIC_API_URL`を空文字にしてビルドします。CDKの実デプロイ、DNS、ACM証明書、CPF本物の公開鍵設定は、開発用ドメインとCPF回答が確定してから行います。
+環境別設定とデプロイ後の確認手順は[`infrastructure/README.md`](infrastructure/README.md)を参照してください。CDKがFrontend／BackendのDockerイメージをビルドしてECRへ登録します。Frontendは同一ALBの`/api/*`を利用するため、`NEXT_PUBLIC_API_URL`を空文字にしてビルドします。実デプロイ、DNS、ACM証明書、CPF本物の公開鍵設定は対象環境の値を確認してから行います。
 
 ## Notes
 

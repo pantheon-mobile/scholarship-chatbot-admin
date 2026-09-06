@@ -1,0 +1,12 @@
+{
+  "environmentName": "development",
+  "existingDocumentsBucketName": "",
+  "certificateArn": "",
+  "domainName": "",
+  "hostedZoneId": "",
+  "hostedZoneName": "",
+  "enableDevelopmentCpfMock": true,
+  "nightlyIngestionHourJst": 1,
+  "nightlyIngestionMinuteJst": 0,
+  "deletionProtection": true
+}
