@@ -1,11 +1,14 @@
 {
   "environmentName": "validation",
-  "existingDocumentsBucketName": "example-scholarship-chatbot-documents",
+  "existingDocumentsBucketName": "",
   "certificateArn": "arn:aws:acm:ap-northeast-1:111122223333:certificate/00000000-0000-0000-0000-000000000000",
   "domainName": "scholarship-chatbot-validation.example.ac.jp",
   "hostedZoneId": "",
   "hostedZoneName": "",
   "enableDevelopmentCpfMock": true,
+  "provisionKnowledgeBase": true,
+  "embeddingModelArn": "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0",
+  "opensearchDeploymentPrincipalArn": "",
   "nightlyIngestionHourJst": 1,
   "nightlyIngestionMinuteJst": 0,
   "deletionProtection": true

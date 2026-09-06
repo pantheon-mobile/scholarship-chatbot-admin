@@ -7,8 +7,9 @@
 - [ ] 環境名とアプリ用FQDNが確定
 - [ ] ACM証明書が対象リージョンで`ISSUED`
 - [ ] DNS管理者と、ALB用CNAME登録手順が確定
-- [ ] 既存S3バケット名、またはCDKによる新規作成方針が確定
-- [ ] 統合KB ID、各形式のKB ID／DS IDが確定
+- [ ] 既存S3バケット名、またはCDKによる新規作成方針が確定（標準はCDK新規作成）
+- [ ] `provisionKnowledgeBase=true`でOpenSearch Serverless／統合KB／形式別DSを作成する方針を確認
+- [ ] OpenSearch Serverlessの継続料金を承認済み
 - [ ] Claude Sonnet 4.6推論プロファイルARNが確定
 - [ ] CPF教職員戻り先URLが確定
 - [ ] CPFの`kid`と公開鍵の受領予定が確定
@@ -28,6 +29,7 @@
 ## デプロイ後
 
 - [ ] CloudFormationが`CREATE_COMPLETE`または`UPDATE_COMPLETE`
+- [ ] OpenSearch Serverless、統合Knowledge Base、6つのData Sourceが作成済み
 - [ ] 終了保護とRDS削除保護が有効
 - [ ] DNSがALBを参照し、HTTPS証明書エラーがない
 - [ ] Frontend／Backend ECSサービスが安定

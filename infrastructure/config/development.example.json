@@ -8,5 +8,6 @@
   "enableDevelopmentCpfMock": true,
   "nightlyIngestionHourJst": 1,
   "nightlyIngestionMinuteJst": 0,
-  "deletionProtection": true
+  "deletionProtection": true,
+  "provisionKnowledgeBase": false
 }

@@ -49,7 +49,7 @@ docker compose --env-file .env.aws-dev -f compose.yaml -f compose.aws-dev.yaml -
 
 ## AWS development environment
 
-`infrastructure/`にAWS CDK定義があります。VPC、ECS Fargate（Frontend／Backend）、RDS PostgreSQL、S3、ECR、ALB、および毎日01:00 JSTに起動する取り込みワーカーを作成します。ローカル開発用のDocker Composeは継続して利用できます。
+`infrastructure/`にAWS CDK定義があります。VPC、ECS Fargate（Frontend／Backend／Worker）、RDS PostgreSQL、S3、ECR、ALB、OpenSearch Serverless、Bedrock統合Knowledge Base、形式別Data Source、および毎日01:00 JSTに起動する取り込みスケジュールを作成できます。既存KBを利用する構成も残しており、ローカル開発用のDocker Composeは継続して利用できます。
 
 ```bash
 cd infrastructure

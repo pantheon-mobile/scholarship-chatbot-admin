@@ -12,8 +12,10 @@ CDKは次を作成します。
 - 変換・同期用ECS Fargateタスクと毎日01:00 JSTのScheduler
 - PostgreSQL 16 RDS、Secrets Manager、CloudWatch Logs、SQS DLQ
 - S3バケット（既存名を指定した場合は既存バケットを参照）
-
-Bedrock Knowledge Base、Data Source、OpenSearch/S3 Vectors等のベクトルストアはこのスタックの外部リソースです。客先で確定したIDをデプロイ時に渡します。
+- OpenSearch Serverlessの暗号化・ネットワーク・データアクセスポリシー
+- OpenSearch Serverless Vector Searchコレクションとベクトルインデックス
+- Bedrock統合Knowledge Baseと形式別6 Data Source
+- Knowledge Baseサービスロールと必要なIAM権限
 
 ## 2. 客先に事前準備いただくもの
 
@@ -21,9 +23,8 @@ Bedrock Knowledge Base、Data Source、OpenSearch/S3 Vectors等のベクトル�
 - CDKを実行できるIAM権限
 - Docker、Node.js 20以上、AWS CLI
 - アプリ用FQDNと、同リージョンで発行済みのACM証明書ARN
-- 文書保存用S3バケット名
-- 統合チャット用Knowledge Base ID、推論プロファイルARN
-- PDF／Web／Excel／Word／PowerPoint／Text用のKnowledge Base IDとData Source ID
+- 文書保存用S3バケットを既存利用するか、CDKで新規作成するかの方針
+- Claude Sonnet 4.6の推論プロファイルARN
 - CPFの教職員・学生戻り先URL
 - CPFから受領する`kid`とJWT検証用PEM公開鍵
 
@@ -38,8 +39,12 @@ cp config/customer-validation.example.json config/customer-validation.json
 
 `customer-validation.json`を客先値へ変更します。この実値ファイルはGit管理対象外です。
 
+- `existingDocumentsBucketName`: 空文字ならCDKが暗号化・バージョニング・公開遮断済みS3を新規作成。既存利用時だけバケット名を設定
 - `enableDevelopmentCpfMock`: CPF接続準備が整うまでは`true`。疑似ログイン画面は`/development/cpf`
 - CPF接続試験を開始する時点で`false`へ変更し、再デプロイする
+- `provisionKnowledgeBase`: OpenSearch Serverless、統合KB、形式別Data SourceをCDKで作る場合は`true`
+- `embeddingModelArn`: 標準はTitan Text Embeddings v2（1024次元）
+- `opensearchDeploymentPrincipalArn`: 標準のCDK Bootstrap以外のCloudFormation実行ロールを使用する場合だけ、そのARNを設定
 - `deletionProtection`: 原則`true`
 - `hostedZoneId`／`hostedZoneName`: Route 53を同一AWSアカウントで管理する場合のみ設定
 - 外部DNSの場合、上記2項目は空文字のままにする
@@ -53,19 +58,12 @@ npm ci
 npm run build
 npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/ap-northeast-1 --profile <AWS_PROFILE>
 npx cdk diff --profile <AWS_PROFILE> --context config=config/customer-validation.json \
-  --parameters ChatKnowledgeBaseId=<統合KB_ID> \
   --parameters ChatModelArn=<推論プロファイルARN> \
-  --parameters PDFKnowledgeBaseId=<PDF_KB_ID> --parameters PDFDataSourceId=<PDF_DS_ID> \
-  --parameters WEBKnowledgeBaseId=<WEB_KB_ID> --parameters WEBDataSourceId=<WEB_DS_ID> \
-  --parameters EXCELKnowledgeBaseId=<EXCEL_KB_ID> --parameters EXCELDataSourceId=<EXCEL_DS_ID> \
-  --parameters WORDKnowledgeBaseId=<WORD_KB_ID> --parameters WORDDataSourceId=<WORD_DS_ID> \
-  --parameters PPTKnowledgeBaseId=<PPT_KB_ID> --parameters PPTDataSourceId=<PPT_DS_ID> \
-  --parameters TEXTKnowledgeBaseId=<TEXT_KB_ID> --parameters TEXTDataSourceId=<TEXT_DS_ID> \
   --parameters CpfFacultyReturnUrl=<CPF教職員URL> \
   --parameters CpfStudentReturnUrl=<CPF学生URL>
 ```
 
-差分をレビュー後、同じ引数で`npx cdk deploy`を実行します。コマンド履歴やCIログに値が残る点を許容できない場合は、客先CIの保護変数から引数を組み立ててください。KB IDとDS IDは認証情報ではありませんが、社外公開は避けます。
+差分をレビュー後、同じ引数で`npx cdk deploy`を実行します。`provisionKnowledgeBase=true`では、KB IDとDS IDはCDKが生成してECSへ自動設定します。コマンド履歴やCIログにURL等が残る点を許容できない場合は、客先CIの保護変数から引数を組み立ててください。
 
 ## 5. DNSとCPF公開鍵
 
@@ -114,5 +112,6 @@ S3は保持、RDSはスナップショット作成を既定としています。
 - 客先内で保管する実値設定（Gitへコミットしない）
 - 本書、`PRE_DEPLOY_CHECKLIST.md`、`IAM_AND_SECURITY.md`
 - CloudFormation出力一覧
+- 自動生成された統合KB ID、形式別Data Source ID、OpenSearch Serverless Collection ARN
 - CPF公開鍵の更新・ローテーション手順
 - 運用監視先（CloudWatch Logs、ECS、Scheduler、DLQ、RDS）の一覧

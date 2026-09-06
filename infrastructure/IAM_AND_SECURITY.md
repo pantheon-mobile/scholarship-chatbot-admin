@@ -4,7 +4,7 @@
 
 初回の`cdk bootstrap`は、客先のAWS管理者が実施してください。日常のデプロイ担当者へ長期の管理者権限を付与せず、CDK Bootstrapが作成するデプロイロール／CloudFormation実行ロールを引き受ける方式を推奨します。
 
-本スタックはVPC、EC2、ECS、ECR、Elastic Load Balancing、RDS、S3、Secrets Manager、IAM、CloudWatch Logs、EventBridge Scheduler、SQS、ACM、およびRoute 53（設定時）を扱います。客先の権限境界、SCP、タグ必須ルールがある場合、CDK実行前に客先AWS管理者が確認してください。
+本スタックはVPC、EC2、ECS、ECR、Elastic Load Balancing、RDS、S3、Secrets Manager、IAM、CloudWatch Logs、EventBridge Scheduler、SQS、ACM、Bedrock、OpenSearch Serverless、およびRoute 53（設定時）を扱います。客先の権限境界、SCP、タグ必須ルールがある場合、CDK実行前に客先AWS管理者が確認してください。
 
 デプロイ担当者に必要な代表的権限は次のとおりです。
 
@@ -22,6 +22,7 @@ CDKは用途別にECSタスクロールを作成します。
 
 - Backend: 文書S3の読み書き、Bedrock Retrieve／RetrieveAndGenerate、ワーカー起動
 - Worker: 文書S3の読み書き、Bedrock取り込みジョブ、モデル呼び出し
+- Bedrock Knowledge Baseサービスロール: S3読取、埋め込みモデル呼び出し、OpenSearch Serverlessデータアクセス
 - ECS実行ロール: ECRイメージ取得、CloudWatch Logs出力、必要なSecret読取
 - Scheduler: 指定Workerタスクの起動とDLQ送信
 

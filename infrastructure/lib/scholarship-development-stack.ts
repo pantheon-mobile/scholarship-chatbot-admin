@@ -1,11 +1,13 @@
 import * as path from "path";
 import * as cdk from "aws-cdk-lib";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as aoss from "aws-cdk-lib/aws-opensearchserverless";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
@@ -27,6 +29,9 @@ export interface ScholarshipEnvironmentConfig {
   readonly nightlyIngestionHourJst?: number;
   readonly nightlyIngestionMinuteJst?: number;
   readonly deletionProtection?: boolean;
+  readonly provisionKnowledgeBase?: boolean;
+  readonly embeddingModelArn?: string;
+  readonly opensearchDeploymentPrincipalArn?: string;
 }
 
 export interface ScholarshipDevelopmentStackProps extends cdk.StackProps {
@@ -40,14 +45,11 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const prefix = `scholarship-chatbot-${config.environmentName}`;
 
     const parameter = (name: string, description: string) => new cdk.CfnParameter(this, name, { type: "String", default: "", description }).valueAsString;
-    const chatKnowledgeBaseId = parameter("ChatKnowledgeBaseId", "CB-101が検索するBedrock Knowledge Base ID");
     const chatModelArn = parameter("ChatModelArn", "CB-101が回答生成に使用するBedrock model ARN");
     const cpfFacultyReturnUrl = parameter("CpfFacultyReturnUrl", "認証失敗時に戻るCPF教職員URL");
     const cpfStudentReturnUrl = parameter("CpfStudentReturnUrl", "認証失敗時に戻るCPF学生URL（学生対応開始までは空で可）");
-    const ingestionIds = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].flatMap(kind => [
-      [`INGESTION_${kind}_KNOWLEDGE_BASE_ID`, parameter(`${kind}KnowledgeBaseId`, `${kind}用Knowledge Base ID`)],
-      [`INGESTION_${kind}_DATA_SOURCE_ID`, parameter(`${kind}DataSourceId`, `${kind}用Data Source ID`)],
-    ]));
+    let chatKnowledgeBaseId: string;
+    let ingestionIds: Record<string, string>;
 
     const vpc = new ec2.Vpc(this, "Vpc", {
       vpcName: `${prefix}-vpc`,
@@ -67,6 +69,141 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    if (config.provisionKnowledgeBase) {
+      const collectionName = `${config.environmentName}-scholarship-kb`
+        .toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 32).replace(/-+$/g, "");
+      const indexName = "scholarship-chatbot-vector-index";
+      const vectorField = "bedrock-knowledge-base-default-vector";
+      const textField = "AMAZON_BEDROCK_TEXT";
+      const metadataField = "AMAZON_BEDROCK_METADATA";
+      const embeddingModelArn = config.embeddingModelArn || cdk.Stack.of(this).formatArn({
+        service: "bedrock",
+        region: this.region,
+        account: "",
+        resource: "foundation-model/amazon.titan-embed-text-v2:0",
+        arnFormat: cdk.ArnFormat.NO_RESOURCE_NAME,
+      });
+      const encryptionPolicy = new aoss.CfnSecurityPolicy(this, "VectorEncryptionPolicy", {
+        name: `${collectionName}-encryption`.slice(0, 32),
+        type: "encryption",
+        policy: JSON.stringify({ Rules: [{ ResourceType: "collection", Resource: [`collection/${collectionName}`] }], AWSOwnedKey: true }),
+      });
+      const networkPolicy = new aoss.CfnSecurityPolicy(this, "VectorNetworkPolicy", {
+        name: `${collectionName}-network`.slice(0, 32),
+        type: "network",
+        policy: JSON.stringify([{ Rules: [
+          { ResourceType: "collection", Resource: [`collection/${collectionName}`] },
+          { ResourceType: "dashboard", Resource: [`collection/${collectionName}`] },
+        ], AllowFromPublic: true }]),
+      });
+      const collection = new aoss.CfnCollection(this, "VectorCollection", {
+        name: collectionName,
+        type: "VECTORSEARCH",
+        description: `${prefix} Bedrock Knowledge Base vector collection`,
+        standbyReplicas: "DISABLED",
+      });
+      collection.addResourceDependency(encryptionPolicy);
+      collection.addResourceDependency(networkPolicy);
+
+      const knowledgeBaseRole = new iam.Role(this, "KnowledgeBaseRole", {
+        roleName: `${prefix}-bedrock-kb-role`.slice(0, 64),
+        assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
+      });
+      bucket.grantRead(knowledgeBaseRole);
+      knowledgeBaseRole.addToPolicy(new iam.PolicyStatement({ actions: ["bedrock:InvokeModel"], resources: [embeddingModelArn] }));
+      knowledgeBaseRole.addToPolicy(new iam.PolicyStatement({ actions: ["aoss:APIAccessAll"], resources: [collection.attrArn] }));
+      const cloudFormationPrincipal = config.opensearchDeploymentPrincipalArn || cdk.Stack.of(this).formatArn({
+        service: "iam",
+        region: "",
+        resource: "role",
+        resourceName: `cdk-hnb659fds-cfn-exec-role-${this.account}-${this.region}`,
+      });
+      const dataAccessPolicy = new aoss.CfnAccessPolicy(this, "VectorDataAccessPolicy", {
+        name: `${collectionName}-access`.slice(0, 32),
+        type: "data",
+        policy: JSON.stringify([{ Description: "Bedrock KB and CloudFormation index access", Rules: [
+          { ResourceType: "collection", Resource: [`collection/${collectionName}`], Permission: ["aoss:DescribeCollectionItems", "aoss:CreateCollectionItems", "aoss:UpdateCollectionItems"] },
+          { ResourceType: "index", Resource: [`index/${collectionName}/*`], Permission: ["aoss:CreateIndex", "aoss:DeleteIndex", "aoss:UpdateIndex", "aoss:DescribeIndex", "aoss:ReadDocument", "aoss:WriteDocument"] },
+        ], Principal: [knowledgeBaseRole.roleArn, cloudFormationPrincipal] }]),
+      });
+      dataAccessPolicy.addResourceDependency(collection);
+      const vectorIndex = new aoss.CfnIndex(this, "VectorIndex", {
+        collectionEndpoint: collection.attrCollectionEndpoint,
+        indexName,
+        settings: { index: { knn: true, knnAlgoParamEfSearch: 512 } },
+        mappings: { properties: {
+          [vectorField]: { type: "knn_vector", dimension: 1024, method: { engine: "faiss", name: "hnsw", spaceType: "l2", parameters: { m: 16, efConstruction: 512 } } },
+          [textField]: { type: "text", index: true },
+          [metadataField]: { type: "text", index: false },
+        } },
+      });
+      vectorIndex.addResourceDependency(collection);
+      vectorIndex.addResourceDependency(dataAccessPolicy);
+
+      const knowledgeBase = new bedrock.CfnKnowledgeBase(this, "IntegratedKnowledgeBase", {
+        name: `${prefix}-integrated-kb`.slice(0, 100),
+        description: "Scholarship chatbot integrated Knowledge Base",
+        roleArn: knowledgeBaseRole.roleArn,
+        knowledgeBaseConfiguration: {
+          type: "VECTOR",
+          vectorKnowledgeBaseConfiguration: {
+            embeddingModelArn,
+            embeddingModelConfiguration: { bedrockEmbeddingModelConfiguration: { dimensions: 1024, embeddingDataType: "FLOAT32" } },
+          },
+        },
+        storageConfiguration: {
+          type: "OPENSEARCH_SERVERLESS",
+          opensearchServerlessConfiguration: {
+            collectionArn: collection.attrArn,
+            vectorIndexName: indexName,
+            fieldMapping: { vectorField, textField, metadataField },
+          },
+        },
+      });
+      knowledgeBase.addResourceDependency(vectorIndex);
+      knowledgeBase.addResourceDependency(dataAccessPolicy);
+      const chunkingConfiguration: bedrock.CfnDataSource.ChunkingConfigurationProperty = {
+        chunkingStrategy: "HIERARCHICAL",
+        hierarchicalChunkingConfiguration: {
+          levelConfigurations: [{ maxTokens: 1500 }, { maxTokens: 300 }],
+          overlapTokens: 60,
+        },
+      };
+      const dataSources = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].map(kind => {
+        const dataSource = new bedrock.CfnDataSource(this, `${kind}DataSource`, {
+          name: `${prefix}-${kind.toLowerCase()}-ds`.slice(0, 100),
+          knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
+          dataDeletionPolicy: "RETAIN",
+          dataSourceConfiguration: {
+            type: "S3",
+            s3Configuration: {
+              bucketArn: bucket.bucketArn,
+              inclusionPrefixes: [`documents/admin/kb-source/${kind.toLowerCase()}/`],
+            },
+          },
+          vectorIngestionConfiguration: { chunkingConfiguration },
+        });
+        dataSource.addResourceDependency(knowledgeBase);
+        return [kind, dataSource];
+      }));
+      chatKnowledgeBaseId = knowledgeBase.attrKnowledgeBaseId;
+      ingestionIds = Object.fromEntries(Object.entries(dataSources).flatMap(([kind, dataSource]) => [
+        [`INGESTION_${kind}_KNOWLEDGE_BASE_ID`, knowledgeBase.attrKnowledgeBaseId],
+        [`INGESTION_${kind}_DATA_SOURCE_ID`, dataSource.attrDataSourceId],
+      ]));
+      new cdk.CfnOutput(this, "IntegratedKnowledgeBaseId", { value: knowledgeBase.attrKnowledgeBaseId });
+      new cdk.CfnOutput(this, "VectorCollectionArn", { value: collection.attrArn });
+      for (const [kind, dataSource] of Object.entries(dataSources)) {
+        new cdk.CfnOutput(this, `${kind}DataSourceId`, { value: dataSource.attrDataSourceId });
+      }
+    } else {
+      chatKnowledgeBaseId = parameter("ChatKnowledgeBaseId", "CB-101が検索するBedrock Knowledge Base ID");
+      ingestionIds = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].flatMap(kind => [
+        [`INGESTION_${kind}_KNOWLEDGE_BASE_ID`, parameter(`${kind}KnowledgeBaseId`, `${kind}用Knowledge Base ID`)],
+        [`INGESTION_${kind}_DATA_SOURCE_ID`, parameter(`${kind}DataSourceId`, `${kind}用Data Source ID`)],
+      ]));
+    }
     const database = new rds.DatabaseInstance(this, "Database", {
       instanceIdentifier: `${prefix}-db`,
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16_13 }),
