@@ -65,7 +65,7 @@ npm run deploy -- --context config=config/development.json \
   --parameters PPTKnowledgeBaseId=... --parameters PPTDataSourceId=...
 ```
 
-環境別設定とデプロイ後の確認手順は[`infrastructure/README.md`](infrastructure/README.md)を参照してください。CDKがFrontend／BackendのDockerイメージをビルドしてECRへ登録します。Frontendは同一ALBの`/api/*`を利用するため、`NEXT_PUBLIC_API_URL`を空文字にしてビルドします。実デプロイ、DNS、ACM証明書、CPF本物の公開鍵設定は対象環境の値を確認してから行います。
+環境別設定とデプロイ後の確認手順は[`infrastructure/README.md`](infrastructure/README.md)を参照してください。客先AWSへの構築・引渡しには[`infrastructure/CUSTOMER_HANDOFF.md`](infrastructure/CUSTOMER_HANDOFF.md)、[`infrastructure/PRE_DEPLOY_CHECKLIST.md`](infrastructure/PRE_DEPLOY_CHECKLIST.md)、[`infrastructure/IAM_AND_SECURITY.md`](infrastructure/IAM_AND_SECURITY.md)を使用します。CDKがFrontend／BackendのDockerイメージをビルドしてECRへ登録します。Frontendは同一ALBの`/api/*`を利用するため、`NEXT_PUBLIC_API_URL`を空文字にしてビルドします。実デプロイ、DNS、ACM証明書、CPF本物の公開鍵設定は対象環境の値を確認してから行います。
 
 ## Notes
 

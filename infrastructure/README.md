@@ -23,6 +23,8 @@ CDKはFrontendとBackendのDockerイメージをビルドし、CDK管理のECR�
 3. 既存の統合Knowledge Baseが参照するS3バケットを使う場合、`existingDocumentsBucketName`にはそのバケット名を指定します。空にした場合はCDKが新規バケットを作ります。
 4. HTTPSを使う場合は同じリージョンのACM証明書ARNと`domainName`を設定します。Route 53も同じAWSアカウントで管理する場合だけHosted Zoneの3項目を設定します。
 
+客先AWS環境へ引き渡す場合は、[`CUSTOMER_HANDOFF.md`](CUSTOMER_HANDOFF.md)、[`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)、[`IAM_AND_SECURITY.md`](IAM_AND_SECURITY.md)を使用し、`config/customer-validation.example.json`から客先専用の実値設定を作成してください。
+
 ## 構成の確認
 
 ```bash
@@ -52,7 +54,7 @@ npx cdk deploy --context config=config/development.json \
   --parameters CpfStudentReturnUrl=<CPF学生URL>
 ```
 
-CloudFormationの出力`ApplicationUrl`が接続先です。デプロイはRDS、NAT Gateway、ALB、ECSなどの利用料金を発生させます。
+CloudFormationの出力`ApplicationUrl`が接続先です。外部DNSを使用する場合は、出力`LoadBalancerDnsName`をCNAME値として登録します。デプロイはRDS、NAT Gateway、ALB、ECSなどの利用料金を発生させます。
 
 ## CPF公開鍵の設定
 

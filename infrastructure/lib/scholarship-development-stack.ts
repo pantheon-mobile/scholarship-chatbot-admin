@@ -209,6 +209,10 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
 
     const applicationHost = config.domainName || loadBalancer.loadBalancerDnsName;
     new cdk.CfnOutput(this, "ApplicationUrl", { value: `${hasTls ? "https" : "http"}://${applicationHost}` });
+    new cdk.CfnOutput(this, "LoadBalancerDnsName", {
+      value: loadBalancer.loadBalancerDnsName,
+      description: "Route 53以外のDNSで、アプリ用ドメインのCNAME値に設定するALB DNS名",
+    });
     new cdk.CfnOutput(this, "DocumentsBucketName", { value: bucket.bucketName });
     new cdk.CfnOutput(this, "CpfPublicKeysSecretName", { value: cpfPublicKeysSecret.secretName });
     new cdk.CfnOutput(this, "DatabaseSecretName", { value: database.secret!.secretName });

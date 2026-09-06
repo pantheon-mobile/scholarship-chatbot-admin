@@ -35,5 +35,6 @@ docker-compose.override.yml
 
 # AWS CDK generated output
 infrastructure/cdk.out/
+infrastructure/cdk.context.json
 infrastructure/config/*.json
 !infrastructure/config/*.example.json
