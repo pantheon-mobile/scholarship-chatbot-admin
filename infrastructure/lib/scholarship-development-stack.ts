@@ -238,15 +238,15 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", { vpc, allowAllOutbound: true });
     database.connections.allowDefaultPortFrom(taskSecurityGroup);
     const frontendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../frontend"), {
-      platform: ecrAssets.Platform.LINUX_ARM64,
+      platform: ecrAssets.Platform.LINUX_AMD64,
     });
     const backendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../backend"), {
-      platform: ecrAssets.Platform.LINUX_ARM64,
+      platform: ecrAssets.Platform.LINUX_AMD64,
     });
     const hasTls = Boolean(config.certificateArn);
 
     const fargateRuntimePlatform = {
-      cpuArchitecture: ecs.CpuArchitecture.ARM64,
+      cpuArchitecture: ecs.CpuArchitecture.X86_64,
       operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
     };
     const backendTask = new ecs.FargateTaskDefinition(this, "BackendTask", {
