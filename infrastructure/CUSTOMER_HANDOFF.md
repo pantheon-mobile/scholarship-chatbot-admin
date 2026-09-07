@@ -115,3 +115,5 @@ S3は保持、RDSはスナップショット作成を既定としています。
 - 自動生成された統合KB ID、形式別Data Source ID、OpenSearch Serverless Collection ARN
 - CPF公開鍵の更新・ローテーション手順
 - 運用監視先（CloudWatch Logs、ECS、Scheduler、DLQ、RDS）の一覧
+
+具体的なファイル一覧と受渡し時の確認順は`HANDOFF_MANIFEST.md`を参照してください。自社AWSでの再現試験結果は`REHEARSAL_RESULT.md`に記録しています。

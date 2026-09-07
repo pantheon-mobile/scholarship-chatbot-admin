@@ -44,19 +44,14 @@ npm run synth -- --context config=config/development.json
 aws sts get-caller-identity
 npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/ap-northeast-1
 npx cdk deploy --context config=config/development.json \
-  --parameters ChatKnowledgeBaseId=<統合KB_ID> \
   --parameters ChatModelArn=<Claude_Sonnet_4.6推論プロファイルARN> \
-  --parameters PDFKnowledgeBaseId=<PDF_KB_ID> --parameters PDFDataSourceId=<PDF_DS_ID> \
-  --parameters WEBKnowledgeBaseId=<WEB_KB_ID> --parameters WEBDataSourceId=<WEB_DS_ID> \
-  --parameters EXCELKnowledgeBaseId=<EXCEL_KB_ID> --parameters EXCELDataSourceId=<EXCEL_DS_ID> \
-  --parameters WORDKnowledgeBaseId=<WORD_KB_ID> --parameters WORDDataSourceId=<WORD_DS_ID> \
-  --parameters PPTKnowledgeBaseId=<PPT_KB_ID> --parameters PPTDataSourceId=<PPT_DS_ID> \
-  --parameters TEXTKnowledgeBaseId=<TEXT_KB_ID> --parameters TEXTDataSourceId=<TEXT_DS_ID> \
   --parameters CpfFacultyReturnUrl=<CPF教職員URL> \
   --parameters CpfStudentReturnUrl=<CPF学生URL>
 ```
 
-PDFとTXT／CSVでData Sourceを共用する構成では、`TEXTKnowledgeBaseId`と`TEXTDataSourceId`にPDFと同じ値を指定します。
+上記は`provisionKnowledgeBase=true`の標準構成です。OpenSearch Serverless、統合Knowledge Base、5つのData SourceをCDKが作成し、生成したIDをECSへ自動設定します。
+
+既存Knowledge Baseを使うため`provisionKnowledgeBase=false`とした場合だけ、`ChatKnowledgeBaseId`と形式別のKnowledge Base ID／Data Source IDを追加指定します。PDFとTXT／CSVでData Sourceを共用する構成では、`TEXTKnowledgeBaseId`と`TEXTDataSourceId`にPDFと同じ値を指定します。
 
 CloudFormationの出力`ApplicationUrl`が接続先です。外部DNSを使用する場合は、出力`LoadBalancerDnsName`をCNAME値として登録します。デプロイはRDS、NAT Gateway、ALB、ECSなどの利用料金を発生させます。
 
@@ -100,6 +95,7 @@ GitHub Actionsの`Pre-handoff AWS rehearsal`を手動実行すると、空環境
 - Frontend／Backend ECSサービスの安定稼働
 - 統合Knowledge Baseの`ACTIVE`
 - CPF疑似ログインと認証セッション
+- チャット設定取得とBedrock RAG回答生成
 - 任意でWebサイト登録、取り込みワーカー起動、変換・Knowledge Base同期完了待ち
 
 事前にGitHub Actions Secretsへ以下を登録します。
@@ -117,3 +113,5 @@ CHAT_MODEL_ARN=<Claude_Sonnet_4.6推論プロファイルARN> npm run rehearsal
 ```
 
 Web登録まで確認する場合は`SMOKE_TEST_WEBSITE_URL`を追加します。自動削除まで行う場合だけ`DESTROY_AFTER_TEST=true`を追加してください。
+
+2026年9月7日の実アカウント再現試験では、CDKデプロイ、Frontend／Backend、RDS、ECS、OpenSearch Serverless、統合Knowledge Base、5 Data Source、CPF疑似ログイン、認証セッション、チャット設定、Bedrock RAG回答生成まで全項目が成功しています。実行記録は`REHEARSAL_RESULT.md`を参照してください。
