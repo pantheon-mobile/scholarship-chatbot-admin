@@ -4,6 +4,7 @@ import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
@@ -236,8 +237,12 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
 
     const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", { vpc, allowAllOutbound: true });
     database.connections.allowDefaultPortFrom(taskSecurityGroup);
-    const frontendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../frontend"));
-    const backendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../backend"));
+    const frontendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../frontend"), {
+      platform: ecrAssets.Platform.LINUX_ARM64,
+    });
+    const backendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../backend"), {
+      platform: ecrAssets.Platform.LINUX_ARM64,
+    });
     const hasTls = Boolean(config.certificateArn);
 
     const fargateRuntimePlatform = {
