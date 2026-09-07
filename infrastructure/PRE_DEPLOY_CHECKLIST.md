@@ -29,7 +29,7 @@
 ## デプロイ後
 
 - [ ] CloudFormationが`CREATE_COMPLETE`または`UPDATE_COMPLETE`
-- [ ] OpenSearch Serverless、統合Knowledge Base、6つのData Sourceが作成済み
+- [ ] OpenSearch Serverless、統合Knowledge Base、5つのData Source（PDF＋Text／Web／Excel／Word／PowerPoint）が作成済み
 - [ ] 終了保護とRDS削除保護が有効
 - [ ] DNSがALBを参照し、HTTPS証明書エラーがない
 - [ ] Frontend／Backend ECSサービスが安定

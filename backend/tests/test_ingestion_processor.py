@@ -6,6 +6,15 @@ import pytest
 from app.services.ingestion_processor import AwsIngestionProcessor
 
 
+def test_text_and_csv_artifacts_share_pdf_data_source_prefix():
+    assert AwsIngestionProcessor._default_s3_prefix("TEXT") == (
+        "documents/admin/kb-source/pdf/"
+    )
+    assert AwsIngestionProcessor._default_s3_prefix("PDF") == (
+        "documents/admin/kb-source/pdf/"
+    )
+
+
 def test_word_docx_is_uploaded_as_original_without_markdown_conversion():
     processor = object.__new__(AwsIngestionProcessor)
     processor.source_storage = SimpleNamespace(read=lambda key: b"original-docx-bytes")

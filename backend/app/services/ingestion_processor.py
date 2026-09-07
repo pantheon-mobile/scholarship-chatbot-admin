@@ -94,7 +94,7 @@ class AwsIngestionProcessor:
             raise RuntimeError("取り込み対象の文書が0件です。")
         prefix = os.getenv(
             f"INGESTION_{kind}_S3_PREFIX",
-            f"documents/admin/kb-source/{kind.lower()}/",
+            self._default_s3_prefix(kind),
         ).strip("/") + "/"
         source_prefix = f"{prefix}{data_source.id}/"
         self._clear_prefix(source_prefix)
@@ -154,6 +154,14 @@ class AwsIngestionProcessor:
         if extension not in kinds:
             raise RuntimeError(f"夜間変換に未対応のファイル形式です: {extension}")
         return kinds[extension]
+
+    @staticmethod
+    def _default_s3_prefix(kind: str) -> str:
+        # Bedrock Knowledge Bases currently allow at most five data sources per
+        # knowledge base. Plain TXT/CSV artifacts therefore share the PDF data
+        # source and its S3 prefix instead of consuming a sixth data source.
+        prefix_kind = "PDF" if kind == "TEXT" else kind
+        return f"documents/admin/kb-source/{prefix_kind.lower()}/"
 
     def _artifacts(self, data_source: DataSource, kind: str) -> list[IngestionArtifact]:
         if kind == "WEB":

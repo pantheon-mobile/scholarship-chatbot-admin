@@ -172,7 +172,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
           overlapTokens: 60,
         },
       };
-      const dataSources = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].map(kind => {
+      const dataSources = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT"].map(kind => {
         const dataSource = new bedrock.CfnDataSource(this, `${kind}DataSource`, {
           name: `${prefix}-${kind.toLowerCase()}-ds`.slice(0, 100),
           knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
@@ -194,11 +194,14 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         [`INGESTION_${kind}_KNOWLEDGE_BASE_ID`, knowledgeBase.attrKnowledgeBaseId],
         [`INGESTION_${kind}_DATA_SOURCE_ID`, dataSource.attrDataSourceId],
       ]));
+      ingestionIds.INGESTION_TEXT_KNOWLEDGE_BASE_ID = knowledgeBase.attrKnowledgeBaseId;
+      ingestionIds.INGESTION_TEXT_DATA_SOURCE_ID = dataSources.PDF.attrDataSourceId;
       new cdk.CfnOutput(this, "IntegratedKnowledgeBaseId", { value: knowledgeBase.attrKnowledgeBaseId });
       new cdk.CfnOutput(this, "VectorCollectionArn", { value: collection.attrArn });
       for (const [kind, dataSource] of Object.entries(dataSources)) {
         new cdk.CfnOutput(this, `${kind}DataSourceId`, { value: dataSource.attrDataSourceId });
       }
+      new cdk.CfnOutput(this, "TEXTDataSourceId", { value: dataSources.PDF.attrDataSourceId });
     } else {
       chatKnowledgeBaseId = parameter("ChatKnowledgeBaseId", "CB-101が検索するBedrock Knowledge Base ID");
       ingestionIds = Object.fromEntries(["PDF", "WEB", "EXCEL", "WORD", "PPT", "TEXT"].flatMap(kind => [

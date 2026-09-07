@@ -13,7 +13,7 @@
 - CPF公開鍵、開発用JWT、匿名化用Secret
 - CloudWatch Logs、夜間タスク起動失敗用SQS DLQ
 - 文書S3バケット（既存バケット名を指定した場合は新規作成しない）
-- 任意でOpenSearch Serverless、ベクトルインデックス、Bedrock統合Knowledge Base、形式別6 Data Source
+- 任意でOpenSearch Serverless、ベクトルインデックス、Bedrock統合Knowledge Base、形式別5 Data Source
 
 CDKはFrontendとBackendのDockerイメージをビルドし、CDK管理のECRへ登録してからECSへ反映します。初回だけECRが空になってECS起動に失敗することはありません。
 
@@ -23,7 +23,7 @@ CDKはFrontendとBackendのDockerイメージをビルドし、CDK管理のECR�
 2. 自社開発では`config/development.example.json`、客先検証では`config/customer-validation.example.json`を実値ファイルへコピーします。実値ファイルはGit管理対象外です。
 3. 既存の統合Knowledge Baseが参照するS3バケットを使う場合、`existingDocumentsBucketName`にはそのバケット名を指定します。空にした場合はCDKが新規バケットを作ります。
 4. HTTPSを使う場合は同じリージョンのACM証明書ARNと`domainName`を設定します。Route 53も同じAWSアカウントで管理する場合だけHosted Zoneの3項目を設定します。
-5. `provisionKnowledgeBase=true`ではOpenSearch Serverless、統合KB、PDF／Web／Excel／Word／PowerPoint／Text用Data Sourceを自動作成し、生成IDをECSへ設定します。既存KBを利用する場合だけ`false`にしてデプロイ時に各IDを渡します。
+5. `provisionKnowledgeBase=true`ではOpenSearch Serverless、統合KB、PDF＋Text／Web／Excel／Word／PowerPoint用の5 Data Sourceを自動作成し、生成IDをECSへ設定します。TXT／CSVはPDF Data SourceとS3 prefixを共用します。既存KBを利用する場合だけ`false`にしてデプロイ時に各IDを渡します。
 
 客先AWS環境へ引き渡す場合は、[`CUSTOMER_HANDOFF.md`](CUSTOMER_HANDOFF.md)、[`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)、[`IAM_AND_SECURITY.md`](IAM_AND_SECURITY.md)を使用し、`config/customer-validation.example.json`から客先専用の実値設定を作成してください。
 
@@ -55,6 +55,8 @@ npx cdk deploy --context config=config/development.json \
   --parameters CpfFacultyReturnUrl=<CPF教職員URL> \
   --parameters CpfStudentReturnUrl=<CPF学生URL>
 ```
+
+PDFとTXT／CSVでData Sourceを共用する構成では、`TEXTKnowledgeBaseId`と`TEXTDataSourceId`にPDFと同じ値を指定します。
 
 CloudFormationの出力`ApplicationUrl`が接続先です。外部DNSを使用する場合は、出力`LoadBalancerDnsName`をCNAME値として登録します。デプロイはRDS、NAT Gateway、ALB、ECSなどの利用料金を発生させます。
 

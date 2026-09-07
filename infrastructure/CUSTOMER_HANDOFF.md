@@ -14,7 +14,7 @@ CDKは次を作成します。
 - S3バケット（既存名を指定した場合は既存バケットを参照）
 - OpenSearch Serverlessの暗号化・ネットワーク・データアクセスポリシー
 - OpenSearch Serverless Vector Searchコレクションとベクトルインデックス
-- Bedrock統合Knowledge Baseと形式別6 Data Source
+- Bedrock統合Knowledge Baseと形式別5 Data Source（PDF＋Text／Web／Excel／Word／PowerPoint）
 - Knowledge Baseサービスロールと必要なIAM権限
 
 ## 2. 客先に事前準備いただくもの
