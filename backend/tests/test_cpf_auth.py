@@ -178,9 +178,19 @@ async def test_development_cpf_issues_short_lived_token_and_creates_session(monk
     assert session.user_key == "faculty:staff-001"
 
 
-def test_development_cpf_is_disabled_outside_development(monkeypatch):
+def test_development_cpf_can_be_enabled_for_validation_environment(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_JWT_SECRET", "test-development-secret-at-least-32-characters")
+
+    token = issue_development_cpf_token(subject="admin-001", display_name="管理者", role="admin")
+
+    assert token
+
+
+def test_development_cpf_is_disabled_unless_explicitly_enabled(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false")
     monkeypatch.setenv("CPF_DEVELOPMENT_JWT_SECRET", "test-development-secret-at-least-32-characters")
 
     with pytest.raises(AuthConfigurationError):

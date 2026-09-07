@@ -34,10 +34,7 @@ class SessionNotFoundError(Exception):
 
 
 def development_mock_enabled() -> bool:
-    return (
-        os.getenv("APP_ENV", "production") == "development"
-        and os.getenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false").lower() == "true"
-    )
+    return os.getenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false").lower() == "true"
 
 
 def development_jwt_secret() -> str:
