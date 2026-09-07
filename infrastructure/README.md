@@ -88,3 +88,30 @@ Backendタスク起動時に`alembic upgrade head`を実行します。デプロ
 - AWS上での統合試験: このCDKスタック
 
 したがってAWS環境を作成した後も、ローカル環境は短時間の実装・テスト用途として残します。環境差は環境変数とCDK設定だけに限定します。
+
+## 客先引渡し前の自動再現テスト
+
+GitHub Actionsの`Pre-handoff AWS rehearsal`を手動実行すると、空環境からCDKをデプロイし、次を自動確認してMarkdownレポートをArtifactsへ保存します。
+
+- FrontendとBackendの到達性
+- Backend、RDSのヘルスチェック
+- Frontend／Backend ECSサービスの安定稼働
+- 統合Knowledge Baseの`ACTIVE`
+- CPF疑似ログインと認証セッション
+- 任意でWebサイト登録、取り込みワーカー起動、変換・Knowledge Base同期完了待ち
+
+事前にGitHub Actions Secretsへ以下を登録します。
+
+- `AWS_REHEARSAL_ROLE_ARN`: GitHub OIDCから引き受けるCDKデプロイ用IAM Role ARN
+- `CHAT_MODEL_ARN`: Claude Sonnet 4.6の推論プロファイルARN
+
+実行時の`cleanup_confirmation`は標準で`KEEP`です。調査用に環境を残さない場合だけ、明示的に`DESTROY`と入力します。`deletionProtection=false`の再現テスト環境では、CDK管理のS3とRDSも後片付けできる設定になります。本番・開発用設定の保持／スナップショット方針は変わりません。
+
+ローカル端末から同じ処理を行う場合は、`config/rehearsal.example.json`を`config/rehearsal.json`へコピーし、次を実行します。
+
+```bash
+cd infrastructure
+CHAT_MODEL_ARN=<Claude_Sonnet_4.6推論プロファイルARN> npm run rehearsal
+```
+
+Web登録まで確認する場合は`SMOKE_TEST_WEBSITE_URL`を追加します。自動削除まで行う場合だけ`DESTROY_AFTER_TEST=true`を追加してください。

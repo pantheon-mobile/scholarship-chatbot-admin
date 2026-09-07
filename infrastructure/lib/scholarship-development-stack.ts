@@ -62,12 +62,14 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       ],
     });
     const cluster = new ecs.Cluster(this, "Cluster", { clusterName: `${prefix}-cluster`, vpc, containerInsightsV2: ecs.ContainerInsights.ENABLED });
+    const disposableEnvironment = config.deletionProtection === false;
     const bucket = config.existingDocumentsBucketName ? s3.Bucket.fromBucketName(this, "Documents", config.existingDocumentsBucketName) : new s3.Bucket(this, "Documents", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
       enforceSSL: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: disposableEnvironment ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN,
+      autoDeleteObjects: disposableEnvironment,
     });
 
     if (config.provisionKnowledgeBase) {
@@ -217,9 +219,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       storageEncrypted: true,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      backupRetention: cdk.Duration.days(7),
+      backupRetention: disposableEnvironment ? cdk.Duration.days(0) : cdk.Duration.days(7),
       deletionProtection: config.deletionProtection ?? true,
-      removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
+      removalPolicy: disposableEnvironment ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.SNAPSHOT,
     });
     const analyticsSecret = new secretsmanager.Secret(this, "AnalyticsSecret", { secretName: `${prefix}/analytics-identity-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
     const cpfDevelopmentSecret = new secretsmanager.Secret(this, "CpfDevelopmentSecret", { secretName: `${prefix}/cpf-development-jwt-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
@@ -354,6 +356,8 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CpfPublicKeysSecretName", { value: cpfPublicKeysSecret.secretName });
     new cdk.CfnOutput(this, "DatabaseSecretName", { value: database.secret!.secretName });
     new cdk.CfnOutput(this, "ClusterName", { value: cluster.clusterName });
+    new cdk.CfnOutput(this, "FrontendServiceName", { value: frontendService.serviceName });
+    new cdk.CfnOutput(this, "BackendServiceName", { value: backendService.serviceName });
     new cdk.CfnOutput(this, "NightlyIngestionScheduleName", { value: nightlyIngestion.scheduleName });
   }
 }

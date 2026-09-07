@@ -4,7 +4,9 @@
   "scripts": {
     "build": "tsc --noEmit",
     "synth": "cdk synth",
-    "deploy": "cdk deploy"
+    "deploy": "cdk deploy",
+    "rehearsal": "./scripts/pre-handoff-rehearsal.sh",
+    "smoke-test": "./scripts/smoke-test.sh"
   },
   "dependencies": {
     "aws-cdk-lib": "2.266.0",

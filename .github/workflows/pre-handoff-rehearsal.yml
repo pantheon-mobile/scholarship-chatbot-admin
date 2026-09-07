@@ -1,0 +1,58 @@
+name: Pre-handoff AWS rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: Temporary environment suffix
+        required: true
+        default: rehearsal
+      website_test_url:
+        description: Optional HTTPS URL to register and start ingesting
+        required: false
+        default: ""
+      cleanup_confirmation:
+        description: Enter DESTROY to delete the temporary stack after testing
+        required: true
+        default: KEEP
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: infrastructure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_REHEARSAL_ROLE_ARN }}
+          aws-region: ap-northeast-1
+      - name: Create disposable configuration
+        env:
+          REHEARSAL_ENVIRONMENT: ${{ inputs.environment_name }}
+        run: |
+          node -e 'const fs=require("fs"); const c=require("./config/rehearsal.example.json"); c.environmentName=process.env.REHEARSAL_ENVIRONMENT; fs.writeFileSync("config/rehearsal.json", JSON.stringify(c,null,2)+"\n")'
+      - name: Deploy and verify from scratch
+        env:
+          CHAT_MODEL_ARN: ${{ secrets.CHAT_MODEL_ARN }}
+          SMOKE_TEST_WEBSITE_URL: ${{ inputs.website_test_url }}
+          DESTROY_AFTER_TEST: ${{ inputs.cleanup_confirmation == 'DESTROY' }}
+        run: ./scripts/pre-handoff-rehearsal.sh
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-handoff-rehearsal-report-${{ github.run_id }}
+          path: infrastructure/pre-handoff-rehearsal-report.md
+          if-no-files-found: warn
