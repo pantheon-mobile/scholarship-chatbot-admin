@@ -6,9 +6,9 @@
 .formRows { display: grid; gap: 17px; }
 .formRow { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: center; gap: 18px; }
 .textareaRow, .similarRow { align-items: start; }
-.rowLabel { padding-top: 1px; font-size: 17px; font-weight: 700; text-align: right; }
+.rowLabel { padding-top: 1px; font-size: 15px; font-weight: 700; text-align: right; }
 .textareaRow .rowLabel, .similarRow .rowLabel { padding-top: 10px; }
-.readonlyValue { font-size: 17px; }
+.readonlyValue { font-size: 15px; }
 .questionField, .answerField { max-width: 860px; }
 .answerTextarea { min-height: 170px !important; }
 .similarFields { display: grid; max-width: 900px; gap: 12px; }
@@ -20,7 +20,7 @@
 .classificationField { width: min(100%, 570px); }
 .toggleRow { min-height: 42px; }
 .actions { display: grid; grid-template-columns: repeat(2, minmax(220px, 285px)); justify-content: center; gap: 22px; margin: 32px 0 8px; }
-.actions button { min-height: 46px; font-size: 17px; }
+.actions button { min-height: 42px; font-size: 15px; font-weight: 500; }
 
 @media (max-width: 1250px) {
   .page { min-width: 900px; }

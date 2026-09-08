@@ -5,9 +5,9 @@
 .divider { height: 1px; margin: 0 0 20px; background: #d3d5d8; }
 .formRows { display: grid; gap: 14px; padding-left: 4px; }
 .formRow { min-height: 42px; display: flex; align-items: flex-start; gap: 18px; }
-.rowLabel { width: 195px; flex: 0 0 auto; padding-top: 7px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+.rowLabel { width: 195px; flex: 0 0 auto; padding-top: 7px; font-size: 15px; font-weight: 700; white-space: nowrap; }
 .titleField { width: 525px; }
-.readonlyRow { align-items: center; font-size: 16px; }
+.readonlyRow { align-items: center; font-size: 15px; }
 .readonlyRow .rowLabel { padding-top: 0; }
 .categoryField { width: 305px; }
 .priorityField { width: 180px; }

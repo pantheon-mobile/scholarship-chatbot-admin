@@ -5,7 +5,7 @@
 .error { margin: 10px 0; padding: 9px 13px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 14px; }
 .formRows { display: grid; gap: 14px; padding-left: 4px; }
 .formRow { min-height: 42px; display: flex; align-items: flex-start; gap: 18px; }
-.rowLabel { width: 218px; flex: 0 0 auto; padding-top: 7px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+.rowLabel { width: 218px; flex: 0 0 auto; padding-top: 7px; font-size: 15px; font-weight: 700; white-space: nowrap; }
 .urlField, .titleField { width: 550px; }
 .categoryField { width: 305px; }
 .priorityField { width: 180px; }
