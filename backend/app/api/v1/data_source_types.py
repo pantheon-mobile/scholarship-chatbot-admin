@@ -1,5 +1,6 @@
 from io import BytesIO
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
@@ -36,7 +37,7 @@ async def list_data_source_types(service: ClassificationService = Depends(get_se
 @router.get("/data-source-types/export")
 async def export_data_source_types(service: ClassificationService = Depends(get_service)):
     excel_bytes = await service.export_excel()
-    file_name = f"type{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
+    file_name = f"type{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
     return StreamingResponse(
         BytesIO(excel_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -118,4 +119,3 @@ async def reorder_data_source_values(
         raise HTTPException(status_code=404, detail="指定された種別が見つかりません。")
     except InvalidOrderError:
         raise HTTPException(status_code=422, detail="並び替えの入力が不正です。")
-

@@ -149,7 +149,7 @@ export default function DataSourcesPage() {
       anchor.href = url;
       const now = new Date();
       const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
-      anchor.download = `datasource${stamp}.xlsx`;
+      anchor.download = `datasourcelist${stamp}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (err) {

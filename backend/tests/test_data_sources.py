@@ -356,3 +356,14 @@ async def test_excel_uses_japanese_display_values_and_jst():
     assert values[3][6] is None
     assert values[1][12:15] == ("有効", "高", "表示")
     assert values[1][15] == "2026/08/06 10:02"
+
+
+@pytest.mark.anyio
+async def test_url_list_template_has_specified_filename_and_columns():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/data-sources/websites/import-template")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == "attachment; filename=urllistformat.xlsx"
+    worksheet = load_workbook(BytesIO(response.content)).active
+    assert worksheet.title == "URLリスト"
+    assert list(worksheet.values) == [("URL", "タイトル")]

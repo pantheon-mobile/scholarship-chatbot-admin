@@ -58,7 +58,7 @@ async def export_faqs(filters: FaqFilters = Depends(), service: FaqService = Dep
         content = await service.export_excel(filters, labels)
     except FaqError as error:
         raise api_error(error) from None
-    filename = f"faq{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
+    filename = f"faqlist{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -72,7 +72,7 @@ async def download_faq_import_template(service: FaqService = Depends(get_service
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=faq_import_template.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=faqlistformat.xlsx"},
     )
 
 

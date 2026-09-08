@@ -73,7 +73,8 @@ class ReportingRepository:
         if role: filters.append("v.role = :role")
         if user_ids: filters.append("v.subject = ANY(:user_ids)")
         rows = (await self.session.execute(text(f"""
-            SELECT s.id AS session_id, i.sequence_number, v.subject, v.display_name, v.role, v.site,
+            SELECT s.id AS session_id, i.id AS interaction_id, i.sequence_number,
+                   v.subject, v.display_name, v.role, v.site,
                    i.question_submitted_at, i.answer_displayed_at, i.answer_type,
                    i.question_text, i.answer_text, f.rating, f.comment
             FROM chat_interactions i
@@ -114,7 +115,7 @@ class ReportingRepository:
         where_extra = " AND " + " AND ".join(filters) if filters else ""
         rows = (await self.session.execute(text(f"""
             SELECT a.id, v.visitor_key, v.identity_kind, v.subject, v.display_name, v.role, v.site,
-                   a.surface, a.accessed_at, a.recorded_at
+                   a.surface, a.ip_address, a.user_agent, a.accessed_at, a.recorded_at
             FROM access_logs a
             JOIN analytics_visitors v ON v.id = a.visitor_id
             WHERE a.accessed_at >= :start_at AND a.accessed_at < :end_at {where_extra}
@@ -132,7 +133,8 @@ class ReportingRepository:
         where_extra = " AND " + " AND ".join(filters) if filters else ""
         rows = (await self.session.execute(text(f"""
             SELECT id, operator_key, operator_subject, operator_display_name, operator_role,
-                   operator_site, http_method, request_path, status_code, operated_at
+                   operator_site, surface, ip_address, user_agent,
+                   http_method, request_path, status_code, operated_at
             FROM admin_operation_logs
             WHERE operated_at >= :start_at AND operated_at < :end_at {where_extra}
             ORDER BY operated_at DESC, id DESC

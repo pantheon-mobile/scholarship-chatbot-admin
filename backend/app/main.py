@@ -39,9 +39,11 @@ def _is_audited_operation(request: Request) -> bool:
     path = request.url.path
     if not path.startswith("/api/v1/"):
         return False
-    if path.startswith(("/api/v1/auth/", "/api/v1/analytics/", "/api/v1/chat/")):
+    if path.startswith("/api/v1/auth/"):
         return False
-    return request.method in {"POST", "PUT", "PATCH", "DELETE"} or path.endswith(".csv")
+    if path.startswith("/api/v1/analytics/"):
+        return request.method == "POST" and path.endswith("/chat-sessions")
+    return request.method in {"POST", "PUT", "PATCH", "DELETE"} or path.endswith((".csv", ".xlsx", "/export", "/import-template"))
 
 
 @app.middleware("http")
@@ -61,6 +63,9 @@ async def record_admin_operation(request: Request, call_next):
                     operator_display_name=current.display_name,
                     operator_role=current.role,
                     operator_site=current.site,
+                    surface="CHAT" if request.url.path.startswith(("/api/v1/chat/", "/api/v1/analytics/")) else "ADMIN",
+                    ip_address=(request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip() or (request.client.host if request.client else ""))[:64] or None,
+                    user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
                     http_method=request.method,
                     request_path=request.url.path,
                     status_code=response.status_code,

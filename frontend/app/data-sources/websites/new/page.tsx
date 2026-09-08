@@ -8,7 +8,7 @@ import {
 import { CategorySelectField } from "@/components/categories/CategorySelectField";
 import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
-import { createWebsiteDataSource } from "@/lib/dataSourcesApi";
+import { createWebsiteDataSource, downloadWebsiteImportTemplate } from "@/lib/dataSourcesApi";
 import { validateWebsiteUrl } from "@/lib/websiteUrlValidation";
 import { Priority } from "@/types/dataSource";
 import { ClassificationType } from "@/types/dataSourceTypes";
@@ -95,13 +95,34 @@ export default function DataSourceWebsiteNewPage() {
       setBusy(false);
     }
   };
+  const downloadTemplate = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const blob = await downloadWebsiteImportTemplate();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "urllistformat.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "URLリストフォーマットのダウンロードに失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <AdminLayout activeMenu="data-sources" contentWidth="wide" contentAlign="start" onNavigate={requestNavigate}>
       <form className={styles.page} onSubmit={submit}>
         <div className={styles.topRow}>
           <Breadcrumb items={[{ label: "データソース一覧", onClick: () => requestNavigate("/data-sources") }, { label: "Webサイト追加" }]} />
-          <Button variant="secondary" icon={<AdminIcon name="back" size={19} />} onClick={() => requestNavigate("/data-sources")} disabled={busy}>データソース一覧に戻る</Button>
+          <div className={styles.topActions}>
+            <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={() => void downloadTemplate()} disabled={busy}>フォーマットをダウンロード</Button>
+            <Button variant="secondary" icon={<AdminIcon name="back" size={19} />} onClick={() => requestNavigate("/data-sources")} disabled={busy}>データソース一覧に戻る</Button>
+          </div>
         </div>
         <div className={styles.divider} />
         {error && <div className={styles.error} role="alert">{error}</div>}

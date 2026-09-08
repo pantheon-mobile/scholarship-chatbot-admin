@@ -119,7 +119,7 @@ npm run deploy -- --context config=config/development.json \
 
 ## CB-205 website URL registration MVP
 
-- CB-205は1件のURLと任意タイトルを登録するMVPです。デザイン資料にある複数URL入力、ファイル一括入力、フォーマットダウンロードは実装しません。
+- CB-205は1件のURLと任意タイトルを登録するMVPです。複数URLの一括登録は未実装ですが、URL・タイトル列を持つ一括登録用フォーマットをダウンロードできます。
 - URLは`http`または`https`の絶対URLだけを許可し、文字列形式のみ検証します。DNS、到達可否、HTTP応答、SSL、リダイレクト、robots.txt、ページ内容は確認しません。
 - URL上限は、タイトル省略時にURL全体を`data_sources.title(500)`へ保存できるよう500文字とします。タイトルが空文字または空白のみの場合は、登録URLをそのままタイトルとして保存します。
 - 同じURLが既に存在しても、自動更新・重複排除は行わず別データソースとして新規登録します。

@@ -1,8 +1,11 @@
 from datetime import datetime
+from io import BytesIO
 import os
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -99,11 +102,29 @@ async def list_data_sources(filters: DataSourceFilters = Depends(get_filters), s
 async def export_data_sources(filters: DataSourceFilters = Depends(get_filters), service: DataSourceService = Depends(get_service)):
     filters = filters.model_copy(update={"page": 1})
     data = await service.export_excel(filters)
-    filename = f"datasource{datetime.now().strftime('%Y%m%d%H%M')}.xlsx"
+    filename = f"datasourcelist{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%Y%m%d%H%M')}.xlsx"
     return StreamingResponse(
         iter([data]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/data-sources/websites/import-template")
+async def download_website_import_template():
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "URLリスト"
+    worksheet.append(["URL", "タイトル"])
+    worksheet.freeze_panes = "A2"
+    worksheet.column_dimensions["A"].width = 64
+    worksheet.column_dimensions["B"].width = 40
+    output = BytesIO()
+    workbook.save(output)
+    return StreamingResponse(
+        BytesIO(output.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=urllistformat.xlsx"},
     )
 
 

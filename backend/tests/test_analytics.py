@@ -70,7 +70,7 @@ async def test_access_records_hashed_visitor_and_is_idempotent():
     visitor = SimpleNamespace(id=visitor_id)
     access_id = uuid4()
     payload = AccessCreateRequest(id=access_id, identity=identity(), accessed_at=NOW)
-    created = SimpleNamespace(id=access_id, visitor_id=visitor_id, accessed_at=NOW)
+    created = SimpleNamespace(id=access_id, visitor_id=visitor_id, accessed_at=NOW, surface="CHAT")
     repo.get_or_create_visitor.return_value = visitor
     repo.get_access.side_effect = [None, created]
     repo.create_access.return_value = created

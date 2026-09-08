@@ -3,11 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataSourceWebsiteNewPage from "@/app/data-sources/websites/new/page";
 
 const push = vi.fn();
-const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createWebsiteDataSource: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createWebsiteDataSource: vi.fn(), downloadWebsiteImportTemplate: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
 vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
-vi.mock("@/lib/dataSourcesApi", () => ({ createWebsiteDataSource: api.createWebsiteDataSource }));
+vi.mock("@/lib/dataSourcesApi", () => ({
+  createWebsiteDataSource: api.createWebsiteDataSource,
+  downloadWebsiteImportTemplate: api.downloadWebsiteImportTemplate,
+}));
 
 const types = [
   { id: 1, type_code: "TYPE_1", fixed_name: "種別1", display_label: "対象者", display_order: 1, version: 1, values: [{ id: 10, value_name: "在学生", display_order: 1, version: 1 }] },
@@ -19,6 +22,7 @@ beforeEach(() => {
   push.mockReset();
   api.fetchDataSourceTypes.mockReset().mockResolvedValue(types);
   api.createWebsiteDataSource.mockReset().mockResolvedValue({ id: 1 });
+  api.downloadWebsiteImportTemplate.mockReset().mockResolvedValue(new Blob(["xlsx"]));
 });
 afterEach(cleanup);
 
@@ -33,6 +37,7 @@ describe("CB-205 website add page", () => {
     expect((screen.getByLabelText("カテゴリ") as HTMLSelectElement).disabled).toBe(false);
     expect((screen.getByLabelText("回答利用の優先度") as HTMLSelectElement).value).toBe("MEDIUM");
     expect((screen.getByLabelText("対象者") as HTMLSelectElement).value).toBe("");
+    expect(screen.getByRole("button", { name: "フォーマットをダウンロード" })).not.toBeNull();
     expect(screen.getAllByRole("switch").map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "true"]);
     expect((screen.getByRole("button", { name: "Webサイトを追加する" }) as HTMLButtonElement).disabled).toBe(true);
   });

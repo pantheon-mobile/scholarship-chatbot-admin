@@ -247,7 +247,7 @@ async def test_export_filename(mock_service):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/faqs/export")
     assert response.status_code == 200
-    assert "faq" in response.headers["content-disposition"] and response.headers["content-disposition"].endswith(".xlsx")
+    assert "filename=faqlist" in response.headers["content-disposition"] and response.headers["content-disposition"].endswith(".xlsx")
 
 
 def test_repository_uses_fixed_count_eager_loading_not_per_row_queries():
@@ -564,7 +564,7 @@ async def test_import_template_api_filename_and_content_type(mock_service):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/faqs/import-template")
     assert response.status_code == 200 and response.content == b"xlsx"
-    assert response.headers["content-disposition"] == "attachment; filename=faq_import_template.xlsx"
+    assert response.headers["content-disposition"] == "attachment; filename=faqlistformat.xlsx"
     assert response.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 

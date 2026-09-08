@@ -178,7 +178,7 @@ export default function FaqsPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `faq${stamp}.xlsx`;
+      anchor.download = `faqlist${stamp}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (reason) {
@@ -194,7 +194,7 @@ export default function FaqsPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "faq_import_template.xlsx";
+      anchor.download = "faqlistformat.xlsx";
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (reason) {

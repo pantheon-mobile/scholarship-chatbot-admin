@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -43,6 +43,7 @@ def api_error(error: AnalyticsError) -> HTTPException:
 @router.post("/accesses", response_model=AccessResponse, status_code=201)
 async def record_access(
     payload: AccessCreateRequest,
+    request: Request,
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
@@ -50,6 +51,8 @@ async def record_access(
         return await service.record_access(
             payload, subject=current.subject, display_name=current.display_name,
             role=current.role, site=current.site,
+            ip_address=(request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip() or (request.client.host if request.client else ""))[:64] or None,
+            user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
         )
     except AnalyticsError as error:
         raise api_error(error) from None

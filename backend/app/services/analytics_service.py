@@ -38,6 +38,7 @@ class AnalyticsService:
     async def record_access(
         self, payload: AccessCreateRequest, *, subject: str | None = None,
         display_name: str | None = None, role: str | None = None, site: str | None = None,
+        ip_address: str | None = None, user_agent: str | None = None,
     ) -> AccessLog:
         now = datetime.now(timezone.utc)
         visitor_id = None
@@ -50,11 +51,16 @@ class AnalyticsService:
             visitor_id = visitor.id
             existing = await self.repository.get_access(payload.id)
             if existing is not None:
-                if existing.visitor_id != visitor_id or existing.accessed_at != payload.accessed_at:
+                if (
+                    existing.visitor_id != visitor_id or existing.accessed_at != payload.accessed_at
+                    or existing.surface != payload.surface
+                ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じイベントIDに異なるアクセス内容が指定されています。")
                 await self.repository.commit()
                 return existing
-            row = await self.repository.create_access(payload.id, visitor_id, payload.accessed_at, now, payload.surface)
+            row = await self.repository.create_access(
+                payload.id, visitor_id, payload.accessed_at, now, payload.surface, ip_address, user_agent,
+            )
             await self.repository.commit()
             return row
         except AnalyticsError:

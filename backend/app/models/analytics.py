@@ -37,6 +37,8 @@ class AccessLog(Base):
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     visitor_id: Mapped[UUID] = Column(ForeignKey("analytics_visitors.id", ondelete="RESTRICT"), nullable=False)
     surface: Mapped[str] = Column(String(20), nullable=False, default="CHAT")
+    ip_address: Mapped[str | None] = Column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = Column(String(1000), nullable=True)
     accessed_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     recorded_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     visitor = relationship("AnalyticsVisitor")

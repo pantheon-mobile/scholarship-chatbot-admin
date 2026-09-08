@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminIcon, AdminLayout, Button, FormField, PageHeader, SelectField } from "@/components/admin";
 import { initialDashboardPeriod } from "@/lib/dashboardDates";
-import { downloadUsageCsv } from "@/lib/reportingApi";
+import { downloadUsageXlsx } from "@/lib/reportingApi";
 import styles from "./page.module.css";
 
 export default function UsagePage() {
@@ -29,8 +29,8 @@ export default function UsagePage() {
       : kind === "access-logs"
         ? { surface: accessSurface, role: accessRole, userIds: accessUserIds }
         : { surface: operationSurface, operationType, role: operationRole, userIds: operationUserIds };
-    try { await downloadUsageCsv(kind, from, to, filters); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "CSVを取得できませんでした。"); }
+    try { await downloadUsageXlsx(kind, from, to, filters); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Excelを取得できませんでした。"); }
     finally { setBusy(""); }
   };
   return <AdminLayout activeMenu="usage" contentWidth="default" contentAlign="start" onNavigate={(href) => router.push(href)}>

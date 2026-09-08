@@ -110,3 +110,9 @@ export async function exportDataSources(filters: DataSourceFilters): Promise<Blo
   if (!response.ok) return parseError(response, "一覧のダウンロードに失敗しました。");
   return response.blob();
 }
+
+export async function downloadWebsiteImportTemplate(): Promise<Blob> {
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/websites/import-template`);
+  if (!response.ok) return parseError(response, "URLリストフォーマットのダウンロードに失敗しました。");
+  return response.blob();
+}

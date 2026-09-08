@@ -90,7 +90,7 @@ npx cdk diff --profile <AWS_PROFILE> --context config=config/customer-validation
 - 変換、S3配置、Knowledge Base同期後に`利用可能`になる
 - FAQ一致時はFAQ回答、閾値未満ではRAG回答になる
 - 回答優先度、参照元リンク設定、Good／Bad評価が反映・保存される
-- 操作ログ、アクセスログ、チャット履歴、利用状況CSVを取得できる
+- 操作ログ、アクセスログ、チャット履歴、ユーザリストをExcel形式で取得できる
 - CloudWatch LogsとDLQで障害を追跡できる
 
 ## 7. 更新・ロールバック
