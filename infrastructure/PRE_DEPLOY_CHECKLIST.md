@@ -6,11 +6,14 @@
 - [ ] リージョンが`ap-northeast-1`（変更時はBedrockモデル提供状況を再確認）
 - [ ] 環境名とアプリ用FQDNが確定
 - [ ] ACM証明書が対象リージョンで`ISSUED`
+- [ ] 既存HTTPSリスナーの優先順位`1001`と`1002`が未使用
+- [ ] 指定3サブネットからECR、S3、Secrets Manager、Bedrock等へ到達可能
+- [ ] 既存ALBからECSタスクのポート3000／8000へ通信可能
 - [ ] DNS管理者と、ALB用CNAME登録手順が確定
 - [ ] 既存S3バケット名、またはCDKによる新規作成方針が確定（標準はCDK新規作成）
 - [ ] `provisionKnowledgeBase=true`でOpenSearch Serverless／統合KB／形式別DSを作成する方針を確認
 - [ ] OpenSearch Serverlessの継続料金を承認済み
-- [ ] Claude Sonnet 4.6推論プロファイルARNが確定
+- [ ] 対象アカウントでClaude Sonnet 4.6が利用可能（ARNはデプロイスクリプトが自動検出）
 - [ ] CPF教職員戻り先URLが確定
 - [ ] CPFの`kid`と公開鍵の受領予定が確定
 

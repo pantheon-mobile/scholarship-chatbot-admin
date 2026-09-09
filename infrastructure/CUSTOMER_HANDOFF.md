@@ -6,8 +6,8 @@
 
 CDKは次を作成します。
 
-- 2AZのVPC、公開／アプリ／DBサブネット、NAT Gateway 1台
-- HTTPS Application Load Balancer
+- 客先既存VPCと指定済み3サブネットへのECS・RDS配置
+- 客先既存HTTPS Application Load Balancerへのホストベースルール追加
 - Frontend／Backend用ECS Fargateサービス
 - 変換・同期用ECS Fargateタスクと毎日01:00 JSTのScheduler
 - PostgreSQL 16 RDS、Secrets Manager、CloudWatch Logs、SQS DLQ
@@ -22,22 +22,17 @@ CDKは次を作成します。
 - AWSアカウントID、デプロイ先リージョン（標準は`ap-northeast-1`）
 - CDKを実行できるIAM権限
 - Docker、Node.js 20以上、AWS CLI
-- アプリ用FQDNと、同リージョンで発行済みのACM証明書ARN
+- アプリ用FQDN、既存ALB／HTTPSリスナー／Security Group、同リージョンのACM証明書
 - 文書保存用S3バケットを既存利用するか、CDKで新規作成するかの方針
-- Claude Sonnet 4.6の推論プロファイルARN
+- Claude Sonnet 4.6が対象アカウントで利用可能であること（ARNはデプロイスクリプトが自動検出）
 - CPFの教職員・学生戻り先URL
 - CPFから受領する`kid`とJWT検証用PEM公開鍵
 
-外部DNSを使用する場合、CDKデプロイ後に出力される`LoadBalancerDnsName`をアプリ用FQDNのCNAME値へ登録します。ACM検証用CNAMEは証明書更新にも必要なため削除しません。
+客先検証環境のDNSは客先が設定します。CDKデプロイ後に出力される`LoadBalancerDnsName`をアプリ用FQDNのCNAME値へ登録します。
 
 ## 3. 設定ファイル
 
-```bash
-cd infrastructure
-cp config/customer-validation.example.json config/customer-validation.json
-```
-
-`customer-validation.json`を客先値へ変更します。この実値ファイルはGit管理対象外です。
+客先検証環境の値は`config/customer-validation.json`へ設定済みです。客先でのCDK編集は不要です。
 
 - `existingDocumentsBucketName`: 空文字ならCDKが暗号化・バージョニング・公開遮断済みS3を新規作成。既存利用時だけバケット名を設定
 - `enableDevelopmentCpfMock`: CPF接続準備が整うまでは`true`。疑似ログイン画面は`/development/cpf`
@@ -48,38 +43,30 @@ cp config/customer-validation.example.json config/customer-validation.json
 - `deletionProtection`: 原則`true`
 - `hostedZoneId`／`hostedZoneName`: Route 53を同一AWSアカウントで管理する場合のみ設定
 - 外部DNSの場合、上記2項目は空文字のままにする
+- 既存HTTPSリスナーではAPI用優先順位`1001`、画面用優先順位`1002`を使用する
 
 ## 4. 事前確認と初回構築
 
 ```bash
-aws sts get-caller-identity --profile <AWS_PROFILE>
 cd infrastructure
-npm ci
-npm run build
-npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/ap-northeast-1 --profile <AWS_PROFILE>
-npx cdk diff --profile <AWS_PROFILE> --context config=config/customer-validation.json \
-  --parameters ChatModelArn=<推論プロファイルARN> \
-  --parameters CpfFacultyReturnUrl=<CPF教職員URL> \
-  --parameters CpfStudentReturnUrl=<CPF学生URL>
+./scripts/deploy-customer-validation.sh
 ```
 
-差分をレビュー後、同じ引数で`npx cdk deploy`を実行します。`provisionKnowledgeBase=true`では、KB IDとDS IDはCDKが生成してECSへ自動設定します。コマンド履歴やCIログにURL等が残る点を許容できない場合は、客先CIの保護変数から引数を組み立ててください。
+スクリプトは対象AWSアカウント、既存ALBのルール優先順位、Claude Sonnet 4.6推論プロファイルを確認してから、ビルド、CDK bootstrap、deployを実行します。`provisionKnowledgeBase=true`のため、KB IDとDS IDはCDKが生成してECSへ自動設定します。
 
 ## 5. DNSとCPF公開鍵
 
 1. CloudFormation出力`LoadBalancerDnsName`をDNSへ登録します。
 2. `ApplicationUrl`の`/api/v1/health`が`{"status":"ok"}`を返すことを確認します。
-3. 出力`CpfPublicKeysSecretName`のSecretを次のJSONへ更新します。
+3. 受領した公開鍵をGit管理外の場所へ保存し、次を実行します。
 
-```json
-{
-  "cpf-chatbot-stg-202609": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
-}
+```bash
+./scripts/register-cpf-public-key.sh /path/to/chatbot_cpf_stg_public.pem
 ```
 
-4. Backend ECSサービスで「新しいデプロイの強制」を実行します。
-5. `enableDevelopmentCpfMock`を`false`へ変更して再デプロイします。
-6. CPFから`https://<FQDN>/sso/cpf`へ正常JWTをPOSTし、ダッシュボードへ遷移することを確認します。
+4. スクリプトがSecret更新、Backend ECS再起動、安定稼働待機まで実行します。
+5. CPF接続準備が完了するまでは疑似ログインを有効のまま使用します。
+6. CPFから`https://ai-chatbot-stg01-demo.gakupita.com/sso/cpf#token=<JWT>`へ遷移し、ダッシュボードが表示されることを確認します。
 7. 期限切れ、署名不正、同一`jti`再利用が拒否されることを確認します。
 
 ## 6. 受入確認
@@ -108,8 +95,7 @@ S3は保持、RDSはスナップショット作成を既定としています。
 ## 9. 引渡し物
 
 - 本リポジトリのリリースタグ
-- `config/customer-validation.example.json`
-- 客先内で保管する実値設定（Gitへコミットしない）
+- 設定済みの`config/customer-validation.json`
 - 本書、`PRE_DEPLOY_CHECKLIST.md`、`IAM_AND_SECURITY.md`
 - CloudFormation出力一覧
 - 自動生成された統合KB ID、形式別Data Source ID、OpenSearch Serverless Collection ARN

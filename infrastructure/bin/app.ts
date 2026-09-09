@@ -25,10 +25,30 @@ if (config.certificateArn && !config.domainName) {
 if ((config.hostedZoneId || config.hostedZoneName) && !(config.hostedZoneId && config.hostedZoneName && config.domainName)) {
   throw new Error("domainName, hostedZoneId and hostedZoneName must be set together");
 }
+const existingNetworkFields = [config.existingVpcId, config.applicationSubnetIds?.length];
+if (existingNetworkFields.some(Boolean) && !existingNetworkFields.every(Boolean)) {
+  throw new Error("existingVpcId and applicationSubnetIds must be set together");
+}
+const existingAlbFields = [
+  config.existingAlbArn,
+  config.existingHttpsListenerArn,
+  config.existingAlbSecurityGroupId,
+  config.backendListenerRulePriority,
+  config.frontendListenerRulePriority,
+];
+if (existingAlbFields.some(Boolean) && !existingAlbFields.every(Boolean)) {
+  throw new Error("existingAlbArn, existingHttpsListenerArn, existingAlbSecurityGroupId, backendListenerRulePriority and frontendListenerRulePriority must be set together");
+}
+if (config.existingAlbArn && !config.domainName) {
+  throw new Error("domainName is required when an existing ALB is used");
+}
+if (config.backendListenerRulePriority === config.frontendListenerRulePriority && config.backendListenerRulePriority !== undefined) {
+  throw new Error("backendListenerRulePriority and frontendListenerRulePriority must be different");
+}
 
 new ScholarshipDevelopmentStack(app, `ScholarshipChatbot-${config.environmentName}`, {
   config,
-  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1" },
+  env: { account: config.awsAccountId ?? process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1" },
   description: `Scholarship chatbot ${config.environmentName} environment`,
   terminationProtection: config.deletionProtection ?? true,
 });

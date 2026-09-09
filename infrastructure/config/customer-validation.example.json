@@ -1,5 +1,6 @@
 {
   "environmentName": "validation",
+  "awsAccountId": "111122223333",
   "existingDocumentsBucketName": "",
   "certificateArn": "arn:aws:acm:ap-northeast-1:111122223333:certificate/00000000-0000-0000-0000-000000000000",
   "domainName": "scholarship-chatbot-validation.example.ac.jp",
@@ -9,6 +10,16 @@
   "provisionKnowledgeBase": true,
   "embeddingModelArn": "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0",
   "opensearchDeploymentPrincipalArn": "",
+  "existingVpcId": "vpc-00000000000000000",
+  "applicationSubnetIds": [
+    "subnet-00000000000000001",
+    "subnet-00000000000000002"
+  ],
+  "existingAlbArn": "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:loadbalancer/app/example/0000000000000000",
+  "existingHttpsListenerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:listener/app/example/0000000000000000/0000000000000000",
+  "existingAlbSecurityGroupId": "sg-00000000000000000",
+  "backendListenerRulePriority": 1001,
+  "frontendListenerRulePriority": 1002,
   "nightlyIngestionHourJst": 1,
   "nightlyIngestionMinuteJst": 0,
   "deletionProtection": true

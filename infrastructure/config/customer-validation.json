@@ -1,0 +1,27 @@
+{
+  "environmentName": "stg01-demo",
+  "awsAccountId": "796575284584",
+  "existingDocumentsBucketName": "",
+  "certificateArn": "arn:aws:acm:ap-northeast-1:796575284584:certificate/d7d82047-2617-4f9f-b74f-99b13c1985f7",
+  "domainName": "ai-chatbot-stg01-demo.gakupita.com",
+  "hostedZoneId": "",
+  "hostedZoneName": "",
+  "enableDevelopmentCpfMock": true,
+  "provisionKnowledgeBase": true,
+  "embeddingModelArn": "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0",
+  "opensearchDeploymentPrincipalArn": "",
+  "existingVpcId": "vpc-03cdcf1b20ab6f936",
+  "applicationSubnetIds": [
+    "subnet-068640ad7191389a7",
+    "subnet-0d1374a531e36ca8c",
+    "subnet-0655dbbd6bce5cf28"
+  ],
+  "existingAlbArn": "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:loadbalancer/app/gakupita-stg-web-fargate-alb/ea893fe54fc88e36",
+  "existingHttpsListenerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:listener/app/gakupita-stg-web-fargate-alb/ea893fe54fc88e36/ecef481f0bab2efd",
+  "existingAlbSecurityGroupId": "sg-0e003a7d0496ebb15",
+  "backendListenerRulePriority": 1001,
+  "frontendListenerRulePriority": 1002,
+  "nightlyIngestionHourJst": 1,
+  "nightlyIngestionMinuteJst": 0,
+  "deletionProtection": true
+}

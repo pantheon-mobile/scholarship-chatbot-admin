@@ -21,6 +21,7 @@ import { Construct } from "constructs";
 
 export interface ScholarshipEnvironmentConfig {
   readonly environmentName: string;
+  readonly awsAccountId?: string;
   readonly existingDocumentsBucketName?: string;
   readonly certificateArn?: string;
   readonly domainName?: string;
@@ -33,6 +34,13 @@ export interface ScholarshipEnvironmentConfig {
   readonly provisionKnowledgeBase?: boolean;
   readonly embeddingModelArn?: string;
   readonly opensearchDeploymentPrincipalArn?: string;
+  readonly existingVpcId?: string;
+  readonly applicationSubnetIds?: string[];
+  readonly existingAlbArn?: string;
+  readonly existingHttpsListenerArn?: string;
+  readonly existingAlbSecurityGroupId?: string;
+  readonly backendListenerRulePriority?: number;
+  readonly frontendListenerRulePriority?: number;
 }
 
 export interface ScholarshipDevelopmentStackProps extends cdk.StackProps {
@@ -52,16 +60,24 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     let chatKnowledgeBaseId: string;
     let ingestionIds: Record<string, string>;
 
-    const vpc = new ec2.Vpc(this, "Vpc", {
-      vpcName: `${prefix}-vpc`,
-      maxAzs: 2,
-      natGateways: 1,
-      subnetConfiguration: [
-        { name: "public", subnetType: ec2.SubnetType.PUBLIC },
-        { name: "application", subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-        { name: "database", subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      ],
-    });
+    const usesExistingNetwork = Boolean(config.existingVpcId);
+    const usesExistingAlb = Boolean(config.existingAlbArn);
+    const vpc = usesExistingNetwork
+      ? ec2.Vpc.fromLookup(this, "Vpc", { vpcId: config.existingVpcId })
+      : new ec2.Vpc(this, "Vpc", {
+          vpcName: `${prefix}-vpc`,
+          maxAzs: 2,
+          natGateways: 1,
+          subnetConfiguration: [
+            { name: "public", subnetType: ec2.SubnetType.PUBLIC },
+            { name: "application", subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            { name: "database", subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+          ],
+        });
+    const applicationSubnets = usesExistingNetwork
+      ? config.applicationSubnetIds!.map((subnetId, index) => ec2.Subnet.fromSubnetId(this, `ApplicationSubnet${index + 1}`, subnetId))
+      : vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnets;
+    const applicationSubnetSelection: ec2.SubnetSelection = { subnets: applicationSubnets };
     const cluster = new ecs.Cluster(this, "Cluster", { clusterName: `${prefix}-cluster`, vpc, containerInsightsV2: ecs.ContainerInsights.ENABLED });
     const disposableEnvironment = config.deletionProtection === false;
     const bucket = config.existingDocumentsBucketName ? s3.Bucket.fromBucketName(this, "Documents", config.existingDocumentsBucketName) : new s3.Bucket(this, "Documents", {
@@ -222,7 +238,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       publiclyAccessible: false,
       storageEncrypted: true,
       vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      vpcSubnets: usesExistingNetwork ? applicationSubnetSelection : { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       backupRetention: disposableEnvironment ? cdk.Duration.days(0) : cdk.Duration.days(7),
       deletionProtection: config.deletionProtection ?? true,
       removalPolicy: disposableEnvironment ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.SNAPSHOT,
@@ -243,7 +259,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const backendImage = ecs.ContainerImage.fromAsset(path.join(__dirname, "../../backend"), {
       platform: ecrAssets.Platform.LINUX_AMD64,
     });
-    const hasTls = Boolean(config.certificateArn);
+    const hasTls = usesExistingAlb || Boolean(config.certificateArn);
 
     const fargateRuntimePlatform = {
       cpuArchitecture: ecs.CpuArchitecture.X86_64,
@@ -286,7 +302,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       actions: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate", "bedrock:GetInferenceProfile"],
       resources: ["*"],
     }));
-    const backendService = new ecs.FargateService(this, "BackendService", { cluster, taskDefinition: backendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS } });
+    const backendService = new ecs.FargateService(this, "BackendService", { cluster, taskDefinition: backendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
 
     const frontendTask = new ecs.FargateTaskDefinition(this, "FrontendTask", {
       cpu: 256,
@@ -295,17 +311,49 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     });
     const frontendContainer = frontendTask.addContainer("frontend", { image: frontendImage, logging: ecs.LogDrivers.awsLogs({ streamPrefix: "frontend", logRetention: logs.RetentionDays.ONE_MONTH }) });
     frontendContainer.addPortMappings({ containerPort: 3000 });
-    const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, taskDefinition: frontendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS } });
+    const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, taskDefinition: frontendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
 
-    const loadBalancer = new elbv2.ApplicationLoadBalancer(this, "LoadBalancer", { loadBalancerName: `${config.environmentName}-scholarship-alb`.slice(0, 32), vpc, internetFacing: true });
-    const listener = hasTls
-      ? loadBalancer.addListener("Https", { port: 443, open: true, certificates: [acm.Certificate.fromCertificateArn(this, "Certificate", config.certificateArn!)] })
-      : loadBalancer.addListener("Http", { port: 80, open: true });
-    if (hasTls) {
-      loadBalancer.addRedirect({ sourcePort: 80, sourceProtocol: elbv2.ApplicationProtocol.HTTP, targetPort: 443, targetProtocol: elbv2.ApplicationProtocol.HTTPS });
+    const loadBalancer = usesExistingAlb
+      ? elbv2.ApplicationLoadBalancer.fromLookup(this, "LoadBalancer", { loadBalancerArn: config.existingAlbArn })
+      : new elbv2.ApplicationLoadBalancer(this, "LoadBalancer", { loadBalancerName: `${config.environmentName}-scholarship-alb`.slice(0, 32), vpc, internetFacing: true });
+    const albSecurityGroup = usesExistingAlb
+      ? ec2.SecurityGroup.fromSecurityGroupId(this, "AlbSecurityGroup", config.existingAlbSecurityGroupId!, { mutable: false })
+      : loadBalancer.connections.securityGroups[0];
+    const listener = usesExistingAlb
+      ? elbv2.ApplicationListener.fromApplicationListenerAttributes(this, "Https", {
+          listenerArn: config.existingHttpsListenerArn!,
+          securityGroup: albSecurityGroup,
+        })
+      : hasTls
+        ? loadBalancer.addListener("Https", { port: 443, open: true, certificates: [acm.Certificate.fromCertificateArn(this, "Certificate", config.certificateArn!)] })
+        : loadBalancer.addListener("Http", { port: 80, open: true });
+    if (usesExistingAlb && config.certificateArn) {
+      listener.addCertificates("ApplicationCertificate", [
+        acm.Certificate.fromCertificateArn(this, "ApplicationCertificate", config.certificateArn),
+      ]);
     }
-    listener.addTargets("FrontendTarget", { port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [frontendService], healthCheck: { path: "/", healthyHttpCodes: "200-399" } });
-    listener.addTargets("BackendTarget", { port: 8000, protocol: elbv2.ApplicationProtocol.HTTP, priority: 10, conditions: [elbv2.ListenerCondition.pathPatterns(["/api/*"])], targets: [backendService], healthCheck: { path: "/api/v1/health" } });
+    if (hasTls && !usesExistingAlb) {
+      (loadBalancer as elbv2.ApplicationLoadBalancer).addRedirect({ sourcePort: 80, sourceProtocol: elbv2.ApplicationProtocol.HTTP, targetPort: 443, targetProtocol: elbv2.ApplicationProtocol.HTTPS });
+    }
+    taskSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(3000), "Frontend traffic from ALB");
+    taskSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(8000), "Backend traffic from ALB");
+    const hostConditions = config.domainName ? [elbv2.ListenerCondition.hostHeaders([config.domainName])] : [];
+    listener.addTargets("FrontendTarget", {
+      port: 3000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      priority: usesExistingAlb ? config.frontendListenerRulePriority : undefined,
+      conditions: usesExistingAlb ? hostConditions : undefined,
+      targets: [frontendService],
+      healthCheck: { path: "/", healthyHttpCodes: "200-399" },
+    });
+    listener.addTargets("BackendTarget", {
+      port: 8000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      priority: usesExistingAlb ? config.backendListenerRulePriority : 10,
+      conditions: [...hostConditions, elbv2.ListenerCondition.pathPatterns(["/api/*"])],
+      targets: [backendService],
+      healthCheck: { path: "/api/v1/health" },
+    });
 
     if (config.domainName && config.hostedZoneId && config.hostedZoneName) {
       const zone = route53.HostedZone.fromHostedZoneAttributes(this, "HostedZone", { hostedZoneId: config.hostedZoneId, zoneName: config.hostedZoneName });
@@ -334,7 +382,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     workerTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["bedrock:StartIngestionJob", "bedrock:GetIngestionJob", "bedrock:InvokeModel"], resources: ["*"] }));
     backendContainer.addEnvironment("INGESTION_ECS_CLUSTER_ARN", cluster.clusterArn);
     backendContainer.addEnvironment("INGESTION_ECS_TASK_DEFINITION_ARN", workerTask.taskDefinitionArn);
-    backendContainer.addEnvironment("INGESTION_ECS_SUBNET_IDS", vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnetIds.join(","));
+    backendContainer.addEnvironment("INGESTION_ECS_SUBNET_IDS", applicationSubnets.map(subnet => subnet.subnetId).join(","));
     backendContainer.addEnvironment("INGESTION_ECS_SECURITY_GROUP_IDS", taskSecurityGroup.securityGroupId);
     backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["ecs:RunTask"], resources: [workerTask.taskDefinitionArn] }));
     backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({ actions: ["iam:PassRole"], resources: [workerTask.taskRole.roleArn, workerTask.executionRole!.roleArn] }));
@@ -350,7 +398,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       target: new schedulerTargets.EcsRunFargateTask(cluster, {
         taskDefinition: workerTask,
         securityGroups: [taskSecurityGroup],
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        vpcSubnets: applicationSubnetSelection,
         deadLetterQueue: workerDeadLetterQueue,
         retryAttempts: 2,
         maxEventAge: cdk.Duration.hours(2),

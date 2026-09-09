@@ -4,8 +4,8 @@
 
 ## 作成するリソース
 
-- 2 Availability ZoneのVPC（公開、アプリ、DBサブネット）
-- Application Load Balancer
+- 2 Availability ZoneのVPC（公開、アプリ、DBサブネット）。客先検証環境では既存VPC・指定サブネットを利用
+- Application Load Balancer。客先検証環境では既存ALB・HTTPSリスナーへホストベースルールを追加
 - Frontend／BackendのECS Fargateサービス
 - 変換・同期用のECS Fargateタスク
 - EventBridge Schedulerによる夜間実行（標準は毎日01:00 JST）
@@ -20,12 +20,13 @@ CDKはFrontendとBackendのDockerイメージをビルドし、CDK管理のECR�
 ## 事前準備
 
 1. Node.js 20以上、Docker、AWS CLI、AWS CDKを利用可能にします。
-2. 自社開発では`config/development.example.json`、客先検証では`config/customer-validation.example.json`を実値ファイルへコピーします。実値ファイルはGit管理対象外です。
+2. 自社開発では`config/development.example.json`を実値ファイルへコピーします。客先検証環境では設定済みの`config/customer-validation.json`を使用し、客先での編集は不要です。
 3. 既存の統合Knowledge Baseが参照するS3バケットを使う場合、`existingDocumentsBucketName`にはそのバケット名を指定します。空にした場合はCDKが新規バケットを作ります。
 4. HTTPSを使う場合は同じリージョンのACM証明書ARNと`domainName`を設定します。Route 53も同じAWSアカウントで管理する場合だけHosted Zoneの3項目を設定します。
 5. `provisionKnowledgeBase=true`ではOpenSearch Serverless、統合KB、PDF＋Text／Web／Excel／Word／PowerPoint用の5 Data Sourceを自動作成し、生成IDをECSへ設定します。TXT／CSVはPDF Data SourceとS3 prefixを共用します。既存KBを利用する場合だけ`false`にしてデプロイ時に各IDを渡します。
+6. 客先検証環境では既存HTTPSリスナーにAPI用`1001`、画面用`1002`の2ルールを作成します。デプロイスクリプトが両方の未使用を確認します。
 
-客先AWS環境へ引き渡す場合は、[`CUSTOMER_HANDOFF.md`](CUSTOMER_HANDOFF.md)、[`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)、[`IAM_AND_SECURITY.md`](IAM_AND_SECURITY.md)を使用し、`config/customer-validation.example.json`から客先専用の実値設定を作成してください。
+客先AWS環境へ引き渡す場合は、[`CUSTOMER_HANDOFF.md`](CUSTOMER_HANDOFF.md)、[`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)、[`IAM_AND_SECURITY.md`](IAM_AND_SECURITY.md)を使用してください。
 
 ## 構成の確認
 
@@ -51,6 +52,21 @@ npx cdk deploy --context config=config/development.json \
 
 上記は`provisionKnowledgeBase=true`の標準構成です。OpenSearch Serverless、統合Knowledge Base、5つのData SourceをCDKが作成し、生成したIDをECSへ自動設定します。
 
+### 客先検証環境
+
+客先検証環境では、AWS CLIで対象アカウントへログインして次を実行します。
+
+```bash
+cd infrastructure
+./scripts/deploy-customer-validation.sh
+```
+
+スクリプトは、AWSアカウント`796575284584`、東京リージョン、既存ALBのルール優先順位、Claude Sonnet 4.6推論プロファイルを確認してから、依存関係の導入、ビルド、CDK bootstrap、deployを実行します。推論プロファイルを自動検出できない場合だけ、確認済みARNを環境変数で渡します。
+
+```bash
+CHAT_MODEL_ARN=<推論プロファイルARN> ./scripts/deploy-customer-validation.sh
+```
+
 既存Knowledge Baseを使うため`provisionKnowledgeBase=false`とした場合だけ、`ChatKnowledgeBaseId`と形式別のKnowledge Base ID／Data Source IDを追加指定します。PDFとTXT／CSVでData Sourceを共用する構成では、`TEXTKnowledgeBaseId`と`TEXTDataSourceId`にPDFと同じ値を指定します。
 
 CloudFormationの出力`ApplicationUrl`が接続先です。外部DNSを使用する場合は、出力`LoadBalancerDnsName`をCNAME値として登録します。デプロイはRDS、NAT Gateway、ALB、ECSなどの利用料金を発生させます。
@@ -66,6 +82,15 @@ CloudFormationの出力`ApplicationUrl`が接続先です。外部DNSを使用�
 ```
 
 ECSのSecret環境変数はタスク起動時に読み込まれるため、更新後はBackendサービスを「新しいデプロイの強制」で再起動します。
+
+客先検証環境では、受領した公開鍵ファイルをGit管理外の場所へ保存して次を実行します。鍵形式確認、Secrets Managerへの登録、Backend ECSの再起動と安定稼働待機まで自動実行します。
+
+```bash
+cd infrastructure
+./scripts/register-cpf-public-key.sh /path/to/chatbot_cpf_stg_public.pem
+```
+
+CPF側の接続先は`https://ai-chatbot-stg01-demo.gakupita.com/sso/cpf`です。
 
 ## データベース移行と動作確認
 
