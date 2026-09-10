@@ -61,6 +61,55 @@ def test_word_docx_discards_path_components_from_uploaded_file_name():
     assert artifact.metadata["original_source_file_name"] == "guide.docx"
 
 
+def test_pdf_artifacts_include_generated_semantic_metadata(monkeypatch):
+    processor = object.__new__(AwsIngestionProcessor)
+    processor.source_storage = SimpleNamespace(read=lambda key: b"pdf-bytes")
+    document = SimpleNamespace(
+        name="source.md", markdown="# guide.pdf\n\n本文", source_url=None,
+        metadata={"page_count": 3, "conversion_method": "TEXT_MARKDOWN"},
+    )
+    monkeypatch.setattr("app.services.ingestion_processor.convert_pdf", lambda *_: [document])
+    monkeypatch.setattr(
+        "app.services.ingestion_processor.generate_pdf_content_metadata",
+        lambda *_args, **_kwargs: {
+            "document_type": "規程", "keywords": ["奨学金", "申請"],
+            "summary": "奨学金申請の案内です。", "metadata_source_pages": 3,
+        },
+    )
+    data_source = SimpleNamespace(
+        format="pdf",
+        file=SimpleNamespace(file_name="guide.pdf", storage_key="originals/guide.pdf"),
+    )
+
+    artifact = processor._artifacts(data_source, "PDF")[0]
+
+    assert artifact.metadata["page_count"] == 3
+    assert artifact.metadata["document_type"] == "規程"
+    assert artifact.metadata["keywords"] == ["奨学金", "申請"]
+    assert artifact.metadata["summary"] == "奨学金申請の案内です。"
+    assert artifact.metadata["metadata_source_pages"] == 3
+
+
+def test_pdf_metadata_failure_does_not_abort_conversion(monkeypatch):
+    processor = object.__new__(AwsIngestionProcessor)
+    processor.source_storage = SimpleNamespace(read=lambda key: b"pdf-bytes")
+    document = SimpleNamespace(name="source.md", markdown="本文", source_url=None, metadata={})
+    monkeypatch.setattr("app.services.ingestion_processor.convert_pdf", lambda *_: [document])
+    monkeypatch.setattr(
+        "app.services.ingestion_processor.generate_pdf_content_metadata",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("Bedrock unavailable")),
+    )
+    data_source = SimpleNamespace(
+        format="pdf",
+        file=SimpleNamespace(file_name="guide.pdf", storage_key="originals/guide.pdf"),
+    )
+
+    artifact = processor._artifacts(data_source, "PDF")[0]
+
+    assert artifact.metadata["metadata_generation_status"] == "FAILED"
+    assert artifact.metadata["metadata_generation_error"] == "Bedrock unavailable"
+
+
 @pytest.mark.anyio
 async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypatch):
     monkeypatch.setenv("INGESTION_WORD_KNOWLEDGE_BASE_ID", "word-kb")

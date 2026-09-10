@@ -14,6 +14,7 @@ import httpx
 from app.models.data_source import DataSource
 from app.services.document_conversion import (
     convert_pdf,
+    generate_pdf_content_metadata,
     convert_plain_text,
     convert_pptx,
     convert_xlsx,
@@ -231,6 +232,15 @@ class AwsIngestionProcessor:
             )]
         if extension == "pdf":
             documents = convert_pdf(content, name)
+            try:
+                semantic_metadata = generate_pdf_content_metadata(content, name, max_pages=5)
+            except Exception as exc:
+                semantic_metadata = {
+                    "metadata_generation_method": "claude_pdf_head",
+                    "metadata_generation_status": "FAILED",
+                    "metadata_generation_error": str(exc)[:500],
+                }
+            return self._markdown_artifacts(documents, common_metadata=semantic_metadata)
         if extension == "xlsx":
             documents = convert_xlsx(content, name)
         elif extension == "pptx":
@@ -242,14 +252,14 @@ class AwsIngestionProcessor:
         return self._markdown_artifacts(documents)
 
     @staticmethod
-    def _markdown_artifacts(documents) -> list[IngestionArtifact]:
+    def _markdown_artifacts(documents, *, common_metadata: dict | None = None) -> list[IngestionArtifact]:
         return [IngestionArtifact(
             name=document.name,
             body=document.markdown.encode("utf-8"),
             content_type="text/markdown; charset=utf-8",
             character_count=len(document.markdown),
             source_url=document.source_url,
-            metadata=document.metadata,
+            metadata={**(document.metadata or {}), **(common_metadata or {})},
         ) for document in documents]
 
     @staticmethod

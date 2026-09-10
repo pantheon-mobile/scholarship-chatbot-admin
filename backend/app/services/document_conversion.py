@@ -7,6 +7,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
@@ -25,6 +26,91 @@ class ConvertedDocument:
     markdown: str
     source_url: str | None = None
     metadata: dict | None = None
+
+
+PDF_CONTENT_METADATA_KEYS = (
+    "document_type", "category", "business", "system", "school_type",
+    "target_user", "keywords", "summary",
+)
+
+
+def _extract_json_object(value: str) -> dict:
+    cleaned = value.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.IGNORECASE)
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("Claudeの応答にJSONがありません。")
+    parsed = json.loads(cleaned[start:end + 1])
+    attributes = parsed.get("metadataAttributes", parsed)
+    if not isinstance(attributes, dict):
+        raise ValueError("metadataAttributesがオブジェクトではありません。")
+    return attributes
+
+
+def generate_pdf_content_metadata(content: bytes, name: str, *, max_pages: int = 5) -> dict:
+    """Generate the semantic metadata proven in the ingestion PoC."""
+    pdf = fitz.open(stream=content, filetype="pdf")
+    try:
+        selected_pages = list(pdf)[:max_pages]
+        head_text = "\n\n".join(
+            f"--- ページ {index} ---\n{page.get_text('text').strip()}"
+            for index, page in enumerate(selected_pages, start=1)
+            if page.get_text("text").strip()
+        ).strip()
+        if not head_text:
+            head_text = "\n\n".join(
+                _vision_page_markdown(page, index)
+                for index, page in enumerate(selected_pages, start=1)
+            ).strip()
+    finally:
+        pdf.close()
+    if not head_text:
+        raise ValueError("PDF先頭5ページから内容を取得できませんでした。")
+
+    model_id = (
+        os.getenv("PDF_METADATA_MODEL_ID", "").strip()
+        or os.getenv("PDF_VISION_MODEL_ID", "").strip()
+        or os.getenv("CHAT_MODEL_ARN", "").strip()
+    )
+    if not model_id:
+        raise RuntimeError("PDF_METADATA_MODEL_IDが未設定です。")
+    prompt = f"""あなたはAmazon Bedrock Knowledge BasesのRAG設計者です。
+以下のPDF先頭最大5ページとファイル名をもとに、検索補助メタデータを生成してください。
+
+ファイル名:
+{name}
+
+PDF先頭テキスト:
+{head_text}
+
+次のJSONのみを返してください。
+{{"metadataAttributes":{{"document_type":"","category":"","business":"","system":"","school_type":"","target_user":"","keywords":[],"summary":""}}}}
+
+ルール:
+- document_type: 操作マニュアル / 規程 / FAQ / データ仕様書 / 申請書 / 通知 / その他
+- target_user: 学生 / 教員 / 職員 / all
+- keywords: 検索で使われそうな語を10〜20個
+- summary: 100文字程度
+- 不明な項目は空文字とし、JSON以外を出力しない
+"""
+    client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "ap-northeast-1"))
+    response = client.converse(
+        modelId=model_id,
+        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        inferenceConfig={"maxTokens": 1500, "temperature": 0},
+    )
+    response_text = response["output"]["message"]["content"][0]["text"]
+    raw = _extract_json_object(response_text)
+    metadata = {key: raw.get(key, [] if key == "keywords" else "") for key in PDF_CONTENT_METADATA_KEYS}
+    if not isinstance(metadata["keywords"], list):
+        metadata["keywords"] = [str(metadata["keywords"])] if metadata["keywords"] else []
+    metadata["keywords"] = [str(item).strip() for item in metadata["keywords"] if str(item).strip()][:20]
+    metadata["source_file_name"] = name
+    metadata["metadata_generated_at"] = datetime.now(timezone.utc).isoformat()
+    metadata["metadata_source_pages"] = min(len(selected_pages), max_pages)
+    metadata["metadata_generation_method"] = "claude_pdf_head"
+    return metadata
 
 
 def _table_markdown(rows: list[list[str]]) -> str:
