@@ -338,21 +338,32 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     taskSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(3000), "Frontend traffic from ALB");
     taskSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(8000), "Backend traffic from ALB");
     const hostConditions = config.domainName ? [elbv2.ListenerCondition.hostHeaders([config.domainName])] : [];
-    listener.addTargets("FrontendTarget", {
+    // 既存ALBのリスナーを取り込む（fromApplicationListenerAttributes）場合、CDK は addTargets() を許可しない
+    // （CallAddTargetsConstructedApplication）。取り込み/新規どちらでも動くよう、ターゲットグループを
+    // 明示的に作成して addTargetGroups() で紐づける（新規リスナーでは条件なし=既定アクションになる）。
+    const frontendTargetGroup = new elbv2.ApplicationTargetGroup(this, "FrontendTargetGroup", {
+      vpc,
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
-      priority: usesExistingAlb ? config.frontendListenerRulePriority : undefined,
-      conditions: usesExistingAlb ? hostConditions : undefined,
       targets: [frontendService],
       healthCheck: { path: "/", healthyHttpCodes: "200-399" },
     });
-    listener.addTargets("BackendTarget", {
+    listener.addTargetGroups("FrontendTarget", {
+      targetGroups: [frontendTargetGroup],
+      priority: usesExistingAlb ? config.frontendListenerRulePriority : undefined,
+      conditions: usesExistingAlb ? hostConditions : undefined,
+    });
+    const backendTargetGroup = new elbv2.ApplicationTargetGroup(this, "BackendTargetGroup", {
+      vpc,
       port: 8000,
       protocol: elbv2.ApplicationProtocol.HTTP,
-      priority: usesExistingAlb ? config.backendListenerRulePriority : 10,
-      conditions: [...hostConditions, elbv2.ListenerCondition.pathPatterns(["/api/*"])],
       targets: [backendService],
       healthCheck: { path: "/api/v1/health" },
+    });
+    listener.addTargetGroups("BackendTarget", {
+      targetGroups: [backendTargetGroup],
+      priority: usesExistingAlb ? config.backendListenerRulePriority : 10,
+      conditions: [...hostConditions, elbv2.ListenerCondition.pathPatterns(["/api/*"])],
     });
 
     if (config.domainName && config.hostedZoneId && config.hostedZoneName) {
