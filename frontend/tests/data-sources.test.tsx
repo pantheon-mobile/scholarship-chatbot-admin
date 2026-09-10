@@ -70,6 +70,13 @@ async function renderPage() {
 }
 
 describe("CB-202 data sources", () => {
+  it("仕様書どおりの参照元リンク表記と一覧取込ボタンを表示する", async () => {
+    await renderPage();
+    expect(screen.getAllByText("参照元リンク")).toHaveLength(2);
+    const importButton = screen.getByRole("button", { name: "一覧ファイルを取込" });
+    expect(importButton.querySelector("svg")).not.toBeNull();
+  });
+
   it("初期表示を更新日時降順・10件で取得する", async () => {
     await renderPage();
     expect(screen.getByText("データソース数 12件")).not.toBeNull();

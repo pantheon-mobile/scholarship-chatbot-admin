@@ -181,7 +181,7 @@ export default function DataSourcesPage() {
           <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/categories")}>カテゴリを設定する</Button>
           <Button variant="secondary" icon={<AdminIcon name="edit" size={18} />} onClick={() => router.push("/data-source-types")}>種別を設定する</Button>
           <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={download} disabled={busy}>一覧をダウンロード</Button>
-          <Button variant="secondary" disabled title="MVPでは未実装です">一覧を一括更新（未実装）</Button>
+          <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} disabled title="MVPでは未実装です">一覧ファイルを取込</Button>
         </div>} />
         <div className={styles.summary}>
           <span>データソース数 {result?.total_count ?? 0}件</span>
@@ -207,7 +207,7 @@ export default function DataSourcesPage() {
           })}
           <SelectField label="回答ソース" value={draft.answer_source_enabled} onChange={(event) => setDraft({ ...draft, answer_source_enabled: event.target.value })}><option value="">すべて</option><option value="true">有効</option><option value="false">無効</option></SelectField>
           <SelectField label="優先度" value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })}><option value="">すべて</option><option value="HIGH">高</option><option value="MEDIUM">中</option><option value="LOW">低</option></SelectField>
-          <SelectField label="参照リンク" value={draft.reference_link_visible} onChange={(event) => setDraft({ ...draft, reference_link_visible: event.target.value })}><option value="">すべて</option><option value="true">表示</option><option value="false">非表示</option></SelectField>
+          <SelectField label="参照元リンク" value={draft.reference_link_visible} onChange={(event) => setDraft({ ...draft, reference_link_visible: event.target.value })}><option value="">すべて</option><option value="true">表示</option><option value="false">非表示</option></SelectField>
           <div className={styles.filterButtonWrap}><Button className={styles.searchButton} variant="secondary" onClick={applySearch} icon={<AdminIcon name="search" size={18} />}>絞り込み検索</Button></div>
         </div>
 
@@ -223,7 +223,7 @@ export default function DataSourcesPage() {
               <TableHeaderCell className={styles.checkColumn}><Checkbox aria-label="表示中ページを全選択" checked={allSelected} indeterminate={!allSelected && someSelected} onChange={(event) => setSelected(event.target.checked ? new Set(rows.map((row) => row.id)) : new Set())} /></TableHeaderCell>
               <TableHeaderCell className={styles.idColumn}><SortableHeader direction={filters.sort === "id" ? filters.order : null} onClick={() => changeSort("id")}>ID</SortableHeader></TableHeaderCell>
               <TableHeaderCell className={styles.titleColumn}><SortableHeader direction={filters.sort === "title" ? filters.order : null} onClick={() => changeSort("title")}>タイトル／ファイル名／URL</SortableHeader></TableHeaderCell>
-              <TableHeaderCell className={styles.formatColumn}>形式</TableHeaderCell><TableHeaderCell className={styles.statusColumn}>状態</TableHeaderCell><TableHeaderCell className={styles.categoryColumn}>カテゴリ</TableHeaderCell><TableHeaderCell className={styles.classificationColumn}>種別</TableHeaderCell><TableHeaderCell className={styles.sizeColumn}>サイズ<br/>文字数</TableHeaderCell><TableHeaderCell className={styles.answerColumn}>回答ソース<br/>優先度</TableHeaderCell><TableHeaderCell className={styles.referenceColumn}>参照リンク</TableHeaderCell>
+              <TableHeaderCell className={styles.formatColumn}>形式</TableHeaderCell><TableHeaderCell className={styles.statusColumn}>状態</TableHeaderCell><TableHeaderCell className={styles.categoryColumn}>カテゴリ</TableHeaderCell><TableHeaderCell className={styles.classificationColumn}>種別</TableHeaderCell><TableHeaderCell className={styles.sizeColumn}>サイズ<br/>文字数</TableHeaderCell><TableHeaderCell className={styles.answerColumn}>回答ソース<br/>優先度</TableHeaderCell><TableHeaderCell className={styles.referenceColumn}>参照元リンク</TableHeaderCell>
               <TableHeaderCell className={styles.dateColumn}><SortableHeader direction={filters.sort === "updated_at" ? filters.order : null} onClick={() => changeSort("updated_at")}>更新日時</SortableHeader></TableHeaderCell><TableHeaderCell className={styles.actionsColumn}>操作</TableHeaderCell>
             </TableRow></thead>
             <tbody>{rows.map((row) => {
