@@ -41,6 +41,10 @@ class IngestionProcessor(Protocol):
     async def process(self, data_source: DataSource) -> IngestionResult: ...
 
 
+class DataSourceCleanupProcessor(Protocol):
+    async def cleanup(self, data_sources: list[DataSource]) -> None: ...
+
+
 class HttpIngestionProcessor:
     """Adapter for the conversion/crawl/S3/Knowledge Base processing service."""
 
@@ -66,6 +70,18 @@ class HttpIngestionProcessor:
             response.raise_for_status()
             body = response.json()
         return IngestionResult(character_count=body.get("character_count"))
+
+
+class LocalDataSourceCleanupProcessor:
+    """Delete originals when running the self-contained local environment."""
+
+    def __init__(self) -> None:
+        self.storage = LocalStorage()
+
+    async def cleanup(self, data_sources: list[DataSource]) -> None:
+        for data_source in data_sources:
+            if data_source.file and data_source.file.storage_key:
+                self.storage.delete(data_source.file.storage_key)
 
 
 class AwsIngestionProcessor:
@@ -134,6 +150,34 @@ class AwsIngestionProcessor:
         return IngestionResult(
             character_count=total_characters if has_character_count else None
         )
+
+    async def cleanup(self, data_sources: list[DataSource]) -> None:
+        """Remove source-specific artifacts, refresh affected KBs, then originals."""
+        sync_targets: set[tuple[str, str]] = set()
+        original_keys: list[str] = []
+        removal_prefixes: list[str] = []
+        for data_source in data_sources:
+            kind = self._kind(data_source)
+            prefix = os.getenv(
+                f"INGESTION_{kind}_S3_PREFIX", self._default_s3_prefix(kind)
+            ).strip("/") + "/"
+            removal_prefixes.append(f"{prefix}{data_source.id}/")
+            sync_targets.add(self._kb_config(kind))
+            if data_source.file and data_source.file.storage_key:
+                original_keys.append(data_source.file.storage_key)
+
+        # Validate every KB/DS setting before changing S3.
+        for removal_prefix in removal_prefixes:
+            self._clear_prefix(removal_prefix)
+
+        # Bedrock removes vectors whose S3 source disappeared during this sync.
+        for knowledge_base_id, data_source_id in sorted(sync_targets):
+            self._synchronize(knowledge_base_id, data_source_id)
+
+        # Keep originals until every affected KB has synchronized successfully so
+        # an operator can retry/recover when AWS synchronization fails.
+        for storage_key in original_keys:
+            self.source_storage.delete(storage_key)
 
     def _clear_prefix(self, prefix: str) -> None:
         paginator = self.s3.get_paginator("list_objects_v2")

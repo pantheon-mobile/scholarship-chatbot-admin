@@ -34,6 +34,7 @@ services:
       - ANALYTICS_IDENTITY_SECRET=local-development-analytics-secret-change-in-production
       - APP_ENV=development
       - ENABLE_DEVELOPMENT_CPF_MOCK=${ENABLE_DEVELOPMENT_CPF_MOCK:-true}
+      - ENABLE_DESTRUCTIVE_PURGE=${ENABLE_DESTRUCTIVE_PURGE:-true}
       - CPF_DEVELOPMENT_JWT_SECRET=${CPF_DEVELOPMENT_JWT_SECRET:-local-development-cpf-jwt-secret-change-before-shared-use}
       - CPF_DEVELOPMENT_JWT_TTL_SECONDS=${CPF_DEVELOPMENT_JWT_TTL_SECONDS:-300}
       - CPF_PUBLIC_KEYS=${CPF_PUBLIC_KEYS:-}

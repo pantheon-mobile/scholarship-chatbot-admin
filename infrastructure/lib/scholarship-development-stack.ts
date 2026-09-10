@@ -290,6 +290,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       environment: {
         APP_ENV: config.environmentName,
         ENABLE_DEVELOPMENT_CPF_MOCK: String(config.enableDevelopmentCpfMock ?? false),
+        ENABLE_DESTRUCTIVE_PURGE: String(["development", "validation", "stg01-demo"].includes(config.environmentName)),
         AUTH_COOKIE_SECURE: String(hasTls),
         AWS_REGION: this.region, STORAGE_BACKEND: "s3", INGESTION_S3_BUCKET: bucket.bucketName,
         DB_HOST: database.dbInstanceEndpointAddress, DB_PORT: database.dbInstanceEndpointPort,

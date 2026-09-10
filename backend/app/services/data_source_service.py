@@ -32,6 +32,7 @@ from app.schemas.data_source import (
 from app.services.file_upload_validation import FileUploadValidationError, validate_uploads
 from app.services.website_url_validation import WebsiteUrlValidationError, validate_website_url
 from app.storage.base import StorageAdapter
+from app.services.ingestion_processor import DataSourceCleanupProcessor
 
 
 class DataSourceNotFoundError(Exception):
@@ -59,6 +60,10 @@ class FileDataSourceRequiredError(Exception):
 
 
 class DataSourceUpdateError(Exception):
+    pass
+
+
+class DataSourceCleanupError(Exception):
     pass
 
 
@@ -99,8 +104,9 @@ class DataSourceImportError(Exception):
 
 
 class DataSourceService:
-    def __init__(self, repository: DataSourceRepository) -> None:
+    def __init__(self, repository: DataSourceRepository, cleanup_processor: DataSourceCleanupProcessor | None = None) -> None:
         self.repository = repository
+        self.cleanup_processor = cleanup_processor
 
     @staticmethod
     def category_paths(categories: list[Category]) -> dict[int, str]:
@@ -339,11 +345,27 @@ class DataSourceService:
         return await self.get(data_source_id)
 
     async def delete(self, data_source_id: int, version: int) -> None:
-        await self._get(data_source_id)
+        row = await self._get(data_source_id)
+        if row.version != version:
+            raise DataSourceVersionConflictError()
+        if self.cleanup_processor:
+            try:
+                await self.cleanup_processor.cleanup([row])
+            except Exception as exc:
+                raise DataSourceCleanupError() from exc
         if not await self.repository.delete_one(data_source_id, version):
             raise DataSourceVersionConflictError()
 
     async def bulk_delete(self, payload: BulkDeleteRequest) -> int:
+        if self.cleanup_processor:
+            rows = [await self._get(target.id) for target in payload.items]
+            versions = {row.id: row.version for row in rows}
+            if any(versions.get(target.id) != target.version for target in payload.items):
+                raise DataSourceVersionConflictError()
+            try:
+                await self.cleanup_processor.cleanup(rows)
+            except Exception as exc:
+                raise DataSourceCleanupError() from exc
         try:
             return await self.repository.bulk_delete(payload.items)
         except LookupError as exc:

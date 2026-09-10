@@ -6,6 +6,8 @@ import { Header } from "./Header";
 import styles from "./admin.module.css";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { recordAdminAccess } from "@/lib/chatApi";
+import { fetchMaintenanceCapabilities, purgeAllData } from "@/lib/maintenanceApi";
+import { Modal } from "./Modal";
 
 type AdminLayoutProps = {
   children: ReactNode;
@@ -29,6 +31,11 @@ export function AdminLayout({
   const auth = useAuth();
   const recordedIdentifier = useRef<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [purgeEnabled, setPurgeEnabled] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeConfirmation, setPurgeConfirmation] = useState("");
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const [purgeError, setPurgeError] = useState("");
   const collapsible = chromeVariant === "sidebar-menu";
 
   useEffect(() => {
@@ -41,6 +48,11 @@ export function AdminLayout({
     });
   }, [auth.user]);
 
+  useEffect(() => {
+    if (auth.user?.role !== "admin") return;
+    void fetchMaintenanceCapabilities().then((result) => setPurgeEnabled(result.bulk_purge_enabled));
+  }, [auth.user?.role]);
+
   return (
     <div className={`${styles.adminShell} ${collapsible && sidebarCollapsed ? styles.sidebarCollapsed : ""}`}>
       <Header
@@ -51,6 +63,8 @@ export function AdminLayout({
         onLogout={() => {
           void auth.logout().then(() => onNavigate("/development/cpf"));
         }}
+        showBulkPurge={purgeEnabled}
+        onBulkPurge={() => { setPurgeOpen(true); setPurgeConfirmation(""); setPurgeError(""); }}
       />
       <Sidebar
         activeMenu={activeMenu}
@@ -65,6 +79,29 @@ export function AdminLayout({
           {children}
         </div>
       </main>
+      <Modal
+        open={purgeOpen}
+        title="一括消去"
+        variant="danger"
+        confirmLabel={purgeBusy ? "消去中…" : "一括消去する"}
+        busy={purgeBusy}
+        confirmDisabled={purgeConfirmation !== "一括消去"}
+        error={purgeError}
+        onClose={() => { if (!purgeBusy) setPurgeOpen(false); }}
+        onConfirm={() => {
+          setPurgeBusy(true); setPurgeError("");
+          void purgeAllData().then(() => {
+            setPurgeOpen(false);
+            onNavigate("/");
+          }).catch((error: Error) => setPurgeError(error.message)).finally(() => setPurgeBusy(false));
+        }}
+      >
+        <p>データソース、FAQ、チャット履歴、アクセスログ・操作ログを物理削除します。S3の元ファイルと変換成果物も削除し、Knowledge Baseを同期します。この操作は取り消せません。</p>
+        <label>
+          確認のため「一括消去」と入力してください。
+          <input className={styles.purgeConfirmationInput} value={purgeConfirmation} onChange={(event) => setPurgeConfirmation(event.target.value)} disabled={purgeBusy} />
+        </label>
+      </Modal>
     </div>
   );
 }

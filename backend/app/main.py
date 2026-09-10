@@ -16,6 +16,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.auth import require_authenticated_session, require_system_admin_session
 from app.api.v1.chat import router as chat_router
 from app.api.v1.reporting import router as reporting_router
+from app.api.v1.maintenance import router as maintenance_router
 from app.core.db import SessionLocal
 from app.models.auth import AdminOperationLog
 from app.repositories.reporting import ReportingRepository
@@ -40,6 +41,9 @@ def _is_audited_operation(request: Request) -> bool:
     if not path.startswith("/api/v1/"):
         return False
     if path.startswith("/api/v1/auth/"):
+        return False
+    if path == "/api/v1/maintenance/purge":
+        # A successful purge must not recreate an operation log for itself.
         return False
     if path.startswith("/api/v1/analytics/"):
         return request.method == "POST" and path.endswith("/chat-sessions")
@@ -90,3 +94,4 @@ app.include_router(dashboard_router, prefix="/api/v1", dependencies=admin_depend
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reporting_router, prefix="/api/v1")
+app.include_router(maintenance_router, prefix="/api/v1")

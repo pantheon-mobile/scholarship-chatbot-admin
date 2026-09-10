@@ -105,6 +105,12 @@ class DataSourceRepository:
         )
         return list((await self.session.execute(statement)).scalars().unique().all())
 
+    async def list_all_for_cleanup(self) -> list[DataSource]:
+        statement = select(DataSource).options(
+            selectinload(DataSource.file), selectinload(DataSource.website)
+        ).order_by(DataSource.id)
+        return list((await self.session.execute(statement)).scalars().unique().all())
+
     async def apply_import_updates(self, updates: list[dict]) -> None:
         now = datetime.now(timezone.utc)
         for item in updates:

@@ -34,12 +34,14 @@ from app.services.data_source_service import (
     FileDataSourceRequiredError,
     ClassificationMismatchError,
     DataSourceCategoryNotFoundError,
+    DataSourceCleanupError,
     PageNotFoundError,
     WebsiteDataSourceCreateError,
     WebsiteDataSourceRequiredError,
     WebsiteDataSourceUpdateError,
 )
 from app.services.ingestion_launcher import launch_ingestion_worker
+from app.services.ingestion_processor import AwsIngestionProcessor, LocalDataSourceCleanupProcessor
 from app.storage import LocalStorage, S3Storage
 from app.storage.base import StorageAdapter
 
@@ -52,7 +54,8 @@ def get_ingestion_launcher():
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> DataSourceService:
-    return DataSourceService(DataSourceRepository(session))
+    cleanup = AwsIngestionProcessor() if os.getenv("INGESTION_S3_BUCKET", "").strip() else LocalDataSourceCleanupProcessor()
+    return DataSourceService(DataSourceRepository(session), cleanup)
 
 
 def get_storage() -> StorageAdapter:
@@ -259,6 +262,8 @@ async def delete_data_source(data_source_id: int, version: int = Query(..., ge=1
         raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None
     except DataSourceVersionConflictError:
         raise HTTPException(status_code=409, detail="削除前の情報と異なります。再度画面を更新してください。") from None
+    except DataSourceCleanupError:
+        raise HTTPException(status_code=502, detail={"code": "DATA_SOURCE_CLEANUP_FAILED", "message": "S3またはKnowledge Baseからの削除に失敗しました。データソースは削除されていません。"}) from None
 
 
 @router.post("/data-sources/bulk-delete", response_model=BulkDeleteResponse)
@@ -269,3 +274,5 @@ async def bulk_delete_data_sources(payload: BulkDeleteRequest, service: DataSour
         raise HTTPException(status_code=404, detail="削除対象に存在しないデータソースが含まれています。") from None
     except DataSourceVersionConflictError:
         raise HTTPException(status_code=409, detail="削除前の情報と異なります。再度画面を更新してください。") from None
+    except DataSourceCleanupError:
+        raise HTTPException(status_code=502, detail={"code": "DATA_SOURCE_CLEANUP_FAILED", "message": "S3またはKnowledge Baseからの削除に失敗しました。データソースは削除されていません。"}) from None
