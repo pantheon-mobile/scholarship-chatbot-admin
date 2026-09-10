@@ -12,6 +12,7 @@ const defaultConfig: ScholarshipEnvironmentConfig = {
   nightlyIngestionHourJst: 1,
   nightlyIngestionMinuteJst: 0,
   deletionProtection: true,
+  useFargateSpot: false,
 };
 const config = configPath
   ? JSON.parse(fs.readFileSync(path.resolve(configPath), "utf8")) as ScholarshipEnvironmentConfig

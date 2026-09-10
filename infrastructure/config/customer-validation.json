@@ -23,5 +23,6 @@
   "frontendListenerRulePriority": 1002,
   "nightlyIngestionHourJst": 1,
   "nightlyIngestionMinuteJst": 0,
-  "deletionProtection": true
+  "deletionProtection": true,
+  "useFargateSpot": true
 }

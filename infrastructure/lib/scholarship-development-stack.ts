@@ -32,6 +32,8 @@ export interface ScholarshipEnvironmentConfig {
   readonly nightlyIngestionMinuteJst?: number;
   readonly deletionProtection?: boolean;
   readonly provisionKnowledgeBase?: boolean;
+  /** true のとき常駐サービス（backend/frontend）を FARGATE_SPOT で起動する（検証環境向け。既定 false=オンデマンド） */
+  readonly useFargateSpot?: boolean;
   readonly embeddingModelArn?: string;
   readonly opensearchDeploymentPrincipalArn?: string;
   readonly existingVpcId?: string;
@@ -78,7 +80,18 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       ? config.applicationSubnetIds!.map((subnetId, index) => ec2.Subnet.fromSubnetId(this, `ApplicationSubnet${index + 1}`, subnetId))
       : vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnets;
     const applicationSubnetSelection: ec2.SubnetSelection = { subnets: applicationSubnets };
-    const cluster = new ecs.Cluster(this, "Cluster", { clusterName: `${prefix}-cluster`, vpc, containerInsightsV2: ecs.ContainerInsights.ENABLED });
+    const useFargateSpot = config.useFargateSpot === true;
+    const cluster = new ecs.Cluster(this, "Cluster", {
+      clusterName: `${prefix}-cluster`,
+      vpc,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
+      // FARGATE_SPOT を使う場合はクラスタにキャパシティプロバイダの関連付けが必要
+      enableFargateCapacityProviders: useFargateSpot,
+    });
+    // 常駐サービスの起動方式（検証環境は Spot でコスト削減。夜間取込 Worker は中断回避のためオンデマンド固定）
+    const serviceCapacityProviderStrategies: ecs.CapacityProviderStrategy[] | undefined = useFargateSpot
+      ? [{ capacityProvider: "FARGATE_SPOT", weight: 1 }]
+      : undefined;
     const disposableEnvironment = config.deletionProtection === false;
     const bucket = config.existingDocumentsBucketName ? s3.Bucket.fromBucketName(this, "Documents", config.existingDocumentsBucketName) : new s3.Bucket(this, "Documents", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -302,7 +315,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       actions: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate", "bedrock:GetInferenceProfile"],
       resources: ["*"],
     }));
-    const backendService = new ecs.FargateService(this, "BackendService", { cluster, taskDefinition: backendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
+    const backendService = new ecs.FargateService(this, "BackendService", { cluster, capacityProviderStrategies: serviceCapacityProviderStrategies, taskDefinition: backendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
 
     const frontendTask = new ecs.FargateTaskDefinition(this, "FrontendTask", {
       cpu: 256,
@@ -311,7 +324,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     });
     const frontendContainer = frontendTask.addContainer("frontend", { image: frontendImage, logging: ecs.LogDrivers.awsLogs({ streamPrefix: "frontend", logRetention: logs.RetentionDays.ONE_MONTH }) });
     frontendContainer.addPortMappings({ containerPort: 3000 });
-    const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, taskDefinition: frontendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
+    const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, capacityProviderStrategies: serviceCapacityProviderStrategies, taskDefinition: frontendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
 
     const loadBalancer = usesExistingAlb
       ? elbv2.ApplicationLoadBalancer.fromLookup(this, "LoadBalancer", { loadBalancerArn: config.existingAlbArn })
