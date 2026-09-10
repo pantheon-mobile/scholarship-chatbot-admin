@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from dataclasses import dataclass
+from zipfile import BadZipFile, ZipFile, is_zipfile
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 
 from app.models.data_source import DataSource
 from app.models.category import Category
@@ -18,6 +21,8 @@ from app.schemas.data_source import (
     DataSourceFileResponse,
     DataSourceFilters,
     DataSourceListResponse,
+    DataSourceImportResponse,
+    DataSourceImportRowError,
     DataSourceResponse,
     DataSourceWebsiteResponse,
     FileDataSourceUpdateRequest,
@@ -80,6 +85,17 @@ class FileUploadError(Exception):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+DATA_SOURCE_IMPORT_HEADERS = ["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "種別1", "種別2", "種別3", "サイズ", "文字数", "回答ソース", "優先度", "参照元リンク", "更新日時"]
+DATA_SOURCE_IMPORT_MAX_BYTES = 10 * 1024 * 1024
+DATA_SOURCE_IMPORT_MAX_ROWS = 1000
+
+
+class DataSourceImportError(Exception):
+    def __init__(self, code: str, message: str, errors: list[DataSourceImportRowError] | None = None) -> None:
+        super().__init__(message)
+        self.code, self.message, self.errors = code, message, errors or []
 
 
 class DataSourceService:
@@ -453,7 +469,7 @@ class DataSourceService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "データソース一覧"
-        worksheet.append(["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "種別1", "種別2", "種別3", "サイズ", "文字数", "回答ソース", "優先度", "参照リンク", "更新日時"])
+        worksheet.append(DATA_SOURCE_IMPORT_HEADERS)
         for row in all_rows:
             values = {item.type_code: item.value_name for item in row.classifications}
             location = row.file.file_name if row.file else row.website.url if row.website else ""
@@ -468,3 +484,150 @@ class DataSourceService:
         output = BytesIO()
         workbook.save(output)
         return output.getvalue()
+
+    @staticmethod
+    def _import_text(value: object) -> str:
+        return "" if value is None else str(value).strip()
+
+    @classmethod
+    def _import_id(cls, value: object) -> int:
+        if isinstance(value, bool):
+            raise ValueError
+        if isinstance(value, int) and value > 0:
+            return value
+        if isinstance(value, float) and value.is_integer() and value > 0:
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit() and int(value.strip()) > 0:
+            return int(value.strip())
+        raise ValueError
+
+    async def import_excel(self, upload: UploadFile) -> DataSourceImportResponse:
+        filename = upload.filename or ""
+        if Path(filename).suffix.lower() != ".xlsx":
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "xlsx形式のファイルを選択してください。")
+        content = await upload.read(DATA_SOURCE_IMPORT_MAX_BYTES + 1)
+        if len(content) > DATA_SOURCE_IMPORT_MAX_BYTES:
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_FILE_TOO_LARGE", "ファイルサイズは10MB以下にしてください。")
+        if not content or not is_zipfile(BytesIO(content)):
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。")
+        try:
+            with ZipFile(BytesIO(content)) as archive:
+                names = {name.lower() for name in archive.namelist()}
+                if any(name.endswith("vbaproject.bin") for name in names):
+                    raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "マクロを含むExcelファイルは使用できません。")
+            workbook = load_workbook(BytesIO(content), read_only=True, data_only=False, keep_links=False)
+        except (BadZipFile, InvalidFileException, KeyError, OSError, ValueError):
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
+        worksheet = workbook.active
+        if worksheet.max_column != len(DATA_SOURCE_IMPORT_HEADERS):
+            workbook.close()
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+        header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=len(DATA_SOURCE_IMPORT_HEADERS)))
+        headers = [self._import_text(cell.value) for cell in header_cells]
+        if headers != DATA_SOURCE_IMPORT_HEADERS or any(cell.data_type == "f" for cell in header_cells):
+            workbook.close()
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+        if worksheet.max_row - 1 > DATA_SOURCE_IMPORT_MAX_ROWS:
+            workbook.close()
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_TOO_MANY_ROWS", "データ行は1000行以内にしてください。")
+
+        raw_rows: list[tuple[int, list[object]]] = []
+        errors: list[DataSourceImportRowError] = []
+        ids: list[int] = []
+        for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=len(headers)), start=2):
+            if all(self._import_text(cell.value) == "" for cell in cells):
+                continue
+            for index, cell in enumerate(cells):
+                if cell.data_type == "f":
+                    errors.append(DataSourceImportRowError(row=row_number, column=headers[index], code="FORMULA_NOT_ALLOWED", message="数式は入力できません。"))
+            values = [cell.value for cell in cells]
+            try:
+                data_source_id = self._import_id(values[0])
+                ids.append(data_source_id)
+            except ValueError:
+                errors.append(DataSourceImportRowError(row=row_number, column="ID", code="ID_INVALID", message="IDは必須の正の整数です。行の追加はできません。"))
+            raw_rows.append((row_number, values))
+        workbook.close()
+        if not raw_rows:
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_EMPTY", "更新するデータがありません。")
+        duplicates = {value for value in ids if ids.count(value) > 1}
+        for row_number, values in raw_rows:
+            try:
+                if self._import_id(values[0]) in duplicates:
+                    errors.append(DataSourceImportRowError(row=row_number, column="ID", code="ID_DUPLICATE", message="IDがExcel内で重複しています。"))
+            except ValueError:
+                pass
+
+        existing_rows = await self.repository.get_for_update_many(list(set(ids)))
+        existing = {int(row.id): row for row in existing_rows}
+        categories = await self.repository.list_categories()
+        category_paths = self.category_paths(categories)
+        category_by_path = {path: category_id for category_id, path in category_paths.items()}
+        type_definitions = await self.repository.list_import_classifications()
+        types = {item.type_code: (int(item.id), {value.value_name: int(value.id) for value in item.values}) for item in type_definitions}
+        source_labels = {"FILE": "ファイル", "WEB": "Web"}
+        status_labels = {"PREPARING": "準備中", "TRAINING": "学習中", "AVAILABLE": "利用可", "ERROR": "エラー"}
+        priority_by_label = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}
+        updates: list[dict] = []
+        immutable_indexes = (1, 3, 4, 5, 10, 11, 15)
+        for row_number, values in raw_rows:
+            try:
+                data_source_id = self._import_id(values[0])
+            except ValueError:
+                continue
+            row = existing.get(data_source_id)
+            if row is None:
+                errors.append(DataSourceImportRowError(row=row_number, column="ID", code="NOT_FOUND", message="指定されたデータソースが存在しません。行の追加はできません。"))
+                continue
+            current_classes = {link.classification_type.type_code: link.classification_value.value_name for link in row.classification_links}
+            location = row.file.file_name if row.file else row.website.url if row.website else ""
+            current = [row.id, source_labels[row.source_type], row.title, location, row.format, status_labels[row.status],
+                       category_paths.get(row.category_id, ""), current_classes.get("TYPE_1", ""), current_classes.get("TYPE_2", ""), current_classes.get("TYPE_3", ""),
+                       row.size_bytes, row.character_count, "有効" if row.answer_source_enabled else "無効",
+                       {"HIGH": "高", "MEDIUM": "中", "LOW": "低"}[row.priority], "表示" if row.reference_link_visible else "非表示",
+                       row.updated_at.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M")]
+            for index in immutable_indexes:
+                if self._import_text(values[index]) != self._import_text(current[index]):
+                    errors.append(DataSourceImportRowError(row=row_number, column=headers[index], code="READ_ONLY_CHANGED", message="この項目は変更できません。"))
+            title = self._import_text(values[2])
+            if not title or len(title) > 500:
+                errors.append(DataSourceImportRowError(row=row_number, column="タイトル", code="TITLE_INVALID", message="タイトルは1～500文字で入力してください。"))
+            category_text = self._import_text(values[6])
+            category_id = category_by_path.get(category_text) if category_text else None
+            legacy_category_unchanged = row.category_id is None and category_text == self._import_text(row.category_name)
+            if category_text and category_id is None and not legacy_category_unchanged:
+                errors.append(DataSourceImportRowError(row=row_number, column="カテゴリ", code="CATEGORY_NOT_FOUND", message="指定されたカテゴリが存在しません。"))
+            classifications = []
+            for offset, code in enumerate(("TYPE_1", "TYPE_2", "TYPE_3"), start=7):
+                label = self._import_text(values[offset])
+                definition = types.get(code)
+                value_id = definition[1].get(label) if definition and label else None
+                if label and value_id is None:
+                    errors.append(DataSourceImportRowError(row=row_number, column=headers[offset], code="CLASSIFICATION_NOT_FOUND", message="指定された種別が存在しません。"))
+                elif value_id is not None:
+                    classifications.append((definition[0], value_id))
+            answer = self._import_text(values[12])
+            priority = priority_by_label.get(self._import_text(values[13]))
+            reference = self._import_text(values[14])
+            if answer not in ("有効", "無効"):
+                errors.append(DataSourceImportRowError(row=row_number, column="回答ソース", code="ANSWER_SOURCE_INVALID", message="「有効」または「無効」を入力してください。"))
+            if priority is None:
+                errors.append(DataSourceImportRowError(row=row_number, column="優先度", code="PRIORITY_INVALID", message="「高」「中」「低」のいずれかを入力してください。"))
+            if reference not in ("表示", "非表示"):
+                errors.append(DataSourceImportRowError(row=row_number, column="参照元リンク", code="REFERENCE_LINK_INVALID", message="「表示」または「非表示」を入力してください。"))
+            proposed = dict(id=data_source_id, title=title, category_id=category_id, classifications=classifications,
+                            answer_source_enabled=answer == "有効", priority=priority or row.priority,
+                            reference_link_visible=reference == "表示")
+            comparable = (title, category_id, sorted(classifications), answer == "有効", priority, reference == "表示")
+            original = (row.title, row.category_id, sorted((int(link.classification_type_id), int(link.classification_value_id)) for link in row.classification_links), row.answer_source_enabled, row.priority, row.reference_link_visible)
+            if comparable != original:
+                updates.append(proposed)
+        if errors:
+            await self.repository.rollback()
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_VALIDATION_ERROR", "入力内容にエラーがあります。", errors)
+        try:
+            await self.repository.apply_import_updates(updates)
+        except Exception as exc:
+            await self.repository.rollback()
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_FAILED", "データソースの一括更新に失敗しました。") from exc
+        return DataSourceImportResponse(updated_count=len(updates), processed_count=len(raw_rows))

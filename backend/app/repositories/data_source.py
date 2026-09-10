@@ -89,6 +89,42 @@ class DataSourceRepository:
         statement = select(Category).order_by(Category.parent_id.nullsfirst(), Category.display_order, Category.id)
         return list((await self.session.execute(statement)).scalars().all())
 
+    async def list_import_classifications(self) -> list[ClassificationType]:
+        statement = select(ClassificationType).where(
+            ClassificationType.type_code.in_(("TYPE_1", "TYPE_2", "TYPE_3"))
+        ).options(selectinload(ClassificationType.values)).order_by(ClassificationType.display_order)
+        return list((await self.session.execute(statement)).scalars().unique().all())
+
+    async def get_for_update_many(self, ids: list[int]) -> list[DataSource]:
+        if not ids:
+            return []
+        statement = select(DataSource).where(DataSource.id.in_(ids)).with_for_update().options(
+            selectinload(DataSource.file), selectinload(DataSource.website),
+            selectinload(DataSource.classification_links).selectinload(DataSourceClassificationValue.classification_type),
+            selectinload(DataSource.classification_links).selectinload(DataSourceClassificationValue.classification_value),
+        )
+        return list((await self.session.execute(statement)).scalars().unique().all())
+
+    async def apply_import_updates(self, updates: list[dict]) -> None:
+        now = datetime.now(timezone.utc)
+        for item in updates:
+            data_source_id = item["id"]
+            await self.session.execute(update(DataSource).where(DataSource.id == data_source_id).values(
+                title=item["title"], category_id=item["category_id"], priority=item["priority"],
+                answer_source_enabled=item["answer_source_enabled"],
+                reference_link_visible=item["reference_link_visible"],
+                version=DataSource.version + 1, updated_at=now,
+            ))
+            await self.session.execute(delete(DataSourceClassificationValue).where(
+                DataSourceClassificationValue.data_source_id == data_source_id
+            ))
+            self.session.add_all([DataSourceClassificationValue(
+                data_source_id=data_source_id, classification_type_id=type_id,
+                classification_value_id=value_id,
+            ) for type_id, value_id in item["classifications"]])
+            await self._enqueue_refresh_if_idle(data_source_id)
+        await self.session.commit()
+
     async def category_exists(self, category_id: int) -> bool:
         statement = select(Category.id).where(Category.id == category_id).with_for_update(read=True)
         return (await self.session.execute(statement)).scalar_one_or_none() is not None

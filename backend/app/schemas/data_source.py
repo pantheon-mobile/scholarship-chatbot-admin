@@ -121,6 +121,18 @@ class BulkDeleteResponse(BaseModel):
     deleted_count: int
 
 
+class DataSourceImportRowError(BaseModel):
+    row: int
+    column: str
+    code: str
+    message: str
+
+
+class DataSourceImportResponse(BaseModel):
+    updated_count: int
+    processed_count: int
+
+
 class ClassificationAssignment(BaseModel):
     classification_type_id: int
     classification_value_id: int

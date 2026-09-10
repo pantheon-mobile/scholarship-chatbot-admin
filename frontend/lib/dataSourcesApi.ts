@@ -1,4 +1,4 @@
-import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteDataSourceCreate, WebsiteDataSourceUpdate } from "@/types/dataSource";
+import { DataSource, DataSourceFilters, DataSourceImportResponse, DataSourceImportRowError, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteDataSourceCreate, WebsiteDataSourceUpdate } from "@/types/dataSource";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -15,15 +15,17 @@ function queryString(filters: DataSourceFilters, includePage = true) {
 async function parseError(response: Response, fallback: string): Promise<never> {
   let message = fallback;
   let code: string | undefined;
+  let errors: DataSourceImportRowError[] = [];
   try {
     const body = await response.json();
     if (typeof body.detail === "string") message = body.detail;
     else if (body.detail) {
       message = body.detail.message ?? fallback;
       code = body.detail.code;
+      if (Array.isArray(body.detail.errors)) errors = body.detail.errors;
     }
   } catch {}
-  throw new DataSourcesApiError(message, response.status, code);
+  throw new DataSourcesApiError(message, response.status, code, errors);
 }
 
 export async function fetchDataSources(filters: DataSourceFilters): Promise<DataSourceListResponse> {
@@ -109,6 +111,14 @@ export async function exportDataSources(filters: DataSourceFilters): Promise<Blo
   const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/export?${queryString(filters, false)}`);
   if (!response.ok) return parseError(response, "一覧のダウンロードに失敗しました。");
   return response.blob();
+}
+
+export async function importDataSources(file: File): Promise<DataSourceImportResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/import`, { method: "POST", body: form });
+  if (!response.ok) return parseError(response, "一覧ファイルの取込に失敗しました。");
+  return response.json();
 }
 
 export async function downloadWebsiteImportTemplate(): Promise<Blob> {

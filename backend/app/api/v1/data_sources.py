@@ -14,6 +14,7 @@ from app.schemas.data_source import (
     BulkDeleteRequest,
     BulkDeleteResponse,
     DataSourceFilters,
+    DataSourceImportResponse,
     DataSourceListResponse,
     DataSourceResponse,
     FileDataSourceUpdateRequest,
@@ -28,6 +29,7 @@ from app.services.data_source_service import (
     DataSourceService,
     DataSourceVersionConflictError,
     DataSourceUpdateError,
+    DataSourceImportError,
     FileUploadError,
     FileDataSourceRequiredError,
     ClassificationMismatchError,
@@ -108,6 +110,15 @@ async def export_data_sources(filters: DataSourceFilters = Depends(get_filters),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/data-sources/import", response_model=DataSourceImportResponse)
+async def import_data_sources(file: UploadFile = File(...), service: DataSourceService = Depends(get_service)):
+    try:
+        return await service.import_excel(file)
+    except DataSourceImportError as error:
+        status = 500 if error.code == "DATA_SOURCE_IMPORT_FAILED" else 422
+        raise HTTPException(status_code=status, detail={"code": error.code, "message": error.message, "errors": [item.model_dump() for item in error.errors]}) from None
 
 
 @router.get("/data-sources/websites/import-template")

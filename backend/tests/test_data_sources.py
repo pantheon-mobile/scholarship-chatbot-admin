@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from starlette.datastructures import UploadFile
 from pydantic import ValidationError
 
 from app.api.v1.data_sources import get_ingestion_launcher, get_service
@@ -23,6 +24,7 @@ from app.services.data_source_service import (
     DataSourceNotFoundError,
     DataSourceService,
     DataSourceCategoryNotFoundError,
+    DataSourceImportError,
     DataSourceUpdateError,
     DataSourceVersionConflictError,
     FileDataSourceRequiredError,
@@ -349,6 +351,7 @@ async def test_excel_uses_japanese_display_values_and_jst():
     data = await DataSourceService(repository).export_excel(DataSourceFilters())
     worksheet = load_workbook(BytesIO(data)).active
     values = list(worksheet.values)
+    assert values[0][14] == "参照元リンク"
     assert values[1][1] == "ファイル"
     assert values[1][5] == "利用可"
     assert values[1][6] == "奨学金/給付/学部"
@@ -356,6 +359,51 @@ async def test_excel_uses_japanese_display_values_and_jst():
     assert values[3][6] is None
     assert values[1][12:15] == ("有効", "高", "表示")
     assert values[1][15] == "2026/08/06 10:02"
+
+
+def make_import_upload(row_values):
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.append(["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "種別1", "種別2", "種別3", "サイズ", "文字数", "回答ソース", "優先度", "参照元リンク", "更新日時"])
+    worksheet.append(row_values)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return UploadFile(filename="datasourcelist.xlsx", file=output)
+
+
+@pytest.mark.anyio
+async def test_data_source_excel_import_validates_then_updates_atomically():
+    repository = AsyncMock()
+    row = make_row()
+    repository.get_for_update_many.return_value = [row]
+    repository.list_categories.return_value = []
+    repository.list_import_classifications.return_value = [SimpleNamespace(
+        id=1, type_code="TYPE_1", values=[SimpleNamespace(id=1, value_name="在学生")]
+    )]
+    upload = make_import_upload([1, "ファイル", "更新タイトル", "sample.pdf", "pdf", "利用可", "", "在学生", "", "", 1024, 2000, "無効", "中", "非表示", "2026/08/06 10:02"])
+    result = await DataSourceService(repository).import_excel(upload)
+    assert result.updated_count == 1
+    repository.apply_import_updates.assert_awaited_once()
+    update_item = repository.apply_import_updates.await_args.args[0][0]
+    assert update_item["title"] == "更新タイトル"
+    assert update_item["priority"] == "MEDIUM"
+    assert update_item["answer_source_enabled"] is False
+
+
+@pytest.mark.anyio
+async def test_data_source_excel_import_rejects_read_only_change_without_updating():
+    repository = AsyncMock()
+    repository.get_for_update_many.return_value = [make_row()]
+    repository.list_categories.return_value = []
+    repository.list_import_classifications.return_value = []
+    upload = make_import_upload([1, "ファイル", "募集要項", "changed.pdf", "pdf", "利用可", "", "", "", "", 1024, 2000, "有効", "高", "表示", "2026/08/06 10:02"])
+    with pytest.raises(DataSourceImportError) as caught:
+        await DataSourceService(repository).import_excel(upload)
+    assert caught.value.code == "DATA_SOURCE_IMPORT_VALIDATION_ERROR"
+    assert any(error.column == "ファイル名／URL" for error in caught.value.errors)
+    repository.apply_import_updates.assert_not_awaited()
+    repository.rollback.assert_awaited_once()
 
 
 @pytest.mark.anyio

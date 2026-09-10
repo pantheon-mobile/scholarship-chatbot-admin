@@ -7,6 +7,7 @@ const push = vi.fn();
 const api = vi.hoisted(() => ({
   fetchDataSources: vi.fn(), updateAnswerSource: vi.fn(), updateReferenceLink: vi.fn(),
   deleteDataSource: vi.fn(), bulkDeleteDataSources: vi.fn(), exportDataSources: vi.fn(),
+  importDataSources: vi.fn(),
   runIngestionNow: vi.fn(),
   fetchDataSourceTypes: vi.fn(),
   fetchCategories: vi.fn(),
@@ -54,6 +55,7 @@ beforeEach(() => {
   api.deleteDataSource.mockResolvedValue(undefined);
   api.bulkDeleteDataSources.mockResolvedValue(2);
   api.exportDataSources.mockResolvedValue(new Blob(["xlsx"]));
+  api.importDataSources.mockResolvedValue({ updated_count: 1, processed_count: 2 });
   api.runIngestionNow.mockResolvedValue({ message: "待機中のデータソースの処理を開始しました。" });
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:test") });
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -171,6 +173,26 @@ describe("CB-202 data sources", () => {
     await waitFor(() => expect(api.exportDataSources).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "種別を設定する" }));
     expect(push).toHaveBeenCalledWith("/data-source-types");
+  });
+
+  it("一覧Excelを選択して取り込み、更新件数を表示する", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "一覧ファイルを取込" }));
+    const file = new File(["xlsx"], "datasourcelist.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    fireEvent.change(screen.getByLabelText("データソース一覧取込ファイル"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "取り込む" }));
+    await waitFor(() => expect(api.importDataSources).toHaveBeenCalledWith(file));
+    expect(await screen.findByText("1件を更新しました。")).not.toBeNull();
+  });
+
+  it("一覧Excelの行単位エラーを表示する", async () => {
+    api.importDataSources.mockRejectedValueOnce(new DataSourcesApiError("入力内容にエラーがあります。", 422, "DATA_SOURCE_IMPORT_VALIDATION_ERROR", [{ row: 2, column: "優先度", code: "PRIORITY_INVALID", message: "値が不正です。" }]));
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "一覧ファイルを取込" }));
+    const file = new File(["xlsx"], "datasourcelist.xlsx");
+    fireEvent.change(screen.getByLabelText("データソース一覧取込ファイル"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "取り込む" }));
+    expect(await screen.findByText("行2・優先度: 値が不正です。")).not.toBeNull();
   });
 
   it("今すぐ実行を受け付けて処理中表示にする", async () => {

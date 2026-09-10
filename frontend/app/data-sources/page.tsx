@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AdminIcon, AdminLayout, Button, Checkbox, FormField, Modal, PageHeader, Pagination,
@@ -12,11 +12,11 @@ import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import {
   bulkDeleteDataSources, deleteDataSource, exportDataSources, fetchDataSources,
-  runIngestionNow, updateAnswerSource, updateReferenceLink,
+  importDataSources, runIngestionNow, updateAnswerSource, updateReferenceLink,
 } from "@/lib/dataSourcesApi";
 import { ClassificationType } from "@/types/dataSourceTypes";
 import { Category } from "@/types/category";
-import { DataSource, DataSourceFilters, DataSourceListResponse, DataSourcesApiError, SortColumn } from "@/types/dataSource";
+import { DataSource, DataSourceFilters, DataSourceImportRowError, DataSourceListResponse, DataSourcesApiError, SortColumn } from "@/types/dataSource";
 import styles from "./page.module.css";
 
 const emptyFilters: DataSourceFilters = {
@@ -52,6 +52,13 @@ export default function DataSourcesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pageModal, setPageModal] = useState(false);
   const [deleteRows, setDeleteRows] = useState<DataSource[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<DataSourceImportRowError[]>([]);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async (nextFilters = filters) => {
     setLoading(true);
@@ -174,6 +181,33 @@ export default function DataSourcesPage() {
     }
   };
 
+  const closeImport = () => {
+    if (importBusy) return;
+    setImportOpen(false); setImportFile(null); setImportError(null); setImportErrors([]);
+    if (importFileInputRef.current) importFileInputRef.current.value = "";
+  };
+  const selectImportFile = (file: File | null) => {
+    setImportError(null); setImportErrors([]);
+    if (file && !file.name.toLowerCase().endsWith(".xlsx")) {
+      setImportFile(null); setImportError("xlsx形式のファイルを選択してください。"); return;
+    }
+    setImportFile(file);
+  };
+  const executeImport = async () => {
+    if (!importFile || importBusy) return;
+    setImportBusy(true); setImportError(null); setImportErrors([]);
+    try {
+      const imported = await importDataSources(importFile);
+      await load(filters);
+      setImportOpen(false); setImportFile(null); setImportError(null); setImportErrors([]);
+      if (importFileInputRef.current) importFileInputRef.current.value = "";
+      setImportNotice(`${imported.updated_count}件を更新しました。`);
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : String(reason));
+      setImportErrors(reason instanceof DataSourcesApiError ? reason.errors : []);
+    } finally { setImportBusy(false); }
+  };
+
   return (
     <AdminLayout activeMenu="data-sources" contentWidth="wide" contentAlign="start" onNavigate={(href) => router.push(href)}>
       <div className={styles.page}>
@@ -181,7 +215,7 @@ export default function DataSourcesPage() {
           <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/categories")}>カテゴリを設定する</Button>
           <Button variant="secondary" icon={<AdminIcon name="edit" size={18} />} onClick={() => router.push("/data-source-types")}>種別を設定する</Button>
           <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={download} disabled={busy}>一覧をダウンロード</Button>
-          <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} disabled title="MVPでは未実装です">一覧ファイルを取込</Button>
+          <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => setImportOpen(true)} disabled={importBusy}>一覧ファイルを取込</Button>
         </div>} />
         <div className={styles.summary}>
           <span>データソース数 {result?.total_count ?? 0}件</span>
@@ -250,6 +284,20 @@ export default function DataSourcesPage() {
         <p className={styles.modalText}>{deleteRows.length > 1 ? `${deleteRows.length}件のデータを削除します。一度削除すると元に戻せません。` : `「${deleteRows[0]?.title ?? ""}」を削除します。一度削除すると元に戻せません。`}<br/>本当に削除しますか？</p>
       </Modal>
       <Modal open={pageModal} title="ページがありません" cancelLabel="閉じる" onClose={() => setPageModal(false)}>指定されたページは存在しません。</Modal>
+      <Modal open={importOpen} title="一覧ファイルを取込" busy={importBusy} closeOnBackdrop={!importBusy} closeOnEscape={!importBusy} onClose={closeImport} footer={<>
+        <Button className={styles.importFooterButton} variant="secondary" onClick={closeImport} disabled={importBusy}>キャンセル</Button>
+        <Button className={styles.importFooterButton} variant="primary" onClick={executeImport} disabled={importBusy || !importFile}>{importBusy ? "処理中..." : "取り込む"}</Button>
+      </>}>
+        <div className={styles.importBody}>
+          <p className={styles.importHelp}>「一覧をダウンロード」で出力したxlsxファイルを編集して選択してください。IDやファイル名／URLなどの変更禁止項目は更新できません。</p>
+          <Button variant="secondary" onClick={() => importFileInputRef.current?.click()} disabled={importBusy}>ファイルを選択</Button>
+          <input ref={importFileInputRef} className={styles.hiddenFileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="データソース一覧取込ファイル" disabled={importBusy} onClick={(event) => { event.currentTarget.value = ""; }} onChange={(event) => selectImportFile(event.target.files?.[0] ?? null)} />
+          <div className={styles.importFileName}>{importFile ? importFile.name : "ファイルが選択されていません。"}</div>
+          {importError && <div className={styles.importError} role="alert">{importError}</div>}
+          {importErrors.length > 0 && <ul className={styles.importErrorList} aria-label="Excel入力エラー">{importErrors.map((item, index) => <li key={`${item.row}-${item.column}-${item.code}-${index}`}>行{item.row}・{item.column}: {item.message}</li>)}</ul>}
+        </div>
+      </Modal>
+      <Modal open={Boolean(importNotice)} title="一覧ファイル取込完了" cancelLabel="閉じる" onClose={() => setImportNotice(null)}>{importNotice}</Modal>
     </AdminLayout>
   );
 }
