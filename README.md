@@ -92,8 +92,10 @@ npm run deploy -- --context config=config/development.json \
 - 専用ワーカーは`python -m app.worker`で起動し、実行時刻を過ぎたジョブを古い順に1件ずつ処理します。PostgreSQLの`FOR UPDATE SKIP LOCKED`により、複数ワーカーを起動しても同じジョブを重複処理しません。
 - 処理開始時は`TRAINING`、成功時は`AVAILABLE`、最終失敗時は`ERROR`へ更新します。失敗は最大3回まで5分×試行回数の間隔で再試行し、エラーコードとメッセージをDBへ保存します。
 - 標準の`aws`モードではワーカー自身がMarkdown変換、Webクロール、S3配置、Knowledge Base同期まで実行します。別サービスへ処理を委譲する場合だけ`INGESTION_PROCESSOR_MODE=http`と`INGESTION_PROCESSOR_URL`を設定します。
-- PDFはテキスト抽出を標準とし、画像が存在して1ページ平均抽出文字数が既定100文字未満の場合だけVision Markdownへ切り替えます。判定方式、理由、ページ数、画像数、抽出文字数をS3 sidecar metadataへ記録します。さらにPoCと同じく先頭最大5ページをClaudeで解析し、文書種別、カテゴリ、業務、システム、学校種別、対象利用者、検索キーワード、概要を検索補助メタデータとして付与します。文字を抽出できないPDFは先頭ページをVision解析し、メタデータ生成だけが失敗した場合は理由を記録して本文の取り込みを継続します。
-- Webは登録URLと同一ホストかつ登録パス配下だけをクロールします。既定は深度5、最大500ページで、robots.txtに従います。
+- PDFは抽出文字密度、画像ページ率、検出表数から通常Markdown／Vision Markdownをページ単位で自動選択します。Vision処理に失敗しても抽出済み本文があれば通常変換へフォールバックします。判定方式、理由、ページ数、画像数、表数、方式別ページ数をS3 sidecar metadataへ記録します。さらにPoCと同じく先頭最大5ページをClaudeで解析し、文書種別、カテゴリ、業務、システム、学校種別、対象利用者、検索キーワード、概要を検索補助メタデータとして付与します。文字を抽出できないPDFは先頭ページをVision解析し、メタデータ生成だけが失敗した場合は理由を記録して本文の取り込みを継続します。
+- Webは登録URLと同一ホストかつ登録パス配下だけをクロールします。既定は深度5、最大500ページで、robots.txtに従います。ヘッダー、フッター、ナビゲーション等を除外し、見出し、箇条書き、表、本文リンクをMarkdownへ維持します。429／5xxと一時的通信失敗は最大3回再試行し、1ページの失敗でクロール全体を停止しません。
+- Webページは正規化URL由来の固定Keyと本文ハッシュで管理します。クロール結果、エラー、除外理由、新規・更新・変更なし、削除候補を`documents/admin/crawl-logs/<data_source_id>/`へ保存します。JASSO配下には`source_authority=high`、その他には`medium`を付与します。削除候補は今回取得できなかったページとして監査ログに残り、KB用prefixからは除去後の同期により検索対象外になります。
+- Webサイト行の「再クロール」で任意に再取得を予約できます。また、夜間ワーカー開始時には最終取得から既定24時間以上経過したWebサイトを自動的に再クロール対象へ追加します。
 - WordはPoCの3方式比較結果に基づき、DOCX原本を変換せずにWord専用S3 prefixへ配置し、Word専用Knowledge Baseへ同期します。ExcelとPowerPointはMarkdownをKB用成果物とします。PDF、Web、Excel、Word、PowerPointごとにS3 prefix、Knowledge Base ID、Data Source IDを環境変数で分離します。
 - ローカル確認では必要なAWS環境変数を設定して`docker compose --profile worker run --rm ingestion-worker`を実行します。AWSでは「今すぐ実行」と毎日01:00 JSTのEventBridge Schedulerが、どちらも同じECS Fargate専用ワーカーを起動します。
 - APIサーバーとワーカーは別コンテナなのでCPU・メモリ負荷を分離できます。DB、S3、Bedrockへの負荷は残るため、初期運用はワーカー1台・逐次処理とします。
@@ -130,8 +132,8 @@ npm run deploy -- --context config=config/development.json \
 ## CB-206 website attribute edit MVP
 
 - CB-206は登録済みWEBデータソースのURL、カテゴリ、属性を編集します。カテゴリは変更・解除でき、`category_name`は更新しません。
-- URLは変更できますが、Web取得、到達確認、スクレイピング、Bedrock同期、再学習は行いません。
-- URL変更時も現在の`status`、`last_fetched_at`、`character_count`を維持し、`PREPARING`へ戻しません。
+- URLは変更できます。保存時には再クロールを予約し、ワーカー実行時に到達確認、スクレイピング、S3更新、Bedrock同期まで行います。
+- URLまたは属性の変更時は再クロールジョブを登録し、`PREPARING`へ戻します。同一URLの再取得は固定Keyへ更新され、本文ハッシュにより変更有無を監査ログへ記録します。
 - タイトルが空文字または空白のみの場合は、更新後のURLをタイトルとして保存します。他のデータソースと同じURLへの更新も許可します。
 - dirty状態はURL、タイトル、種別1～3、優先度、回答ソース、参照リンクの初期値との差分で判定し、差分がない場合またはURLが空の場合は更新ボタンを無効化します。
 

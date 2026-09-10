@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import base64
 import csv
+import hashlib
 import io
 import json
 import os
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 import boto3
 import fitz
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 from docx import Document
 from openpyxl import load_workbook
 from pptx import Presentation
@@ -31,6 +33,21 @@ class ConvertedDocument:
 PDF_CONTENT_METADATA_KEYS = (
     "document_type", "category", "business", "system", "school_type",
     "target_user", "keywords", "summary",
+)
+
+WEB_SKIP_SCHEMES = ("javascript:", "mailto:", "tel:", "data:")
+WEB_SKIP_EXTENSIONS = re.compile(
+    r"\.(?:pdf|docx?|xlsx?|xls|pptx?|jpe?g|png|gif|svg|webp|zip|rar|7z|mp3|mp4|mov|avi)(?:$|\?)",
+    re.IGNORECASE,
+)
+WEB_TRACKING_QUERY_KEYS = {"fbclid", "gclid", "yclid", "mc_cid", "mc_eid", "ref", "referrer"}
+WEB_NOISE_SELECTORS = (
+    "header", "footer", "nav", "menu", "aside", "script", "style", "form", "iframe",
+    "[role='navigation']", "[role='banner']", "[role='contentinfo']",
+    "[aria-label*='breadcrumb' i]", ".breadcrumb", ".breadcrumbs", ".cookie",
+    ".cookie-banner", ".sidebar", ".side-bar", ".advertisement", ".ads",
+    ".social", ".share", ".nav-item", ".local-nav", ".sub-nav", ".side-nav",
+    "#cookie", "#sidebar",
 )
 
 
@@ -222,23 +239,77 @@ def _vision_page_markdown(page, page_number: int) -> str:
 def convert_pdf(content: bytes, name: str) -> list[ConvertedDocument]:
     pdf = fitz.open(stream=content, filetype="pdf")
     page_texts = [page.get_text("text").strip() for page in pdf]
-    image_count = sum(len(page.get_images(full=True)) for page in pdf)
+    page_image_counts = [len(page.get_images(full=True)) for page in pdf]
+    image_count = sum(page_image_counts)
+    image_page_count = sum(count > 0 for count in page_image_counts)
+    table_count = 0
+    for page in pdf:
+        try:
+            table_count += len(page.find_tables().tables)
+        except Exception:
+            # Table detection is an aid to selection; unsupported PDFs must still ingest.
+            pass
     extracted_characters = sum(len(text) for text in page_texts)
     chars_per_page = extracted_characters / max(len(pdf), 1)
-    use_vision = image_count > 0 and chars_per_page < float(os.getenv("PDF_VISION_MIN_CHARS_PER_PAGE", "100"))
-    method = "VISION_MARKDOWN" if use_vision else "TEXT_MARKDOWN"
+    image_page_ratio = image_page_count / max(len(pdf), 1)
+    min_chars = float(os.getenv("PDF_VISION_MIN_CHARS_PER_PAGE", "100"))
+    image_ratio_threshold = float(os.getenv("PDF_VISION_IMAGE_PAGE_RATIO", "0.5"))
+    table_threshold = int(os.getenv("PDF_VISION_MIN_TABLES", "3"))
+    use_vision = (
+        chars_per_page < min_chars
+        or (image_page_ratio >= image_ratio_threshold and chars_per_page < min_chars * 5)
+        or table_count >= table_threshold
+    )
     pages = []
+    page_methods: list[str] = []
+    vision_failed_pages: list[int] = []
     for index, page in enumerate(pdf, start=1):
-        text = _vision_page_markdown(page, index) if use_vision else page_texts[index - 1]
+        extracted_text = page_texts[index - 1]
+        page_needs_vision = use_vision or (
+            page_image_counts[index - 1] > 0 and len(extracted_text) < min_chars
+        )
+        if page_needs_vision:
+            try:
+                text = _vision_page_markdown(page, index)
+                page_methods.append("VISION_MARKDOWN")
+            except Exception:
+                if not extracted_text:
+                    pdf.close()
+                    raise
+                text = extracted_text
+                page_methods.append("TEXT_MARKDOWN_FALLBACK")
+                vision_failed_pages.append(index)
+        else:
+            text = extracted_text
+            page_methods.append("TEXT_MARKDOWN")
         pages.append(f"## ページ {index}\n\n{text}")
+    distinct_methods = set(page_methods)
+    method = next(iter(distinct_methods)) if len(distinct_methods) == 1 else "HYBRID_MARKDOWN"
+    reasons = []
+    if chars_per_page < min_chars:
+        reasons.append("low_text_density")
+    if image_page_ratio >= image_ratio_threshold:
+        reasons.append("image_heavy")
+    if table_count >= table_threshold:
+        reasons.append("complex_tables")
+    if not reasons:
+        reasons.append("text_extraction_sufficient")
     metadata = {
         "conversion_method": method,
-        "selection_reason": "image_heavy_low_text_density" if use_vision else "text_extraction_sufficient",
+        "selection_reason": ",".join(reasons),
         "page_count": len(pdf),
         "image_count": image_count,
+        "image_page_count": image_page_count,
+        "image_page_ratio": round(image_page_ratio, 4),
+        "table_count": table_count,
         "extracted_characters": extracted_characters,
         "characters_per_page": round(chars_per_page, 1),
+        "vision_page_count": page_methods.count("VISION_MARKDOWN"),
+        "text_page_count": page_methods.count("TEXT_MARKDOWN"),
+        "vision_fallback_page_count": page_methods.count("TEXT_MARKDOWN_FALLBACK"),
+        "vision_failed_pages": ",".join(str(page) for page in vision_failed_pages),
     }
+    pdf.close()
     return [ConvertedDocument("source.md", f"# {name}\n\n" + "\n\n".join(pages), metadata=metadata)]
 
 
@@ -251,61 +322,186 @@ def convert_plain_text(content: bytes, name: str) -> list[ConvertedDocument]:
 
 
 def _normalize_url(url: str, base: str = "") -> str:
-    parts = urlsplit(urljoin(base, url))
+    raw = (url or "").strip()
+    if not raw or raw.lower().startswith(WEB_SKIP_SCHEMES) or raw.startswith("#"):
+        return ""
+    parts = urlsplit(urljoin(base, raw))
     if parts.scheme not in {"http", "https"} or not parts.hostname:
         return ""
-    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path or "/", parts.query, ""))
+    if WEB_SKIP_EXTENSIONS.search(parts.path):
+        return ""
+    port = f":{parts.port}" if parts.port and parts.port not in (80, 443) else ""
+    query = urlencode(sorted(
+        (key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower() not in WEB_TRACKING_QUERY_KEYS and not key.lower().startswith("utm_")
+    ))
+    path = re.sub(r"/{2,}", "/", parts.path or "/")
+    return urlunsplit((parts.scheme.lower(), parts.hostname.lower() + port, path, query, ""))
 
 
-def crawl_website(root_url: str) -> list[ConvertedDocument]:
+def _web_table_markdown(table: Tag) -> str:
+    rows = []
+    for tr in table.find_all("tr"):
+        cells = [re.sub(r"\s+", " ", cell.get_text(" ", strip=True)) for cell in tr.find_all(["th", "td"])]
+        if cells:
+            rows.append(cells)
+    return _table_markdown(rows)
+
+
+def _web_element_markdown(element: Tag, base_url: str) -> str:
+    name = element.name.lower()
+    if re.fullmatch(r"h[1-6]", name):
+        return f"{'#' * int(name[1])} {element.get_text(' ', strip=True)}"
+    if name == "p":
+        pieces: list[str] = []
+        for child in element.descendants:
+            if not isinstance(child, NavigableString) or child.parent.name in {"script", "style"}:
+                continue
+            if child.parent.name == "a" and child.parent.get("href"):
+                if child is next(iter(child.parent.children), None):
+                    label = child.parent.get_text(" ", strip=True)
+                    href = _normalize_url(child.parent["href"], base_url)
+                    pieces.append(f"[{label}]({href})" if href else label)
+            elif child.find_parent("a") is None:
+                pieces.append(str(child))
+        return re.sub(r"\s+", " ", "".join(pieces)).strip()
+    if name in {"ul", "ol"}:
+        return "\n".join(
+            f"{f'{index}.' if name == 'ol' else '-'} {li.get_text(' ', strip=True)}"
+            for index, li in enumerate(element.find_all("li", recursive=False), start=1)
+        )
+    if name == "table":
+        return _web_table_markdown(element)
+    return ""
+
+
+def crawl_website(root_url: str, report: dict | None = None) -> list[ConvertedDocument]:
+    started = datetime.now(timezone.utc).isoformat()
+    report = report if report is not None else {}
+    report.update({"started_at": started, "pages": [], "errors": [], "skipped": []})
     root = _normalize_url(root_url)
+    if not root:
+        raise RuntimeError("クロール起点URLが不正です。")
     root_parts = urlsplit(root)
     root_path = root_parts.path if root_parts.path.endswith("/") else root_parts.path.rsplit("/", 1)[0] + "/"
     max_pages = int(os.getenv("WEB_CRAWL_MAX_PAGES", "500"))
     max_depth = int(os.getenv("WEB_CRAWL_MAX_DEPTH", "5"))
     timeout = float(os.getenv("WEB_CRAWL_TIMEOUT_SECONDS", "20"))
+    interval = max(float(os.getenv("WEB_CRAWL_INTERVAL_SECONDS", "0.5")), 0.0)
     session = requests.Session()
     session.headers["User-Agent"] = os.getenv("WEB_CRAWL_USER_AGENT", "ScholarshipChatbotCrawler/1.0")
-    robots = RobotFileParser(f"{root_parts.scheme}://{root_parts.netloc}/robots.txt")
-    try:
-        robots.read()
-    except Exception:
-        robots = None
+    robots = None
+    if os.getenv("WEB_CRAWL_RESPECT_ROBOTS", "true").lower() in {"1", "true", "yes", "on"}:
+        robots = RobotFileParser(f"{root_parts.scheme}://{root_parts.netloc}/robots.txt")
+        try:
+            robots.read()
+        except Exception:
+            robots = None
     pending = [(root, 0)]
     visited: set[str] = set()
     documents: list[ConvertedDocument] = []
+    last_request_at = 0.0
     while pending and len(documents) < max_pages:
         url, depth = pending.pop(0)
-        if url in visited or depth > max_depth:
+        if url in visited:
+            continue
+        if depth > max_depth:
+            report["skipped"].append({"url": url, "depth": depth, "reason": "max_depth"})
             continue
         visited.add(url)
         parts = urlsplit(url)
         if parts.hostname != root_parts.hostname or not parts.path.startswith(root_path):
+            report["skipped"].append({"url": url, "depth": depth, "reason": "outside_scope"})
             continue
         if robots and not robots.can_fetch(session.headers["User-Agent"], url):
+            report["skipped"].append({"url": url, "depth": depth, "reason": "robots_disallowed"})
             continue
-        response = session.get(url, timeout=timeout)
-        response.raise_for_status()
+        response = None
+        last_error = None
+        for attempt in range(3):
+            wait = interval - (time.monotonic() - last_request_at)
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                response = session.get(url, timeout=timeout)
+                last_request_at = time.monotonic()
+                if response.status_code == 429 or response.status_code >= 500:
+                    retry_after = response.headers.get("Retry-After", "")
+                    last_error = requests.HTTPError(
+                        f"HTTP {response.status_code}", response=response
+                    )
+                    response = None
+                    if attempt < 2:
+                        time.sleep(float(retry_after) if retry_after.isdigit() else 2 ** attempt)
+                    continue
+                response.raise_for_status()
+                break
+            except requests.RequestException as exc:
+                last_error = exc
+                response = None
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+        if response is None:
+            report["errors"].append({"url": url, "depth": depth, "reason": str(last_error or "request_failed")})
+            continue
         if "html" not in response.headers.get("Content-Type", "").lower():
+            report["skipped"].append({"url": url, "depth": depth, "reason": "non_html"})
             continue
+        response.encoding = response.apparent_encoding or response.encoding
         soup = BeautifulSoup(response.text, "lxml")
-        for node in soup.select("script,style,nav,header,footer,aside,form,iframe"):
-            node.decompose()
+        for selector in WEB_NOISE_SELECTORS:
+            for node in soup.select(selector):
+                node.decompose()
         main = soup.find("main") or soup.find("article") or soup.body
         if main is None:
+            report["skipped"].append({"url": url, "depth": depth, "reason": "main_not_found"})
             continue
         title = soup.title.get_text(" ", strip=True) if soup.title else url
         text = re.sub(r"\n{3,}", "\n\n", main.get_text("\n", strip=True))
         if len(text) >= 20:
-            page_id = __import__("hashlib").sha256(url.encode()).hexdigest()[:20]
+            page_id = hashlib.sha256(url.encode()).hexdigest()[:20]
+            blocks = [f"# {title}", f"元URL: {url}"]
+            for element in main.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "table"]):
+                if element.find_parent(["ul", "ol", "table"]):
+                    continue
+                block = _web_element_markdown(element, url)
+                if block:
+                    blocks.append(block)
+            markdown = "\n\n".join(blocks)
+            content_hash = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+            authority = "high" if (parts.hostname or "").endswith("jasso.go.jp") else "medium"
             documents.append(ConvertedDocument(
-                f"web-{page_id}.md", f"# {title}\n\n元URL: {url}\n\n{text}",
-                source_url=url, metadata={"crawl_depth": depth},
+                f"web-{page_id}.md", markdown,
+                source_url=url, metadata={
+                    "crawl_depth": depth, "content_hash": content_hash,
+                    "source_authority": authority, "page_title": title,
+                },
             ))
+            report["pages"].append({
+                "page_id": page_id, "source_url": url, "title": title,
+                "depth": depth, "content_hash": content_hash, "source_authority": authority,
+            })
+        else:
+            report["skipped"].append({"url": url, "depth": depth, "reason": "content_too_short"})
         for anchor in main.find_all("a", href=True):
-            child = _normalize_url(anchor["href"], url)
+            raw_href = anchor["href"]
+            child = _normalize_url(raw_href, url)
             if child and child not in visited:
                 pending.append((child, depth + 1))
+            elif not child and WEB_SKIP_EXTENSIONS.search(urlsplit(urljoin(url, raw_href)).path):
+                report["skipped"].append({
+                    "url": urljoin(url, raw_href), "depth": depth + 1,
+                    "reason": "unsupported_extension",
+                })
+    if pending and len(documents) >= max_pages:
+        report["skipped"].append({
+            "url": root, "depth": 0, "reason": f"max_pages_reached:{max_pages}",
+        })
     if not documents:
         raise RuntimeError("Webサイトから本文を取得できませんでした。")
+    report["finished_at"] = datetime.now(timezone.utc).isoformat()
+    report["summary"] = {
+        "fetched": len(documents), "errors": len(report["errors"]),
+        "skipped": len(report["skipped"]), "visited": len(visited),
+    }
     return documents

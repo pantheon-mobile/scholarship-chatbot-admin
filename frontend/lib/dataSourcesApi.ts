@@ -42,6 +42,14 @@ export async function runIngestionNow(): Promise<{ message: string }> {
   return response.json();
 }
 
+export async function recrawlWebsite(id: number): Promise<DataSource> {
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/${id}/recrawl`, {
+    method: "POST",
+  });
+  if (!response.ok) return parseError(response, "Webサイトの再クロールを予約できませんでした。");
+  return response.json();
+}
+
 export async function fetchDataSource(id: number): Promise<DataSource> {
   const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/${id}`, { cache: "no-store" });
   if (!response.ok) return parseError(response, "データソース情報の取得に失敗しました。");

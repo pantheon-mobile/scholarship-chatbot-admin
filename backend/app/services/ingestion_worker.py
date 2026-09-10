@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 from dataclasses import dataclass
 
@@ -31,6 +32,12 @@ class IngestionWorker:
         self.worker_id = worker_id or socket.gethostname()
 
     async def run_until_empty(self, *, max_jobs: int = 1000) -> WorkerRunResult:
+        if os.getenv("WEB_AUTO_RECRAWL_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
+            queued = await self.repository.enqueue_due_web_refreshes(
+                interval_hours=int(os.getenv("WEB_AUTO_RECRAWL_INTERVAL_HOURS", "24"))
+            )
+            if queued:
+                logger.info("stale web sources queued", extra={"queued_count": queued})
         processed = succeeded = failed = 0
         while processed < max_jobs:
             job = await self.repository.claim_next(self.worker_id)

@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+import json
 
 import pytest
 
@@ -158,3 +159,36 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
     assert b'"reference_link_visible": false' in metadata_upload["Body"]
     processor._synchronize.assert_called_once_with("word-kb", "word-ds")
     assert result.character_count is None
+
+
+def test_web_crawl_logs_compare_manifest_and_store_audit_files():
+    processor = object.__new__(AwsIngestionProcessor)
+    processor.bucket = "development-bucket"
+    processor.s3 = MagicMock()
+    processor.s3.get_object.return_value = {
+        "Body": SimpleNamespace(read=lambda: json.dumps({"pages": [
+            {"source_url": "https://example.com/same", "content_hash": "same"},
+            {"source_url": "https://example.com/changed", "content_hash": "old"},
+            {"source_url": "https://example.com/removed", "content_hash": "old"},
+        ]}).encode("utf-8"))
+    }
+    report = {
+        "pages": [
+            {"source_url": "https://example.com/same", "content_hash": "same"},
+            {"source_url": "https://example.com/changed", "content_hash": "new"},
+            {"source_url": "https://example.com/new", "content_hash": "new"},
+        ],
+        "errors": [{"url": "https://example.com/error", "depth": 1, "reason": "HTTP 500"}],
+        "skipped": [],
+        "summary": {},
+    }
+
+    processor._write_web_crawl_logs(42, report)
+
+    assert [item["change"] for item in report["pages"]] == ["UNCHANGED", "UPDATED", "NEW"]
+    assert report["deleted_candidates"] == ["https://example.com/removed"]
+    keys = [call.kwargs["Key"] for call in processor.s3.put_object.call_args_list]
+    assert "documents/admin/crawl-logs/42/manifest.json" in keys
+    assert any(key.endswith("/crawl-report.json") for key in keys)
+    assert any(key.endswith("/crawl-errors.csv") for key in keys)
+    assert any(key.endswith("/crawl-skipped.csv") for key in keys)

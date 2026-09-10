@@ -26,11 +26,15 @@ def website_row(*, version=2, url="https://old.example.com", title="奨学金情
     )
     return SimpleNamespace(
         id=1, source_type="WEB", title=title, format="Web", status="AVAILABLE",
-        category_name="既存カテゴリ", size_bytes=None, character_count=4321,
+        category=None, category_name="既存カテゴリ", size_bytes=None, character_count=4321,
         answer_source_enabled=True, priority="LOW", reference_link_visible=True,
         updated_at=datetime(2026, 8, 6, tzinfo=timezone.utc), version=version, file=None,
         website=SimpleNamespace(url=url, last_fetched_at=datetime(2026, 8, 5, tzinfo=timezone.utc)),
         classification_links=[link],
+        classifications=[SimpleNamespace(
+            type_code="TYPE_1", classification_type_id=1, classification_value_id=10,
+            display_label="対象者", value_name="在学生",
+        )],
     )
 
 
@@ -163,6 +167,20 @@ async def test_version_conflict_and_update_failure_rollback():
 
 
 @pytest.mark.anyio
+async def test_recrawl_queues_web_source_and_rejects_file_source():
+    repository = AsyncMock()
+    repository.get.return_value = website_row()
+    service = DataSourceService(repository)
+
+    await service.recrawl_website(1)
+
+    repository.enqueue_refresh.assert_awaited_once_with(1)
+    repository.get.return_value = file_row()
+    with pytest.raises(WebsiteDataSourceRequiredError):
+        await service.recrawl_website(1)
+
+
+@pytest.mark.anyio
 async def test_update_api_error_codes():
     service = AsyncMock()
     app.dependency_overrides[get_service] = lambda: service
@@ -181,5 +199,19 @@ async def test_update_api_error_codes():
             response = await client.put("/api/v1/data-sources/1", json=body)
             assert response.status_code == 422
             assert response.json()["detail"]["code"] == "INVALID_URL"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_recrawl_api_returns_accepted_web_source():
+    service = AsyncMock()
+    service.recrawl_website.return_value = website_row()
+    app.dependency_overrides[get_service] = lambda: service
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/data-sources/1/recrawl")
+        assert response.status_code == 202
+        service.recrawl_website.assert_awaited_once_with(1)
     finally:
         app.dependency_overrides.clear()

@@ -356,6 +356,10 @@ class DataSourceRepository:
             )
         )
 
+    async def enqueue_refresh(self, data_source_id: int) -> None:
+        await self._enqueue_refresh_if_idle(data_source_id)
+        await self.session.commit()
+
     async def update_website_attributes(
         self,
         data_source_id: int,

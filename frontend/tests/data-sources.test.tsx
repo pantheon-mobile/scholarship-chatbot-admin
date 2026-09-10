@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   fetchDataSources: vi.fn(), updateAnswerSource: vi.fn(), updateReferenceLink: vi.fn(),
   deleteDataSource: vi.fn(), bulkDeleteDataSources: vi.fn(), exportDataSources: vi.fn(),
   importDataSources: vi.fn(),
+  recrawlWebsite: vi.fn(),
   runIngestionNow: vi.fn(),
   fetchDataSourceTypes: vi.fn(),
   fetchCategories: vi.fn(),
@@ -56,6 +57,7 @@ beforeEach(() => {
   api.bulkDeleteDataSources.mockResolvedValue(2);
   api.exportDataSources.mockResolvedValue(new Blob(["xlsx"]));
   api.importDataSources.mockResolvedValue({ updated_count: 1, processed_count: 2 });
+  api.recrawlWebsite.mockResolvedValue({ ...rows[1], status: "PREPARING", version: 4 });
   api.runIngestionNow.mockResolvedValue({ message: "待機中のデータソースの処理を開始しました。" });
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:test") });
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -201,5 +203,16 @@ describe("CB-202 data sources", () => {
     await waitFor(() => expect(api.runIngestionNow).toHaveBeenCalledOnce());
     expect((await screen.findByRole("status")).textContent).toContain("状態は自動更新されます");
     expect((screen.getByRole("button", { name: "処理中..." }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Webサイトの再クロールを予約する", async () => {
+    api.fetchDataSources.mockResolvedValue({
+      ...response,
+      items: [rows[0], { ...rows[1], status: "AVAILABLE" }],
+    });
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "再クロール" }));
+    await waitFor(() => expect(api.recrawlWebsite).toHaveBeenCalledWith(2));
+    expect(await screen.findByText(/再クロールを予約しました/)).not.toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import {
   bulkDeleteDataSources, deleteDataSource, exportDataSources, fetchDataSources,
-  importDataSources, runIngestionNow, updateAnswerSource, updateReferenceLink,
+  importDataSources, recrawlWebsite, runIngestionNow, updateAnswerSource, updateReferenceLink,
 } from "@/lib/dataSourcesApi";
 import { ClassificationType } from "@/types/dataSourceTypes";
 import { Category } from "@/types/category";
@@ -48,6 +48,7 @@ export default function DataSourcesPage() {
   const [busy, setBusy] = useState(false);
   const [startingIngestion, setStartingIngestion] = useState(false);
   const [monitoringIngestion, setMonitoringIngestion] = useState(false);
+  const [recrawlingId, setRecrawlingId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pageModal, setPageModal] = useState(false);
@@ -129,6 +130,20 @@ export default function DataSourcesPage() {
     } catch (err) {
       replaceRow(previous);
       setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const recrawl = async (row: DataSource) => {
+    setRecrawlingId(row.id);
+    try {
+      const updated = await recrawlWebsite(row.id);
+      replaceRow(updated);
+      setNotice(`「${row.title}」の再クロールを予約しました。「今すぐ実行」または夜間処理で実行されます。`);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRecrawlingId(null);
     }
   };
 
@@ -272,7 +287,7 @@ export default function DataSourcesPage() {
                 <TableCell className={styles.answerColumn}><ToggleSwitch checked={row.answer_source_enabled} checkedLabel="有効" uncheckedLabel="無効" onChange={(value) => updateToggle(row, "answer", value)} /><div className={styles.priority}>優先度: {priorityLabels[row.priority]}</div></TableCell>
                 <TableCell className={styles.referenceColumn}><ToggleSwitch checked={row.reference_link_visible} checkedLabel="表示" uncheckedLabel="非表示" onChange={(value) => updateToggle(row, "reference", value)} /></TableCell>
                 <TableCell className={styles.dateColumn}>{new Date(row.updated_at).toLocaleString("ja-JP", { year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit" })}</TableCell>
-                <TableCell className={styles.actionsColumn}><div className={styles.rowActions}><Button className={`${styles.rowAction} ${styles.disabledAction}`} variant="text" disabled title={row.source_type === "FILE" ? "実ファイルダウンロードは未実装です" : "Web再取得は未実装です"}>{row.source_type === "FILE" ? "取得" : "更新"}</Button><Button className={styles.rowAction} variant="text" onClick={() => router.push(`/data-sources/${row.id}/${row.source_type === "FILE" ? "file" : "website"}/edit`)}>編集</Button><Button className={styles.rowAction} variant="text" focusTone="danger" onClick={() => setDeleteRows([row])}>削除</Button></div></TableCell>
+                <TableCell className={styles.actionsColumn}><div className={styles.rowActions}>{row.source_type === "WEB" ? <Button className={styles.rowAction} variant="text" disabled={recrawlingId === row.id || row.status === "TRAINING"} onClick={() => recrawl(row)}>{recrawlingId === row.id ? "予約中" : "再クロール"}</Button> : <Button className={`${styles.rowAction} ${styles.disabledAction}`} variant="text" disabled title="実ファイルダウンロードは未実装です">取得</Button>}<Button className={styles.rowAction} variant="text" onClick={() => router.push(`/data-sources/${row.id}/${row.source_type === "FILE" ? "file" : "website"}/edit`)}>編集</Button><Button className={styles.rowAction} variant="text" focusTone="danger" onClick={() => setDeleteRows([row])}>削除</Button></div></TableCell>
               </TableRow>;
             })}</tbody>
           </Table></TableFrame>

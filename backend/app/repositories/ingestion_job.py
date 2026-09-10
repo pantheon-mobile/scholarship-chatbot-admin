@@ -6,12 +6,46 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.data_source import DataSource, IngestionJob
+from app.models.data_source import DataSource, DataSourceWebsite, IngestionJob
 
 
 class IngestionJobRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def enqueue_due_web_refreshes(self, *, interval_hours: int = 24) -> int:
+        """Queue stale Web sources once; concurrent workers skip locked rows."""
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=max(interval_hours, 1))
+        active_job = select(IngestionJob.id).where(
+            IngestionJob.data_source_id == DataSource.id,
+            IngestionJob.status.in_(("QUEUED", "RUNNING")),
+        ).exists()
+        statement = (
+            select(DataSource)
+            .join(DataSource.website)
+            .where(
+                DataSource.source_type == "WEB",
+                DataSourceWebsite.last_fetched_at.is_not(None),
+                DataSourceWebsite.last_fetched_at <= cutoff,
+                ~active_job,
+            )
+            .with_for_update(skip_locked=True)
+        )
+        rows = list((await self.session.execute(statement)).scalars().all())
+        for row in rows:
+            self.session.add(IngestionJob(
+                data_source_id=row.id, status="QUEUED", scheduled_at=now,
+                attempt_count=0, max_attempts=3, created_at=now, updated_at=now,
+            ))
+            row.status = "PREPARING"
+            row.updated_at = now
+            row.version += 1
+        if rows:
+            await self.session.commit()
+        else:
+            await self.session.rollback()
+        return len(rows)
 
     async def claim_next(self, worker_id: str) -> IngestionJob | None:
         now = datetime.now(timezone.utc)

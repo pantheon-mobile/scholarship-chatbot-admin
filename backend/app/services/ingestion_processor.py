@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import csv
+import io
 import json
+import logging
 import os
 from pathlib import PurePath
 import time
@@ -21,6 +24,9 @@ from app.services.document_conversion import (
     crawl_website,
 )
 from app.storage import LocalStorage, S3Storage
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -106,7 +112,8 @@ class AwsIngestionProcessor:
     async def process(self, data_source: DataSource) -> IngestionResult:
         kind = self._kind(data_source)
         knowledge_base_id, bedrock_data_source_id = self._kb_config(kind)
-        artifacts = self._artifacts(data_source, kind)
+        crawl_report: dict | None = {} if kind == "WEB" else None
+        artifacts = self._artifacts(data_source, kind, crawl_report=crawl_report)
         if not artifacts:
             raise RuntimeError("取り込み対象の文書が0件です。")
         prefix = os.getenv(
@@ -147,7 +154,27 @@ class AwsIngestionProcessor:
                 Bucket=self.bucket, Key=f"{key}.metadata.json", Body=metadata,
                 ContentType="application/json",
             )
+        if crawl_report is not None:
+            self._write_web_crawl_logs(data_source.id, crawl_report)
         self._synchronize(knowledge_base_id, bedrock_data_source_id)
+        conversion_methods = sorted({
+            str(artifact.metadata.get("conversion_method"))
+            for artifact in artifacts if artifact.metadata.get("conversion_method")
+        })
+        selection_reasons = sorted({
+            str(artifact.metadata.get("selection_reason"))
+            for artifact in artifacts if artifact.metadata.get("selection_reason")
+        })
+        logger.info(
+            "ingestion completed",
+            extra={
+                "data_source_id": data_source.id, "ingestion_kind": kind,
+                "artifact_count": len(artifacts), "character_count": total_characters,
+                "crawl_summary": crawl_report.get("summary") if crawl_report else None,
+                "conversion_methods": conversion_methods,
+                "selection_reasons": selection_reasons,
+            },
+        )
         return IngestionResult(
             character_count=total_characters if has_character_count else None
         )
@@ -208,9 +235,11 @@ class AwsIngestionProcessor:
         prefix_kind = "PDF" if kind == "TEXT" else kind
         return f"documents/admin/kb-source/{prefix_kind.lower()}/"
 
-    def _artifacts(self, data_source: DataSource, kind: str) -> list[IngestionArtifact]:
+    def _artifacts(
+        self, data_source: DataSource, kind: str, *, crawl_report: dict | None = None
+    ) -> list[IngestionArtifact]:
         if kind == "WEB":
-            return self._markdown_artifacts(crawl_website(data_source.website.url))
+            return self._markdown_artifacts(crawl_website(data_source.website.url, crawl_report))
         if data_source.file is None or not data_source.file.storage_key:
             raise RuntimeError("元ファイルの保存先がありません。")
         content = self.source_storage.read(data_source.file.storage_key)
@@ -250,6 +279,58 @@ class AwsIngestionProcessor:
         elif extension != "pdf":
             raise AssertionError(f"Unsupported configured ingestion kind: {kind}")
         return self._markdown_artifacts(documents)
+
+    def _write_web_crawl_logs(self, data_source_id: int, report: dict) -> None:
+        """Store crawl audit files outside the Knowledge Base inclusion prefix."""
+        log_prefix = os.getenv(
+            "WEB_CRAWL_LOG_PREFIX", "documents/admin/crawl-logs/"
+        ).strip("/") + f"/{data_source_id}/"
+        manifest_key = f"{log_prefix}manifest.json"
+        previous: dict[str, str] = {}
+        try:
+            body = self.s3.get_object(Bucket=self.bucket, Key=manifest_key)["Body"].read()
+            previous_payload = json.loads(body)
+            previous = {
+                item["source_url"]: item.get("content_hash", "")
+                for item in previous_payload.get("pages", [])
+            }
+        except Exception:
+            # A missing or corrupt old manifest must not prevent a fresh crawl.
+            previous = {}
+
+        current = {item["source_url"]: item["content_hash"] for item in report.get("pages", [])}
+        for item in report.get("pages", []):
+            old_hash = previous.get(item["source_url"])
+            item["change"] = "NEW" if old_hash is None else (
+                "UNCHANGED" if old_hash == item["content_hash"] else "UPDATED"
+            )
+        report["deleted_candidates"] = sorted(set(previous) - set(current))
+        report.setdefault("summary", {})["new"] = sum(item["change"] == "NEW" for item in report.get("pages", []))
+        report["summary"]["updated"] = sum(item["change"] == "UPDATED" for item in report.get("pages", []))
+        report["summary"]["unchanged"] = sum(item["change"] == "UNCHANGED" for item in report.get("pages", []))
+        report["summary"]["deleted_candidates"] = len(report["deleted_candidates"])
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        self.s3.put_object(
+            Bucket=self.bucket, Key=manifest_key,
+            Body=json.dumps({"pages": report.get("pages", [])}, ensure_ascii=False, indent=2).encode("utf-8"),
+            ContentType="application/json",
+        )
+        self.s3.put_object(
+            Bucket=self.bucket, Key=f"{log_prefix}{timestamp}/crawl-report.json",
+            Body=json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8"),
+            ContentType="application/json",
+        )
+        for name in ("errors", "skipped"):
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=["url", "depth", "reason"])
+            writer.writeheader()
+            writer.writerows(report.get(name, []))
+            self.s3.put_object(
+                Bucket=self.bucket, Key=f"{log_prefix}{timestamp}/crawl-{name}.csv",
+                Body=("\ufeff" + output.getvalue()).encode("utf-8"),
+                ContentType="text/csv; charset=utf-8",
+            )
 
     @staticmethod
     def _markdown_artifacts(documents, *, common_metadata: dict | None = None) -> list[IngestionArtifact]:

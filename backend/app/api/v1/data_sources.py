@@ -253,6 +253,21 @@ async def update_reference_link(data_source_id: int, payload: ToggleReferenceLin
         raise HTTPException(status_code=409, detail="更新前の情報と異なります。再度画面を更新してください。") from None
 
 
+@router.post("/data-sources/{data_source_id}/recrawl", response_model=DataSourceResponse, status_code=202)
+async def recrawl_website_data_source(
+    data_source_id: int, service: DataSourceService = Depends(get_service)
+):
+    try:
+        return await service.recrawl_website(data_source_id)
+    except DataSourceNotFoundError:
+        raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None
+    except WebsiteDataSourceRequiredError:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "WEB_DATA_SOURCE_REQUIRED", "message": "Webサイトだけ再クロールできます。"},
+        ) from None
+
+
 @router.delete("/data-sources/{data_source_id}")
 async def delete_data_source(data_source_id: int, version: int = Query(..., ge=1), service: DataSourceService = Depends(get_service)):
     try:

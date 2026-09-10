@@ -344,6 +344,13 @@ class DataSourceService:
             raise DataSourceVersionConflictError()
         return await self.get(data_source_id)
 
+    async def recrawl_website(self, data_source_id: int) -> DataSourceResponse:
+        row = await self._get(data_source_id)
+        if row.source_type != "WEB" or row.website is None:
+            raise WebsiteDataSourceRequiredError()
+        await self.repository.enqueue_refresh(data_source_id)
+        return await self.get(data_source_id)
+
     async def delete(self, data_source_id: int, version: int) -> None:
         row = await self._get(data_source_id)
         if row.version != version:
