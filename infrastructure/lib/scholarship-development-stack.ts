@@ -226,7 +226,6 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       ]));
       ingestionIds.INGESTION_TEXT_KNOWLEDGE_BASE_ID = knowledgeBase.attrKnowledgeBaseId;
       ingestionIds.INGESTION_TEXT_DATA_SOURCE_ID = dataSources.PDF.attrDataSourceId;
-      new cdk.CfnOutput(this, "IntegratedKnowledgeBaseId", { value: knowledgeBase.attrKnowledgeBaseId });
       new cdk.CfnOutput(this, "VectorCollectionArn", { value: collection.attrArn });
       for (const [kind, dataSource] of Object.entries(dataSources)) {
         new cdk.CfnOutput(this, `${kind}DataSourceId`, { value: dataSource.attrDataSourceId });
@@ -239,6 +238,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         [`INGESTION_${kind}_DATA_SOURCE_ID`, parameter(`${kind}DataSourceId`, `${kind}用Data Source ID`)],
       ]));
     }
+    new cdk.CfnOutput(this, "IntegratedKnowledgeBaseId", { value: chatKnowledgeBaseId });
     const database = new rds.DatabaseInstance(this, "Database", {
       instanceIdentifier: `${prefix}-db`,
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16_13 }),

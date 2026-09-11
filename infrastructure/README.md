@@ -140,3 +140,15 @@ CHAT_MODEL_ARN=<Claude_Sonnet_4.6推論プロファイルARN> npm run rehearsal
 Web登録まで確認する場合は`SMOKE_TEST_WEBSITE_URL`を追加します。自動削除まで行う場合だけ`DESTROY_AFTER_TEST=true`を追加してください。
 
 2026年9月7日の実アカウント再現試験では、CDKデプロイ、Frontend／Backend、RDS、ECS、OpenSearch Serverless、統合Knowledge Base、5 Data Source、CPF疑似ログイン、認証セッション、チャット設定、Bedrock RAG回答生成まで全項目が成功しています。実行記録は`REHEARSAL_RESULT.md`を参照してください。
+
+## 自社開発環境への継続デプロイ
+
+自社リポジトリでは、`main`へのPushで`CI`が成功した場合に限り、`Deploy development`が起動します。テスト済みの同一コミットをCDKで`ScholarshipChatbot-development`へ反映し、ECSの安定稼働、画面、API、DB、統合Knowledge Base、疑似CPFログイン、チャット回答を確認します。結果は`development-deploy-report-*`としてGitHub ActionsのArtifactsへ保存します。
+
+GitHubのEnvironmentに`development`を作成し、Environment Secretへ次を設定します。
+
+- `AWS_DEVELOPMENT_ROLE_ARN`: GitHub OIDCから自社開発AWSアカウントのCDKデプロイ権限を引き受けるIAM Role ARN
+
+未設定時は既存の`AWS_REHEARSAL_ROLE_ARN`を利用します。自動デプロイ専用ロールへ分離できるまでは既存ロールを再利用できます。KB ID、Data Source ID、ClaudeモデルARN、CPF戻り先URLは既存CloudFormationスタックのパラメータを読み取り、そのまま引き継ぎます。値をGitHub Secretsへ重複登録する必要はありません。
+
+緊急時やPushを伴わない再実行は、GitHubのActionsから`Deploy development`を選び、`Run workflow`で手動実行できます。同じ環境へのデプロイは同時実行されず、先行デプロイの完了後に実行されます。

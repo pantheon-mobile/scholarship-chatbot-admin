@@ -1,0 +1,15 @@
+{
+  "awsAccountId": "180162572038",
+  "environmentName": "development",
+  "existingDocumentsBucketName": "chat-bot-poc-plus",
+  "certificateArn": "arn:aws:acm:ap-northeast-1:180162572038:certificate/e804cbdb-87ef-42e0-94bc-9411c5c57d4c",
+  "domainName": "scholarship-chatbot-dev.pantheon-mobile.com",
+  "hostedZoneId": "",
+  "hostedZoneName": "",
+  "enableDevelopmentCpfMock": true,
+  "nightlyIngestionHourJst": 1,
+  "nightlyIngestionMinuteJst": 0,
+  "deletionProtection": true,
+  "provisionKnowledgeBase": false,
+  "useFargateSpot": false
+}

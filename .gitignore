@@ -39,3 +39,4 @@ infrastructure/cdk.context.json
 infrastructure/config/*.json
 !infrastructure/config/*.example.json
 !infrastructure/config/customer-validation.json
+!infrastructure/config/development-ci.json

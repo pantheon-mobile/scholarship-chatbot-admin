@@ -1,0 +1,57 @@
+name: Deploy development
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: scholarship-chatbot-development
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: development
+    defaults:
+      run:
+        working-directory: infrastructure
+    steps:
+      - name: Check out the tested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEVELOPMENT_ROLE_ARN || secrets.AWS_REHEARSAL_ROLE_ARN }}
+          aws-region: ap-northeast-1
+      - name: Deploy tested revision
+        run: ./scripts/deploy-development-ci.sh
+      - name: Verify application and AWS resources
+        run: ./scripts/smoke-test.sh ScholarshipChatbot-development development-deploy-report.md
+      - name: Upload deployment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: development-deploy-report-${{ github.run_id }}
+          path: infrastructure/development-deploy-report.md
+          if-no-files-found: warn
