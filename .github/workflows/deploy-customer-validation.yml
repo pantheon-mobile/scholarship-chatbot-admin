@@ -65,11 +65,24 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: infrastructure/package-lock.json
+      - name: Show OIDC trust claims
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")"
+          token="$(node -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(0,"utf8")).value)' <<<"$response")"
+          echo "::add-mask::$token"
+          OIDC_TOKEN="$token" node -e '
+            const claims = JSON.parse(Buffer.from(process.env.OIDC_TOKEN.split(".")[1], "base64url"));
+            console.log(JSON.stringify({iss: claims.iss, aud: claims.aud, sub: claims.sub, ref: claims.ref, repository: claims.repository, job_workflow_ref: claims.job_workflow_ref}, null, 2));
+          '
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_CUSTOMER_VALIDATION_ROLE_ARN }}
           role-duration-seconds: 7200
+          retry-max-attempts: 2
           aws-region: ap-northeast-1
       - name: Deploy tested revision without bootstrap
         run: ./scripts/deploy-customer-validation.sh
