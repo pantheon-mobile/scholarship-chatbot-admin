@@ -155,7 +155,7 @@ GitHubのRepository Secretへ次を設定します。
 
 ## 客先検証環境への継続デプロイ
 
-客先リポジトリ`technical-innovation/bpaas-aichatbot`では、`main`へのPush後に`CI`が成功した場合、`Deploy customer validation`が起動します。CDK bootstrapは実行せず、`package-lock.json`で固定したCDK CLI 2.1139.0を使用します。
+客先リポジトリ`technical-innovation/bpaas-aichatbot`では、`main`へのPushで`Deploy customer validation`が起動します。同じワークフロー内のFrontend／Backendテストが両方成功した場合だけデプロイします。これによりGitHub OIDCの`sub`は客先指定の`repo:technical-innovation/bpaas-aichatbot:ref:refs/heads/main`になります。CDK bootstrapは実行せず、`package-lock.json`で固定したCDK CLI 2.1139.0を使用します。
 
 GitHubのRepository Secretへ次を設定します。
 
