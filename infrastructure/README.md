@@ -149,6 +149,6 @@ GitHubのRepository Secretへ次を設定します。
 
 - `AWS_DEVELOPMENT_ROLE_ARN`: GitHub OIDCから自社開発AWSアカウントのCDKデプロイ権限を引き受けるIAM Role ARN
 
-未設定時は既存の`AWS_REHEARSAL_ROLE_ARN`を利用します。自動デプロイ専用ロールへ分離できるまでは既存ロールを再利用できます。既存ロールのGitHub OIDC信頼条件と一致させるため、EnvironmentではなくRepository Secretを使用します。KB ID、Data Source ID、ClaudeモデルARN、CPF戻り先URLは既存CloudFormationスタックのパラメータを読み取り、そのまま引き継ぎます。値をGitHub Secretsへ重複登録する必要はありません。
+未設定時は既存の`AWS_REHEARSAL_ROLE_ARN`を利用します。自動デプロイ専用ロールへ分離できるまでは既存ロールを再利用できます。既存ロールのGitHub OIDC信頼条件と一致させるため、EnvironmentではなくRepository Secretを使用します。KB ID、Data Source ID、ClaudeモデルARN、CPF戻り先URLは既存CloudFormationスタックのパラメータを読み取り、そのまま引き継ぎます。旧スタックにTEXT用パラメータがない場合はPDF用IDを自動的に共用します。値をGitHub Secretsへ重複登録する必要はありません。
 
 緊急時やPushを伴わない再実行は、GitHubのActionsから`Deploy development`を選び、`Run workflow`で手動実行できます。同じ環境へのデプロイは同時実行されず、先行デプロイの完了後に実行されます。

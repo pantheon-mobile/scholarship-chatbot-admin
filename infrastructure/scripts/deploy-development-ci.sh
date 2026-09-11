@@ -34,7 +34,6 @@ required_parameters=(
   EXCELKnowledgeBaseId EXCELDataSourceId
   WORDKnowledgeBaseId WORDDataSourceId
   PPTKnowledgeBaseId PPTDataSourceId
-  TEXTKnowledgeBaseId TEXTDataSourceId
 )
 deploy_parameters=()
 for key in "${required_parameters[@]}"; do
@@ -45,6 +44,21 @@ for key in "${required_parameters[@]}"; do
   fi
   deploy_parameters+=(--parameters "$key=$value")
 done
+
+# Older development stacks predate the explicit TEXT parameters. Plain text and
+# CSV intentionally share the PDF Knowledge Base/Data Source in that layout.
+text_knowledge_base_id="$(stack_parameter TEXTKnowledgeBaseId)"
+text_data_source_id="$(stack_parameter TEXTDataSourceId)"
+if [[ -z "$text_knowledge_base_id" || "$text_knowledge_base_id" == "None" ]]; then
+  text_knowledge_base_id="$(stack_parameter PDFKnowledgeBaseId)"
+fi
+if [[ -z "$text_data_source_id" || "$text_data_source_id" == "None" ]]; then
+  text_data_source_id="$(stack_parameter PDFDataSourceId)"
+fi
+deploy_parameters+=(
+  --parameters "TEXTKnowledgeBaseId=$text_knowledge_base_id"
+  --parameters "TEXTDataSourceId=$text_data_source_id"
+)
 
 for key in CpfFacultyReturnUrl CpfStudentReturnUrl; do
   value="$(stack_parameter "$key")"
