@@ -23,5 +23,8 @@
   "nightlyIngestionHourJst": 1,
   "nightlyIngestionMinuteJst": 0,
   "deletionProtection": true,
-  "useFargateSpot": false
+  "useFargateSpot": false,
+  "databaseClientSecurityGroupIds": [
+    "sg-00000000000000001"
+  ]
 }

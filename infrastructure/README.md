@@ -152,3 +152,13 @@ GitHubのRepository Secretへ次を設定します。
 未設定時は既存の`AWS_REHEARSAL_ROLE_ARN`を利用します。自動デプロイ専用ロールへ分離できるまでは既存ロールを再利用できます。既存ロールのGitHub OIDC信頼条件と一致させるため、EnvironmentではなくRepository Secretを使用します。KB ID、Data Source ID、ClaudeモデルARN、CPF戻り先URLは既存CloudFormationスタックのパラメータを読み取り、そのまま引き継ぎます。旧スタックにTEXT用パラメータがない場合はPDF用IDを自動的に共用します。値をGitHub Secretsへ重複登録する必要はありません。
 
 緊急時やPushを伴わない再実行は、GitHubのActionsから`Deploy development`を選び、`Run workflow`で手動実行できます。同じ環境へのデプロイは同時実行されず、先行デプロイの完了後に実行されます。
+
+## 客先検証環境への継続デプロイ
+
+客先リポジトリ`technical-innovation/bpaas-aichatbot`では、`main`へのPush後に`CI`が成功した場合、`Deploy customer validation`が起動します。CDK bootstrapは実行せず、`package-lock.json`で固定したCDK CLI 2.1139.0を使用します。
+
+GitHubのRepository Secretへ次を設定します。
+
+- `AWS_CUSTOMER_VALIDATION_ROLE_ARN`: `arn:aws:iam::796575284584:role/scholarship-chatbot-github-actions-deploy-role`
+
+OIDCセッションは客先IAMロールの最大値に合わせて7,200秒とします。GitHub Environmentは使用しないため、OIDCの`sub`は`repo:technical-innovation/bpaas-aichatbot:ref:refs/heads/main`のままです。

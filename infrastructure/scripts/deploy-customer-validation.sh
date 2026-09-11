@@ -14,13 +14,17 @@ if [[ "$actual_account_id" != "$EXPECTED_ACCOUNT_ID" ]]; then
   exit 1
 fi
 
-used_priorities="$(aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region "$AWS_REGION" --query 'Rules[].Priority' --output text)"
-for priority in 1001 1002; do
-  if [[ " $used_priorities " == *" $priority "* ]]; then
-    echo "ERROR: ALB listener rule priority $priority is already in use." >&2
-    exit 1
-  fi
-done
+# 初回構築時だけ、既存ALBの優先順位競合を事前確認します。既存スタックの
+# 再デプロイ時は、そのスタック自身が1001/1002を使用しているため確認不要です。
+if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+  used_priorities="$(aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region "$AWS_REGION" --query 'Rules[].Priority' --output text)"
+  for priority in 1001 1002; do
+    if [[ " $used_priorities " == *" $priority "* ]]; then
+      echo "ERROR: ALB listener rule priority $priority is already in use." >&2
+      exit 1
+    fi
+  done
+fi
 
 chat_model_arn="${CHAT_MODEL_ARN:-}"
 if [[ -z "$chat_model_arn" ]]; then
@@ -37,7 +41,6 @@ fi
 
 npm ci
 npm run build
-npx cdk bootstrap "aws://$EXPECTED_ACCOUNT_ID/$AWS_REGION"
 npx cdk deploy "$STACK_NAME" \
   --context "config=$CONFIG_PATH" \
   --parameters "ChatModelArn=$chat_model_arn" \

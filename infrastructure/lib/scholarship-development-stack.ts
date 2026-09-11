@@ -43,6 +43,8 @@ export interface ScholarshipEnvironmentConfig {
   readonly existingAlbSecurityGroupId?: string;
   readonly backendListenerRulePriority?: number;
   readonly frontendListenerRulePriority?: number;
+  /** RDSへの接続を許可する追加Security Group ID（客先の踏み台／ビルドサーバ等） */
+  readonly databaseClientSecurityGroupIds?: string[];
 }
 
 export interface ScholarshipDevelopmentStackProps extends cdk.StackProps {
@@ -262,6 +264,13 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       secretName: `${prefix}/cpf-public-keys-by-kid`,
       description: "kidをキー、PEM公開鍵を値とするJSONオブジェクト。CPFから受領後に更新する。",
       secretStringValue: cdk.SecretValue.unsafePlainText("{}"),
+    });
+
+    (config.databaseClientSecurityGroupIds ?? []).forEach((securityGroupId, index) => {
+      database.connections.allowDefaultPortFrom(
+        ec2.SecurityGroup.fromSecurityGroupId(this, `DatabaseClientSecurityGroup${index}`, securityGroupId, { mutable: false }),
+        "Database client (bastion/build server)",
+      );
     });
 
     const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", { vpc, allowAllOutbound: true });
