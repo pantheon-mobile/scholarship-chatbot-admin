@@ -45,6 +45,53 @@ export interface ScholarshipEnvironmentConfig {
   readonly frontendListenerRulePriority?: number;
   /** RDSへの接続を許可する追加Security Group ID（客先の踏み台／ビルドサーバ等） */
   readonly databaseClientSecurityGroupIds?: string[];
+  readonly corsAllowedOrigins?: string;
+  readonly cpfDevelopmentJwtTtlSeconds?: number;
+  readonly cpfJwtIssuer?: string;
+  readonly cpfJwtAudience?: string;
+  readonly cpfAcceptedRoles?: string;
+  readonly cpfJwtLeewaySeconds?: number;
+  readonly cpfJwtMaxTtlSeconds?: number;
+  readonly authSessionTtlSeconds?: number;
+  readonly authCookieDomain?: string;
+  readonly chatSearchType?: string;
+  readonly chatNumberOfResults?: number;
+  readonly chatPriorityCandidateCount?: number;
+  readonly chatPriorityScoreTolerance?: number;
+  readonly chatMaxTokens?: number;
+  readonly chatFaqMatchThreshold?: number;
+  readonly chatCurrentAcademicYear?: string;
+  readonly chatSystemPrompt?: string;
+  readonly chatUiTitle?: string;
+  readonly chatInitialMessage?: string;
+  readonly chatInputPlaceholder?: string;
+  readonly chatQuestionMaxLength?: number;
+  readonly chatFrameColor?: string;
+  readonly chatBotIconUrl?: string;
+  readonly chatHistoryEnabled?: boolean;
+  readonly chatMaintenanceEnabled?: boolean;
+  readonly chatMaintenanceMessage?: string;
+  readonly chatGoodFeedbackMessage?: string;
+  readonly chatBadFeedbackMessage?: string;
+  readonly chatGoodFeedbackOptions?: string;
+  readonly chatBadFeedbackOptions?: string;
+  readonly ingestionOriginalPrefix?: string;
+  readonly ingestionProcessorTimeoutSeconds?: number;
+  readonly ingestionWorkerMaxJobs?: number;
+  readonly knowledgeBaseSyncTimeoutSeconds?: number;
+  readonly pdfVisionMinCharsPerPage?: number;
+  readonly pdfVisionImagePageRatio?: number;
+  readonly pdfVisionMinTables?: number;
+  readonly webCrawlMaxDepth?: number;
+  readonly webCrawlMaxPages?: number;
+  readonly webCrawlTimeoutSeconds?: number;
+  readonly webCrawlIntervalSeconds?: number;
+  readonly webCrawlRespectRobots?: boolean;
+  readonly webCrawlUserAgent?: string;
+  readonly webCrawlLogPrefix?: string;
+  readonly webAutoRecrawlEnabled?: boolean;
+  readonly webAutoRecrawlIntervalHours?: number;
+  readonly logLevel?: string;
 }
 
 export interface ScholarshipDevelopmentStackProps extends cdk.StackProps {
@@ -282,6 +329,27 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       platform: ecrAssets.Platform.LINUX_AMD64,
     });
     const hasTls = usesExistingAlb || Boolean(config.certificateArn);
+    const value = (configured: string | number | boolean | undefined, fallback: string | number | boolean) =>
+      String(configured ?? fallback);
+    const sharedIngestionEnvironment = {
+      INGESTION_ORIGINAL_PREFIX: config.ingestionOriginalPrefix ?? "documents/admin/originals/",
+      INGESTION_PROCESSOR_TIMEOUT_SECONDS: value(config.ingestionProcessorTimeoutSeconds, 1800),
+      INGESTION_WORKER_MAX_JOBS: value(config.ingestionWorkerMaxJobs, 1000),
+      KNOWLEDGE_BASE_SYNC_TIMEOUT_SECONDS: value(config.knowledgeBaseSyncTimeoutSeconds, 1800),
+      PDF_VISION_MIN_CHARS_PER_PAGE: value(config.pdfVisionMinCharsPerPage, 100),
+      PDF_VISION_IMAGE_PAGE_RATIO: value(config.pdfVisionImagePageRatio, 0.5),
+      PDF_VISION_MIN_TABLES: value(config.pdfVisionMinTables, 3),
+      WEB_CRAWL_MAX_DEPTH: value(config.webCrawlMaxDepth, 5),
+      WEB_CRAWL_MAX_PAGES: value(config.webCrawlMaxPages, 500),
+      WEB_CRAWL_TIMEOUT_SECONDS: value(config.webCrawlTimeoutSeconds, 20),
+      WEB_CRAWL_INTERVAL_SECONDS: value(config.webCrawlIntervalSeconds, 0.5),
+      WEB_CRAWL_RESPECT_ROBOTS: value(config.webCrawlRespectRobots, true),
+      WEB_CRAWL_USER_AGENT: config.webCrawlUserAgent ?? "ScholarshipChatbotCrawler/1.0",
+      WEB_CRAWL_LOG_PREFIX: config.webCrawlLogPrefix ?? "documents/admin/crawl-logs/",
+      WEB_AUTO_RECRAWL_ENABLED: value(config.webAutoRecrawlEnabled, true),
+      WEB_AUTO_RECRAWL_INTERVAL_HOURS: value(config.webAutoRecrawlIntervalHours, 24),
+      LOG_LEVEL: config.logLevel ?? "INFO",
+    };
 
     const fargateRuntimePlatform = {
       cpuArchitecture: ecs.CpuArchitecture.X86_64,
@@ -309,8 +377,37 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         PDF_METADATA_MODEL_ID: chatModelArn,
         CPF_FACULTY_RETURN_URL: cpfFacultyReturnUrl,
         CPF_STUDENT_RETURN_URL: cpfStudentReturnUrl,
-        CPF_JWT_ISSUER: "cpf", CPF_JWT_AUDIENCE: "chatbot", CPF_ACCEPTED_ROLES: "admin,staff",
-        CPF_JWT_MAX_TTL_SECONDS: "360", AUTH_SESSION_TTL_SECONDS: "28800",
+        CPF_JWT_ISSUER: config.cpfJwtIssuer ?? "cpf",
+        CPF_DEVELOPMENT_JWT_TTL_SECONDS: value(config.cpfDevelopmentJwtTtlSeconds, 300),
+        CPF_JWT_AUDIENCE: config.cpfJwtAudience ?? "chatbot",
+        CPF_ACCEPTED_ROLES: config.cpfAcceptedRoles ?? "admin,staff",
+        CPF_JWT_LEEWAY_SECONDS: value(config.cpfJwtLeewaySeconds, 30),
+        CPF_JWT_MAX_TTL_SECONDS: value(config.cpfJwtMaxTtlSeconds, 360),
+        AUTH_SESSION_TTL_SECONDS: value(config.authSessionTtlSeconds, 28800),
+        AUTH_COOKIE_DOMAIN: config.authCookieDomain ?? "",
+        CORS_ALLOWED_ORIGINS: config.corsAllowedOrigins ?? (config.domainName ? `https://${config.domainName}` : ""),
+        CHAT_SEARCH_TYPE: config.chatSearchType ?? "HYBRID",
+        CHAT_NUMBER_OF_RESULTS: value(config.chatNumberOfResults, 5),
+        CHAT_PRIORITY_CANDIDATE_COUNT: value(config.chatPriorityCandidateCount, 20),
+        CHAT_PRIORITY_SCORE_TOLERANCE: value(config.chatPriorityScoreTolerance, 0.05),
+        CHAT_MAX_TOKENS: value(config.chatMaxTokens, 1200),
+        CHAT_FAQ_MATCH_THRESHOLD: value(config.chatFaqMatchThreshold, 0.85),
+        CHAT_CURRENT_ACADEMIC_YEAR: config.chatCurrentAcademicYear ?? "",
+        CHAT_SYSTEM_PROMPT: config.chatSystemPrompt ?? "",
+        CHAT_UI_TITLE: config.chatUiTitle ?? "東京理科大学奨学金問合せチャット",
+        CHAT_INITIAL_MESSAGE: config.chatInitialMessage ?? "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
+        CHAT_INPUT_PLACEHOLDER: config.chatInputPlaceholder ?? "質問を入力してください",
+        CHAT_QUESTION_MAX_LENGTH: value(config.chatQuestionMaxLength, 2000),
+        CHAT_FRAME_COLOR: config.chatFrameColor ?? "#171a1d",
+        CHAT_BOT_ICON_URL: config.chatBotIconUrl ?? "",
+        CHAT_HISTORY_ENABLED: value(config.chatHistoryEnabled, true),
+        CHAT_MAINTENANCE_ENABLED: value(config.chatMaintenanceEnabled, false),
+        CHAT_MAINTENANCE_MESSAGE: config.chatMaintenanceMessage ?? "現在メンテナンス中です。時間をおいて再度お試しください。",
+        CHAT_GOOD_FEEDBACK_MESSAGE: config.chatGoodFeedbackMessage ?? "ご評価ありがとうございます。よろしければ理由をお聞かせください。",
+        CHAT_BAD_FEEDBACK_MESSAGE: config.chatBadFeedbackMessage ?? "改善のため、回答が役に立たなかった理由をお聞かせください。",
+        CHAT_GOOD_FEEDBACK_OPTIONS: config.chatGoodFeedbackOptions ?? "知りたい内容だった|分かりやすかった|参照資料が役立った",
+        CHAT_BAD_FEEDBACK_OPTIONS: config.chatBadFeedbackOptions ?? "回答が違う|情報が不足している|分かりにくい|参照資料が適切でない",
+        ...sharedIngestionEnvironment,
         ...ingestionIds,
       },
       secrets: {
@@ -410,10 +507,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         DB_NAME: "scholarship", DB_USER: "scholarship_admin", INGESTION_PROCESSOR_MODE: "aws",
         PDF_VISION_MODEL_ID: chatModelArn,
         PDF_METADATA_MODEL_ID: chatModelArn,
-        PDF_VISION_IMAGE_PAGE_RATIO: "0.5", PDF_VISION_MIN_TABLES: "3",
-        WEB_CRAWL_RESPECT_ROBOTS: "true", WEB_CRAWL_INTERVAL_SECONDS: "0.5",
-        WEB_CRAWL_LOG_PREFIX: "documents/admin/crawl-logs/",
-        WEB_AUTO_RECRAWL_ENABLED: "true", WEB_AUTO_RECRAWL_INTERVAL_HOURS: "24",
+        ...sharedIngestionEnvironment,
         ...ingestionIds,
       },
       secrets: { DB_PASSWORD: ecs.Secret.fromSecretsManager(database.secret!, "password") },
