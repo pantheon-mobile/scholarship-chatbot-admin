@@ -137,7 +137,7 @@ async def chat_history_export(
     return xlsx_response(
         f"chathistory{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx",
         "チャット履歴",
-        ["チャットID", "ユーザID", "ユーザ種別", "応答ID", "応答No", "質問", "回答", "回答種別", "評価", "コメント", "質問受付日時", "回答完了日時"],
+        ["チャットID", "ログインID", "権限", "応答ID", "応答No", "質問", "回答", "回答種別", "評価", "コメント", "質問受付日時", "回答完了日時"],
         [[
             str(row["session_id"]), row.get("subject") or "", ROLE_LABELS.get(row.get("role"), row.get("role") or ""),
             str(row["interaction_id"]), row["sequence_number"], row.get("question_text") or "", row.get("answer_text") or "",
@@ -164,7 +164,7 @@ async def usage_users_xlsx(
     rows = await service.repository.usage_users(start_at, end_at, role=role)
     return xlsx_response(
         f"userlist{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "ユーザリスト",
-        ["ユーザID", "ユーザ種別", "ユーザ名", "最終アクセス日時"],
+        ["ログインID", "権限", "氏名", "最終アクセス日時"],
         [[
             row.get("subject") or f"利用者-{row['visitor_key'][:12]}",
             ROLE_LABELS.get(row.get("role"), row.get("role") or ""), row.get("display_name") or "",
@@ -194,7 +194,7 @@ async def access_logs_xlsx(
     )
     return xlsx_response(
         f"accesslog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "アクセスログ",
-        ["アクセス日時", "ユーザID", "ユーザ種別", "サイト", "アクセス元（IP）", "デバイス/UA"],
+        ["アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
             display_datetime(row.get("accessed_at")), row.get("subject") or f"利用者-{row['visitor_key'][:12]}",
             ROLE_LABELS.get(row.get("role"), row.get("role") or ""),
@@ -231,7 +231,7 @@ async def operation_logs_xlsx(
         rows = [row for row in rows if operation_kind(row["http_method"], row["request_path"]) == operation_type]
     return xlsx_response(
         f"operationlog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "操作ログ",
-        ["操作日時", "ユーザID", "ユーザ種別", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA"],
+        ["操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
             display_datetime(row.get("operated_at")), row.get("operator_subject") or f"利用者-{row['operator_key'][:12]}",
             ROLE_LABELS.get(row.get("operator_role"), row.get("operator_role") or ""),

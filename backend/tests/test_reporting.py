@@ -70,7 +70,7 @@ async def test_chat_history_export_matches_specified_filename_and_columns():
     )
     rows = decoded_xlsx(response)
     assert rows[0] == (
-        "チャットID", "ユーザID", "ユーザ種別", "応答ID", "応答No", "質問", "回答",
+        "チャットID", "ログインID", "権限", "応答ID", "応答No", "質問", "回答",
         "回答種別", "評価", "コメント", "質問受付日時", "回答完了日時",
     )
     assert rows[1][:10] == (
@@ -95,7 +95,7 @@ async def test_usage_user_export_contains_cpf_identity():
     )
 
     rows = decoded_xlsx(response)
-    assert rows[0] == ("ユーザID", "ユーザ種別", "ユーザ名", "最終アクセス日時")
+    assert rows[0] == ("ログインID", "権限", "氏名", "最終アクセス日時")
     assert rows[1][:3] == ("F0000003", "職員", "理科大 職員")
     assert response.headers["content-disposition"].startswith('attachment; filename="userlist')
 
@@ -126,9 +126,9 @@ async def test_access_and_operation_exports_contain_readable_identity_and_action
         date(2026, 9, 4), date(2026, 9, 4), _=SimpleNamespace(), service=service,
     ))
 
-    assert access_rows[0] == ("アクセス日時", "ユーザID", "ユーザ種別", "サイト", "アクセス元（IP）", "デバイス/UA")
+    assert access_rows[0] == ("アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA")
     assert access_rows[1][1:] == ("F0000003", "職員", "管理サイト", "192.0.2.1", "Test Browser")
-    assert operation_rows[0] == ("操作日時", "ユーザID", "ユーザ種別", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA")
+    assert operation_rows[0] == ("操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA")
     assert operation_rows[1][1:] == ("F0000009", "システム管理者", "FAQを登録", "管理サイト", "192.0.2.2", "Test Browser")
 
 
