@@ -1,7 +1,8 @@
 export const ALLOWED_FILE_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv"] as const;
 export const FILE_ACCEPT = ALLOWED_FILE_EXTENSIONS.map((extension) => `.${extension}`).join(",");
-export const MAX_FILE_COUNT = 20;
-export const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
+export const MAX_FILE_COUNT = 100;
+export const MAX_FILE_SIZE = 100 * 1024 * 1024;
+export const MAX_TOTAL_SIZE = 500 * 1024 * 1024;
 
 export class FileSelectionError extends Error {
   constructor(public code: string, message: string) { super(message); }
@@ -33,11 +34,12 @@ async function signatureMatches(file: File, extension: string) {
 
 export async function validateSelectedFiles(existing: File[], incoming: File[]): Promise<File[]> {
   const combined = [...existing, ...incoming];
-  if (combined.length > MAX_FILE_COUNT) throw new FileSelectionError("FILE_COUNT_EXCEEDED", "一度に選択できるファイルは20件までです。");
-  if (combined.reduce((sum, file) => sum + file.size, 0) > MAX_TOTAL_SIZE) throw new FileSelectionError("TOTAL_SIZE_EXCEEDED", "ファイルの合計サイズは100MB以下にしてください。");
+  if (combined.length > MAX_FILE_COUNT) throw new FileSelectionError("FILE_COUNT_EXCEEDED", "一度に選択できるファイルは100件までです。");
+  if (combined.reduce((sum, file) => sum + file.size, 0) > MAX_TOTAL_SIZE) throw new FileSelectionError("TOTAL_SIZE_EXCEEDED", "ファイルの合計サイズは500MB以下にしてください。");
   const names = new Set<string>();
   for (const file of combined) {
     if (file.size === 0) throw new FileSelectionError("EMPTY_FILE", "0バイトのファイルは追加できません。");
+    if (file.size > MAX_FILE_SIZE) throw new FileSelectionError("FILE_SIZE_EXCEEDED", "1ファイルのサイズは100MB以下にしてください。");
     const extension = extensionOf(file);
     if (!(ALLOWED_FILE_EXTENSIONS as readonly string[]).includes(extension)) throw new FileSelectionError("UNSUPPORTED_FILE_TYPE", "対応していないファイル形式です。");
     const normalizedName = file.name.toLocaleLowerCase();

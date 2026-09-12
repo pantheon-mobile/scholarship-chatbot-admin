@@ -4,8 +4,9 @@ from pathlib import Path, PurePath
 from fastapi import UploadFile
 
 
-MAX_FILE_COUNT = 20
-MAX_TOTAL_SIZE = 100 * 1024 * 1024
+MAX_FILE_COUNT = 100
+MAX_FILE_SIZE = 100 * 1024 * 1024
+MAX_TOTAL_SIZE = 500 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv"}
 
 OLE_SIGNATURE = bytes.fromhex("D0CF11E0A1B11AE1")
@@ -89,7 +90,7 @@ def validate_uploads(files: list[UploadFile]) -> list[ValidatedUpload]:
     if not files:
         raise FileUploadValidationError("FILE_REQUIRED", "ファイルを選択してください。")
     if len(files) > MAX_FILE_COUNT:
-        raise FileUploadValidationError("FILE_COUNT_EXCEEDED", "一度に選択できるファイルは20件までです。")
+        raise FileUploadValidationError("FILE_COUNT_EXCEEDED", "一度に選択できるファイルは100件までです。")
 
     validated: list[ValidatedUpload] = []
     names: set[str] = set()
@@ -107,9 +108,11 @@ def validate_uploads(files: list[UploadFile]) -> list[ValidatedUpload]:
         size = _actual_size(upload)
         if size == 0:
             raise FileUploadValidationError("EMPTY_FILE", "0バイトのファイルは追加できません。")
+        if size > MAX_FILE_SIZE:
+            raise FileUploadValidationError("FILE_SIZE_EXCEEDED", "1ファイルのサイズは100MB以下にしてください。")
         total_size += size
         if total_size > MAX_TOTAL_SIZE:
-            raise FileUploadValidationError("TOTAL_SIZE_EXCEEDED", "ファイルの合計サイズは100MB以下にしてください。")
+            raise FileUploadValidationError("TOTAL_SIZE_EXCEEDED", "ファイルの合計サイズは500MB以下にしてください。")
         content_type = (upload.content_type or "").lower().split(";", 1)[0].strip()
         _validate_content(upload, extension, content_type)
         validated.append(ValidatedUpload(upload, file_name, extension, size, content_type))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_TOTAL_SIZE, FileSelectionError, validateSelectedFiles } from "@/lib/fileUploadValidation";
+import { MAX_FILE_SIZE, MAX_TOTAL_SIZE, FileSelectionError, validateSelectedFiles } from "@/lib/fileUploadValidation";
 
 function file(name: string, bytes = new Uint8Array([0x61]), type = "text/plain", size?: number) {
   const value = new File([bytes], name, { type });
@@ -31,9 +31,10 @@ describe("CB-203 client file validation", () => {
     await expect(validateSelectedFiles([], [value])).rejects.toMatchObject({ code });
   });
 
-  it("同名、21件、100MB超過を拒否する", async () => {
+  it("同名、101件、1ファイル100MB超過、合計500MB超過を拒否する", async () => {
     await expect(validateSelectedFiles([file("same.txt")], [file("SAME.TXT")])).rejects.toMatchObject({ code: "DUPLICATE_FILE_NAME" });
-    await expect(validateSelectedFiles([], Array.from({ length: 21 }, (_, index) => file(`${index}.txt`)))).rejects.toMatchObject({ code: "FILE_COUNT_EXCEEDED" });
+    await expect(validateSelectedFiles([], Array.from({ length: 101 }, (_, index) => file(`${index}.txt`)))).rejects.toMatchObject({ code: "FILE_COUNT_EXCEEDED" });
+    await expect(validateSelectedFiles([], [file("large.pdf", new Uint8Array([0x25,0x50,0x44,0x46,0x2d]), "application/pdf", MAX_FILE_SIZE + 1)])).rejects.toMatchObject({ code: "FILE_SIZE_EXCEEDED" });
     await expect(validateSelectedFiles([], [file("large.pdf", new Uint8Array([0x25,0x50,0x44,0x46,0x2d]), "application/pdf", MAX_TOTAL_SIZE + 1)])).rejects.toBeInstanceOf(FileSelectionError);
   });
 });

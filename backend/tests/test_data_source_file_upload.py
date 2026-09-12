@@ -12,7 +12,7 @@ from starlette.datastructures import Headers
 from app.api.v1.data_sources import get_service, get_storage
 from app.main import app
 from app.services.data_source_service import DataSourceService, FileUploadError
-from app.services.file_upload_validation import MAX_TOTAL_SIZE, FileUploadValidationError, validate_uploads
+from app.services.file_upload_validation import MAX_FILE_COUNT, MAX_FILE_SIZE, MAX_TOTAL_SIZE, FileUploadValidationError, validate_uploads
 from app.storage.local import LocalStorage
 
 
@@ -72,8 +72,8 @@ class LogicalSizeFile(BytesIO):
         return self.logical_size if self.at_logical_end else super().tell()
 
 
-def logical_upload(size: int) -> UploadFile:
-    return UploadFile(file=LogicalSizeFile(SIGNATURES["pdf"], size), filename="large.pdf", headers=Headers({"content-type": "application/pdf"}))
+def logical_upload(size: int, name: str = "large.pdf") -> UploadFile:
+    return UploadFile(file=LogicalSizeFile(SIGNATURES["pdf"], size), filename=name, headers=Headers({"content-type": "application/pdf"}))
 
 
 @pytest.mark.parametrize("extension", list(SIGNATURES))
@@ -97,17 +97,23 @@ def test_file_validation_errors(files, code):
     assert exc.value.code == code
 
 
-def test_twenty_files_allowed_and_twenty_one_rejected():
-    assert len(validate_uploads([upload(f"{index}.txt") for index in range(20)])) == 20
+def test_one_hundred_files_allowed_and_one_hundred_one_rejected():
+    assert len(validate_uploads([upload(f"{index}.txt") for index in range(MAX_FILE_COUNT)])) == MAX_FILE_COUNT
     with pytest.raises(FileUploadValidationError) as exc:
-        validate_uploads([upload(f"{index}.txt") for index in range(21)])
+        validate_uploads([upload(f"{index}.txt") for index in range(MAX_FILE_COUNT + 1)])
     assert exc.value.code == "FILE_COUNT_EXCEEDED"
 
 
-def test_total_size_boundary_and_exceeded():
-    assert validate_uploads([logical_upload(MAX_TOTAL_SIZE)])[0].size_bytes == MAX_TOTAL_SIZE
+def test_file_size_boundary_and_exceeded():
+    assert validate_uploads([logical_upload(MAX_FILE_SIZE)])[0].size_bytes == MAX_FILE_SIZE
     with pytest.raises(FileUploadValidationError) as exc:
-        validate_uploads([logical_upload(MAX_TOTAL_SIZE + 1)])
+        validate_uploads([logical_upload(MAX_FILE_SIZE + 1)])
+    assert exc.value.code == "FILE_SIZE_EXCEEDED"
+
+
+def test_total_size_exceeded():
+    with pytest.raises(FileUploadValidationError) as exc:
+        validate_uploads([logical_upload(MAX_FILE_SIZE, f"{index}.pdf") for index in range(6)])
     assert exc.value.code == "TOTAL_SIZE_EXCEEDED"
 
 

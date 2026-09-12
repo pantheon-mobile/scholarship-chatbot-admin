@@ -118,7 +118,7 @@ export default function DataSourceFileNewPage() {
           <FileDropzone accept={FILE_ACCEPT} disabled={busy || validating} onFiles={addFiles} />
           <div className={styles.uploadNotes}>
             <span>※利用可能な形式：.pdf、.doc、.docx、.xls、.xlsx、.ppt、.pptx、.txt、.csv</span>
-            <span>※1度に追加できるファイル容量は100MBまでで、最大20件選択できます。</span>
+            <span>※1度に最大100件、合計500MBまで追加できます（1ファイルあたり100MBまで）。</span>
           </div>
         </section>
 
