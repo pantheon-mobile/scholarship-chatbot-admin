@@ -45,6 +45,8 @@ def _visitor_key(current_user: AuthSession) -> str:
 async def get_chat_config(_current_user: AuthSession = Depends(require_authenticated_session)):
     return ChatUiConfigResponse(
         title=os.getenv("CHAT_UI_TITLE", "東京理科大学奨学金問合せチャット"),
+        admin_title=os.getenv("ADMIN_UI_TITLE", "東京理科大学奨学金問合せチャット　管理サイト"),
+        header_icon_url=os.getenv("HEADER_ICON_URL") or None,
         initial_message=os.getenv("CHAT_INITIAL_MESSAGE", "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。"),
         input_placeholder=os.getenv("CHAT_INPUT_PLACEHOLDER", "質問を入力してください"),
         question_max_length=max(1, min(int(os.getenv("CHAT_QUESTION_MAX_LENGTH", "2000")), 5000)),

@@ -5,7 +5,7 @@ import { AdminMenuKey, Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import styles from "./admin.module.css";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { recordAdminAccess } from "@/lib/chatApi";
+import { fetchChatConfig, recordAdminAccess } from "@/lib/chatApi";
 import { fetchMaintenanceCapabilities, purgeAllData } from "@/lib/maintenanceApi";
 import { Modal } from "./Modal";
 
@@ -36,6 +36,8 @@ export function AdminLayout({
   const [purgeConfirmation, setPurgeConfirmation] = useState("");
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeError, setPurgeError] = useState("");
+  const [siteName, setSiteName] = useState("東京理科大学奨学金問合せチャット　管理サイト");
+  const [headerIconUrl, setHeaderIconUrl] = useState<string | null>(null);
   const collapsible = chromeVariant === "sidebar-menu";
 
   useEffect(() => {
@@ -53,9 +55,19 @@ export function AdminLayout({
     void fetchMaintenanceCapabilities().then((result) => setPurgeEnabled(result.bulk_purge_enabled));
   }, [auth.user?.role]);
 
+  useEffect(() => {
+    if (!auth.user) return;
+    void fetchChatConfig().then((config) => {
+      setSiteName(config.admin_title);
+      setHeaderIconUrl(config.header_icon_url ?? null);
+    }).catch(() => undefined);
+  }, [auth.user]);
+
   return (
     <div className={`${styles.adminShell} ${collapsible && sidebarCollapsed ? styles.sidebarCollapsed : ""}`}>
       <Header
+        siteName={siteName}
+        headerIconUrl={headerIconUrl}
         userName={userName ?? auth.user?.display_name ?? auth.user?.subject}
         userId={auth.user?.subject}
         variant={chromeVariant}

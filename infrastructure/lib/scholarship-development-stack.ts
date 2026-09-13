@@ -63,6 +63,8 @@ export interface ScholarshipEnvironmentConfig {
   readonly chatCurrentAcademicYear?: string;
   readonly chatSystemPrompt?: string;
   readonly chatUiTitle?: string;
+  readonly adminUiTitle?: string;
+  readonly headerIconUrl?: string;
   readonly chatInitialMessage?: string;
   readonly chatInputPlaceholder?: string;
   readonly chatQuestionMaxLength?: number;
@@ -395,6 +397,8 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         CHAT_CURRENT_ACADEMIC_YEAR: config.chatCurrentAcademicYear ?? "",
         CHAT_SYSTEM_PROMPT: config.chatSystemPrompt ?? "",
         CHAT_UI_TITLE: config.chatUiTitle ?? "東京理科大学奨学金問合せチャット",
+        ADMIN_UI_TITLE: config.adminUiTitle ?? "東京理科大学奨学金問合せチャット　管理サイト",
+        HEADER_ICON_URL: config.headerIconUrl ?? "",
         CHAT_INITIAL_MESSAGE: config.chatInitialMessage ?? "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
         CHAT_INPUT_PLACEHOLDER: config.chatInputPlaceholder ?? "質問を入力してください",
         CHAT_QUESTION_MAX_LENGTH: value(config.chatQuestionMaxLength, 2000),

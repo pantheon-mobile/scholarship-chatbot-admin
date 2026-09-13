@@ -18,6 +18,8 @@
   "corsAllowedOrigins": "https://scholarship-chatbot-dev.example.com",
   "cpfDevelopmentJwtTtlSeconds": 300,
   "chatUiTitle": "東京理科大学奨学金問合せチャット",
+  "adminUiTitle": "東京理科大学奨学金問合せチャット　管理サイト",
+  "headerIconUrl": "",
   "chatInitialMessage": "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
   "chatInputPlaceholder": "質問を入力してください",
   "chatFaqMatchThreshold": 0.85,

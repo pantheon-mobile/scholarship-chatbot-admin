@@ -26,6 +26,8 @@
   "cpfJwtMaxTtlSeconds": 360,
   "authSessionTtlSeconds": 28800,
   "chatUiTitle": "東京理科大学奨学金問合せチャット",
+  "adminUiTitle": "東京理科大学奨学金問合せチャット　管理サイト",
+  "headerIconUrl": "",
   "chatInitialMessage": "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
   "chatInputPlaceholder": "質問を入力してください",
   "chatQuestionMaxLength": 2000,

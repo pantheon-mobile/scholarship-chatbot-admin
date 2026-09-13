@@ -26,6 +26,8 @@ class ChatMessageResponse(BaseModel):
 
 class ChatUiConfigResponse(BaseModel):
     title: str
+    admin_title: str
+    header_icon_url: str | None
     initial_message: str
     input_placeholder: str
     question_max_length: int

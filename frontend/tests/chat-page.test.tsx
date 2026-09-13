@@ -20,7 +20,8 @@ beforeEach(() => {
   router.push.mockReset();
   Object.values(api).forEach((mock) => mock.mockReset());
   api.fetchChatConfig.mockResolvedValue({
-    title: "試験チャット", initial_message: "最初の案内", input_placeholder: "質問を入力", question_max_length: 200,
+    title: "試験チャット", admin_title: "試験管理サイト", header_icon_url: null,
+    initial_message: "最初の案内", input_placeholder: "質問を入力", question_max_length: 200,
     frame_color: "#171a1d", bot_icon_url: null, history_enabled: true, maintenance_enabled: false,
     maintenance_message: "保守中", good_message: "Good理由", bad_message: "Bad理由",
     good_options: ["分かりやすい"], bad_options: ["回答が違う"],

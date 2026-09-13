@@ -29,6 +29,7 @@
 
 .brand { display: flex; align-items: center; font-size: 21px; font-weight: 700; letter-spacing: .025em; white-space: nowrap; }
 .schoolIcon { width: 32px; height: 32px; display: inline-grid; place-items: center; margin-right: 15px; }
+.schoolIconImage { width: 30px; height: 30px; object-fit: contain; }
 .headerActions { display: flex; align-items: center; gap: 10px; }
 .headerActions button { min-height: 38px; padding: 8px 18px; border-radius: 6px; font: inherit; font-size: 15px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; }
 .chatSiteButton { border: 1px solid #3d5afe; color: #fff; background: #3d5afe; }
