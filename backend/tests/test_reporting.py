@@ -134,4 +134,37 @@ async def test_access_and_operation_exports_contain_readable_identity_and_action
 
 def test_operation_description_explains_special_operations():
     assert operation_description("POST", "/api/v1/data-sources/ingestion/run") == "データ取り込み処理を今すぐ実行"
-    assert operation_description("GET", "/api/v1/usage/users.xlsx") == "ユーザーリストをダウンロード"
+    assert operation_description("GET", "/api/v1/usage/users.xlsx") == "ユーザリストダウンロード"
+
+
+@pytest.mark.parametrize(("method", "path", "surface", "expected"), [
+    ("POST", "/api/v1/analytics/accesses", "ADMIN", "管理サイトアクセス"),
+    ("POST", "/api/v1/analytics/accesses", "CHAT", "チャットサイトアクセス"),
+    ("GET", "/api/v1/data-sources/export", None, "データソース一覧ダウンロード"),
+    ("POST", "/api/v1/data-sources/import", None, "データソース一覧更新"),
+    ("POST", "/api/v1/data-sources/files", None, "データソース（ファイル）登録"),
+    ("POST", "/api/v1/data-sources/websites", None, "データソース（Webサイト）登録"),
+    ("DELETE", "/api/v1/data-sources/12", None, "データソース削除"),
+    ("GET", "/api/v1/data-source-types/export", None, "種別一覧ダウンロード"),
+    ("POST", "/api/v1/data-source-types/1/values", None, "種別設定登録"),
+    ("PATCH", "/api/v1/data-source-types/1/values/2", None, "種別設定更新"),
+    ("DELETE", "/api/v1/data-source-types/1/values/2", None, "種別設定削除"),
+    ("GET", "/api/v1/faqs/export", None, "FAQ一覧ダウンロード"),
+    ("POST", "/api/v1/faqs/import", None, "FAQ一覧登録/更新"),
+    ("POST", "/api/v1/faqs", None, "FAQを登録"),
+    ("PUT", "/api/v1/faqs/12", None, "FAQを更新"),
+    ("DELETE", "/api/v1/faqs/12", None, "FAQ削除"),
+    ("GET", "/api/v1/faq-classifications/export", None, "区分一覧ダウンロード"),
+    ("POST", "/api/v1/faq-classifications/1/values", None, "区分設定登録"),
+    ("PUT", "/api/v1/faq-classifications/1/values/2", None, "区分設定更新"),
+    ("DELETE", "/api/v1/faq-classifications/1/values/2", None, "区分設定削除"),
+    ("GET", "/api/v1/categories/export", None, "カテゴリ一覧ダウンロード"),
+    ("POST", "/api/v1/categories", None, "カテゴリ登録"),
+    ("PUT", "/api/v1/categories/12", None, "カテゴリ更新"),
+    ("DELETE", "/api/v1/categories/12", None, "カテゴリ削除"),
+    ("GET", "/api/v1/chat-history/export.xlsx", None, "チャット履歴ダウンロード"),
+    ("GET", "/api/v1/usage/access-logs.xlsx", None, "アクセスログダウンロード"),
+    ("GET", "/api/v1/usage/operation-logs.xlsx", None, "操作ログダウンロード"),
+])
+def test_operation_description_matches_customer_audit_spec(method, path, surface, expected):
+    assert operation_description(method, path, surface) == expected

@@ -19,13 +19,48 @@ from app.services.reporting_service import ReportingError, ReportingService, utc
 router = APIRouter(tags=["reporting"])
 
 
-def operation_description(method: str, path: str) -> str:
-    if path.endswith("/ingestion/run"):
+def operation_description(method: str, path: str, surface: str | None = None) -> str:
+    if path == "/api/v1/analytics/accesses":
+        return "チャットサイトアクセス" if surface == "CHAT" else "管理サイトアクセス"
+    if path.endswith(("/ingestion/run", "/ingestion/run-now")):
         return "データ取り込み処理を今すぐ実行"
+    exact_operations = {
+        ("GET", "/api/v1/data-sources/export"): "データソース一覧ダウンロード",
+        ("POST", "/api/v1/data-sources/import"): "データソース一覧更新",
+        ("POST", "/api/v1/data-sources/files"): "データソース（ファイル）登録",
+        ("POST", "/api/v1/data-sources/websites"): "データソース（Webサイト）登録",
+        ("GET", "/api/v1/data-source-types/export"): "種別一覧ダウンロード",
+        ("GET", "/api/v1/faqs/export"): "FAQ一覧ダウンロード",
+        ("POST", "/api/v1/faqs/import"): "FAQ一覧登録/更新",
+        ("GET", "/api/v1/faq-classifications/export"): "区分一覧ダウンロード",
+        ("GET", "/api/v1/categories/export"): "カテゴリ一覧ダウンロード",
+        ("GET", "/api/v1/chat-history/export.xlsx"): "チャット履歴ダウンロード",
+        ("GET", "/api/v1/usage/users.xlsx"): "ユーザリストダウンロード",
+        ("GET", "/api/v1/usage/access-logs.xlsx"): "アクセスログダウンロード",
+        ("GET", "/api/v1/usage/operation-logs.xlsx"): "操作ログダウンロード",
+    }
+    if name := exact_operations.get((method, path)):
+        return name
+    if path.startswith("/api/v1/data-source-types/"):
+        action = {"POST": "登録", "PUT": "更新", "PATCH": "更新", "DELETE": "削除"}.get(method, "操作")
+        return f"種別設定{action}"
+    if path.startswith("/api/v1/faq-classifications/"):
+        action = {"POST": "登録", "PUT": "更新", "PATCH": "更新", "DELETE": "削除"}.get(method, "操作")
+        return f"区分設定{action}"
+    if path == "/api/v1/faqs/bulk-delete" or (method == "DELETE" and path.startswith("/api/v1/faqs/")):
+        return "FAQ削除"
+    if path == "/api/v1/data-sources/bulk-delete" or (method == "DELETE" and path.startswith("/api/v1/data-sources/")):
+        return "データソース削除"
+    if path == "/api/v1/categories/bulk-delete" or (method == "DELETE" and path.startswith("/api/v1/categories/")):
+        return "カテゴリ削除"
+    if method == "POST" and path == "/api/v1/categories":
+        return "カテゴリ登録"
+    if method in {"PUT", "PATCH"} and path.startswith("/api/v1/categories/"):
+        return "カテゴリ更新"
     resources = [
-        ("/faq-classifications", "FAQ区分"),
+        ("/faq-classifications", "区分設定"),
         ("/faqs", "FAQ"),
-        ("/data-source-types", "データソース区分"),
+        ("/data-source-types", "種別設定"),
         ("/data-sources", "データソース"),
         ("/categories", "カテゴリ"),
         ("/usage/users.xlsx", "ユーザーリスト"),
@@ -235,7 +270,7 @@ async def operation_logs_xlsx(
         [[
             display_datetime(row.get("operated_at")), row.get("operator_subject") or f"利用者-{row['operator_key'][:12]}",
             ROLE_LABELS.get(row.get("operator_role"), row.get("operator_role") or ""),
-            operation_description(row["http_method"], row["request_path"]),
+            row.get("operation_name") or operation_description(row["http_method"], row["request_path"], row.get("surface")),
             SURFACE_LABELS.get(row.get("surface"), row.get("surface") or ""),
             row.get("ip_address") or "", row.get("user_agent") or "",
         ] for row in rows],

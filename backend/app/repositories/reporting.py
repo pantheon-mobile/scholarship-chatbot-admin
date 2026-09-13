@@ -134,7 +134,7 @@ class ReportingRepository:
         rows = (await self.session.execute(text(f"""
             SELECT id, operator_key, operator_subject, operator_display_name, operator_role,
                    operator_site, surface, ip_address, user_agent,
-                   http_method, request_path, status_code, operated_at
+                   http_method, request_path, operation_name, status_code, operated_at
             FROM admin_operation_logs
             WHERE operated_at >= :start_at AND operated_at < :end_at {where_extra}
             ORDER BY operated_at DESC, id DESC

@@ -3,7 +3,7 @@ from io import BytesIO
 import os
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -208,11 +208,14 @@ async def get_data_source(data_source_id: int, service: DataSourceService = Depe
 async def update_file_data_source(
     data_source_id: int,
     payload: FileDataSourceUpdateRequest | WebsiteDataSourceUpdateRequest,
+    request: Request,
     service: DataSourceService = Depends(get_service),
 ):
     try:
         if isinstance(payload, WebsiteDataSourceUpdateRequest):
+            request.state.audit_operation_name = "データソース（Webサイト）更新"
             return await service.update_website_attributes(data_source_id, payload)
+        request.state.audit_operation_name = "データソース（ファイル）更新"
         return await service.update_file_attributes(data_source_id, payload)
     except DataSourceNotFoundError:
         raise HTTPException(status_code=404, detail="指定されたデータソースが見つかりません。") from None

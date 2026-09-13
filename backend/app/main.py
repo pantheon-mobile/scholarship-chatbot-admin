@@ -16,6 +16,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.auth import require_authenticated_session, require_system_admin_session
 from app.api.v1.chat import router as chat_router
 from app.api.v1.reporting import router as reporting_router
+from app.api.v1.reporting import operation_description
 from app.api.v1.maintenance import router as maintenance_router
 from app.core.db import SessionLocal
 from app.models.auth import AdminOperationLog
@@ -46,7 +47,7 @@ def _is_audited_operation(request: Request) -> bool:
         # A successful purge must not recreate an operation log for itself.
         return False
     if path.startswith("/api/v1/analytics/"):
-        return request.method == "POST" and path.endswith("/chat-sessions")
+        return request.method == "POST" and path.endswith(("/accesses", "/chat-sessions"))
     return request.method in {"POST", "PUT", "PATCH", "DELETE"} or path.endswith((".csv", ".xlsx", "/export", "/import-template"))
 
 
@@ -67,11 +68,14 @@ async def record_admin_operation(request: Request, call_next):
                     operator_display_name=current.display_name,
                     operator_role=current.role,
                     operator_site=current.site,
-                    surface="CHAT" if request.url.path.startswith(("/api/v1/chat/", "/api/v1/analytics/")) else "ADMIN",
+                    surface=getattr(request.state, "audit_surface", None) or ("CHAT" if request.url.path.startswith("/api/v1/chat/") else "ADMIN"),
                     ip_address=(request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip() or (request.client.host if request.client else ""))[:64] or None,
                     user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
                     http_method=request.method,
                     request_path=request.url.path,
+                    operation_name=getattr(request.state, "audit_operation_name", None) or operation_description(
+                        request.method, request.url.path, getattr(request.state, "audit_surface", None)
+                    ),
                     status_code=response.status_code,
                     operated_at=datetime.now(timezone.utc),
                 ))

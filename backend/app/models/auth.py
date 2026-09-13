@@ -47,5 +47,6 @@ class AdminOperationLog(Base):
     user_agent: Mapped[str | None] = Column(String(1000), nullable=True)
     http_method: Mapped[str] = Column(String(10), nullable=False)
     request_path: Mapped[str] = Column(String(1000), nullable=False)
+    operation_name: Mapped[str | None] = Column(String(200), nullable=True)
     status_code: Mapped[int] = Column(Integer, nullable=False)
     operated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, index=True)

@@ -47,6 +47,7 @@ async def record_access(
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
+    request.state.audit_surface = payload.surface
     try:
         return await service.record_access(
             payload, subject=current.subject, display_name=current.display_name,
