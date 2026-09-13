@@ -6,7 +6,15 @@
 .formRows { display: grid; gap: 14px; padding-left: 4px; }
 .formRow { min-height: 42px; display: flex; align-items: flex-start; gap: 18px; }
 .rowLabel { width: 218px; flex: 0 0 auto; padding-top: 7px; font-size: 15px; font-weight: 700; white-space: nowrap; }
-.urlField, .titleField { width: 550px; }
+.urlRow { min-height: 170px; }
+.urlInputArea { width: 550px; }
+.urlTextarea { width: 100%; min-height: 132px; resize: vertical; padding: 10px 12px; border: 1px solid #aeb4bb; border-radius: 3px; background: #fff; color: #202428; font: inherit; font-size: 15px; line-height: 1.5; }
+.urlTextarea:focus { border-color: #3d5afe; outline: 2px solid rgb(61 90 254 / 14%); }
+.urlTextarea:disabled { background: #f1f2f4; color: #6d737a; }
+.urlHelp { margin-top: 7px; color: #555d65; font-size: 13px; line-height: 1.5; }
+.importControls { min-width: 230px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.importFileName { max-width: 270px; color: #34383c; font-size: 13px; overflow-wrap: anywhere; }
+.hiddenFileInput { display: none; }
 .categoryField { width: 305px; }
 .priorityField { width: 180px; }
 .classificationRow { align-items: flex-start; }

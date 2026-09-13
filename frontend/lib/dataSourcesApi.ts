@@ -1,4 +1,4 @@
-import { DataSource, DataSourceFilters, DataSourceImportResponse, DataSourceImportRowError, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteDataSourceCreate, WebsiteDataSourceUpdate } from "@/types/dataSource";
+import { DataSource, DataSourceFilters, DataSourceImportResponse, DataSourceImportRowError, DataSourceListResponse, DataSourcesApiError, FileDataSourceUpdate, WebsiteBulkCreateResponse, WebsiteDataSourceCreate, WebsiteDataSourceUpdate } from "@/types/dataSource";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -73,6 +73,33 @@ export async function createWebsiteDataSource(values: WebsiteDataSourceCreate): 
     body: JSON.stringify(values),
   });
   if (!response.ok) return parseError(response, "Webサイトの追加に失敗しました。");
+  return response.json();
+}
+
+export async function createWebsiteDataSources(items: WebsiteDataSourceCreate[]): Promise<WebsiteBulkCreateResponse> {
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/websites/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!response.ok) return parseError(response, "Webサイトの追加に失敗しました。");
+  return response.json();
+}
+
+export async function importWebsiteDataSources(
+  file: File,
+  values: Omit<WebsiteDataSourceCreate, "url" | "title">,
+): Promise<WebsiteBulkCreateResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== null && value !== undefined) form.append(key, String(value));
+  }
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/websites/import`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) return parseError(response, "URLリストの一括入力に失敗しました。");
   return response.json();
 }
 

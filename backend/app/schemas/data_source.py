@@ -169,6 +169,15 @@ class WebsiteDataSourceCreateRequest(BaseModel):
     reference_link_visible: bool = True
 
 
+class WebsiteBulkCreateRequest(BaseModel):
+    items: list[WebsiteDataSourceCreateRequest] = Field(min_length=1, max_length=100)
+
+
+class WebsiteBulkCreateResponse(BaseModel):
+    items: list[DataSourceResponse]
+    created_count: int
+
+
 class WebsiteDataSourceUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -20,7 +20,7 @@ async def test_worker_processes_jobs_until_queue_is_empty():
     repository.claim_next.side_effect = [job(1), job(2), None]
     processor = AsyncMock()
     processor.process.side_effect = [
-        IngestionResult(character_count=120),
+        IngestionResult(character_count=120, discovered_title="サイトタイトル"),
         IngestionResult(character_count=240),
     ]
 
@@ -33,8 +33,8 @@ async def test_worker_processes_jobs_until_queue_is_empty():
     assert result.failed == 0
     assert repository.claim_next.await_count == 3
     assert repository.claim_next.await_args_list[0].args == ("test-worker",)
-    assert repository.mark_succeeded.await_args_list[0].kwargs == {"character_count": 120}
-    assert repository.mark_succeeded.await_args_list[1].kwargs == {"character_count": 240}
+    assert repository.mark_succeeded.await_args_list[0].kwargs == {"character_count": 120, "discovered_title": "サイトタイトル"}
+    assert repository.mark_succeeded.await_args_list[1].kwargs == {"character_count": 240, "discovered_title": None}
 
 
 @pytest.mark.anyio
@@ -53,7 +53,7 @@ async def test_worker_records_failure_without_stopping_other_jobs():
     repository.mark_failed.assert_awaited_once_with(
         1, error_code="RuntimeError", error_message="conversion failed"
     )
-    repository.mark_succeeded.assert_awaited_once_with(2, character_count=None)
+    repository.mark_succeeded.assert_awaited_once_with(2, character_count=None, discovered_title=None)
 
 
 @pytest.mark.anyio

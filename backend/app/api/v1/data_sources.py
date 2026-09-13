@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -22,6 +22,8 @@ from app.schemas.data_source import (
     ToggleAnswerSourceRequest,
     ToggleReferenceLinkRequest,
     WebsiteDataSourceCreateRequest,
+    WebsiteBulkCreateRequest,
+    WebsiteBulkCreateResponse,
     WebsiteDataSourceUpdateRequest,
 )
 from app.services.data_source_service import (
@@ -185,6 +187,67 @@ async def create_website_data_source(
     except WebsiteDataSourceCreateError as exc:
         status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
         raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
+
+
+@router.post("/data-sources/websites/bulk", response_model=WebsiteBulkCreateResponse, status_code=201)
+async def create_website_data_sources(
+    payload: WebsiteBulkCreateRequest,
+    service: DataSourceService = Depends(get_service),
+):
+    items = []
+    for index, item in enumerate(payload.items, start=1):
+        try:
+            items.append(await service.create_website_source(item))
+        except WebsiteDataSourceCreateError as exc:
+            status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
+            raise HTTPException(
+                status_code=status_code,
+                detail={"code": exc.code, "message": f"{index}件目: {exc.message}"},
+            ) from None
+    return WebsiteBulkCreateResponse(items=items, created_count=len(items))
+
+
+@router.post("/data-sources/websites/import", response_model=WebsiteBulkCreateResponse, status_code=201)
+async def import_website_data_sources(
+    file: UploadFile = File(...),
+    category_id: int | None = Form(default=None),
+    type_1_value_id: int | None = Form(default=None),
+    type_2_value_id: int | None = Form(default=None),
+    type_3_value_id: int | None = Form(default=None),
+    priority: str = Form(default="MEDIUM"),
+    answer_source_enabled: bool = Form(default=True),
+    reference_link_visible: bool = Form(default=True),
+    service: DataSourceService = Depends(get_service),
+):
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=422, detail={"code": "INVALID_FILE", "message": "xlsx形式のファイルを選択してください。"})
+    try:
+        workbook = load_workbook(BytesIO(await file.read()), read_only=True, data_only=True)
+        worksheet = workbook.active
+        rows = list(worksheet.iter_rows(values_only=True))
+    except Exception:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_FILE", "message": "Excelファイルを読み取れませんでした。"}) from None
+    if not rows or tuple(rows[0][:2]) != ("URL", "タイトル"):
+        raise HTTPException(status_code=422, detail={"code": "INVALID_HEADER", "message": "先頭行を「URL」「タイトル」にしてください。"})
+    source_rows = [(row_number, str(row[0] or "").strip(), str(row[1] or "").strip()) for row_number, row in enumerate(rows[1:], start=2) if any(value not in (None, "") for value in row[:2])]
+    if not source_rows:
+        raise HTTPException(status_code=422, detail={"code": "EMPTY_FILE", "message": "登録するURLがありません。"})
+    if len(source_rows) > 100:
+        raise HTTPException(status_code=422, detail={"code": "TOO_MANY_URLS", "message": "一度に登録できるURLは100件までです。"})
+    items = []
+    for row_number, url, title in source_rows:
+        try:
+            items.append(await service.create_website_source(WebsiteDataSourceCreateRequest(
+                url=url, title=title, category_id=category_id,
+                type_1_value_id=type_1_value_id, type_2_value_id=type_2_value_id,
+                type_3_value_id=type_3_value_id, priority=priority,
+                answer_source_enabled=answer_source_enabled,
+                reference_link_visible=reference_link_visible,
+            )))
+        except WebsiteDataSourceCreateError as exc:
+            status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
+            raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": f"{row_number}行目: {exc.message}"}) from None
+    return WebsiteBulkCreateResponse(items=items, created_count=len(items))
 
 
 @router.post("/data-sources/ingestion/run-now", status_code=202)

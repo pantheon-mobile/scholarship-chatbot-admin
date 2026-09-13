@@ -1,14 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AdminIcon, AdminLayout, Breadcrumb, Button, FormField, Modal, SelectField, ToggleSwitch,
+  AdminIcon, AdminLayout, Breadcrumb, Button, Modal, SelectField, ToggleSwitch,
 } from "@/components/admin";
 import { CategorySelectField } from "@/components/categories/CategorySelectField";
 import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
-import { createWebsiteDataSource, downloadWebsiteImportTemplate } from "@/lib/dataSourcesApi";
+import { createWebsiteDataSources, downloadWebsiteImportTemplate, importWebsiteDataSources } from "@/lib/dataSourcesApi";
 import { validateWebsiteUrl } from "@/lib/websiteUrlValidation";
 import { Priority } from "@/types/dataSource";
 import { ClassificationType } from "@/types/dataSourceTypes";
@@ -17,7 +17,6 @@ import styles from "./page.module.css";
 
 type FormValues = {
   url: string;
-  title: string;
   category_id: string;
   type_1_value_id: string;
   type_2_value_id: string;
@@ -28,7 +27,7 @@ type FormValues = {
 };
 
 const initialValues: FormValues = {
-  url: "", title: "", category_id: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
+  url: "", category_id: "", type_1_value_id: "", type_2_value_id: "", type_3_value_id: "",
   priority: "MEDIUM", answer_source_enabled: true, reference_link_visible: true,
 };
 const leaveMessage = "Webサイトを追加せずにデータソース一覧に戻ります。よろしいですか？";
@@ -40,8 +39,10 @@ export default function DataSourceWebsiteNewPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const dirty = (Object.keys(values) as Array<keyof FormValues>).some((key) => values[key] !== initialValues[key]);
+  const dirty = Boolean(importFile) || (Object.keys(values) as Array<keyof FormValues>).some((key) => values[key] !== initialValues[key]);
 
   useEffect(() => {
     fetchDataSourceTypes().then(setTypes).catch(() => setError("種別の取得に失敗しました。"));
@@ -70,15 +71,24 @@ export default function DataSourceWebsiteNewPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
-    const validationError = validateWebsiteUrl(values.url);
-    if (validationError) {
-      setError(validationError);
-      return;
+    const lines = values.url.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!importFile && lines.length === 0) return;
+    if (lines.length > 100) return setError("一度に登録できるURLは100件までです。");
+    const items = lines.map((line) => {
+      const separator = line.indexOf(",");
+      return {
+        url: (separator < 0 ? line : line.slice(0, separator)).trim(),
+        title: (separator < 0 ? "" : line.slice(separator + 1)).trim(),
+      };
+    });
+    for (const [index, item] of items.entries()) {
+      const validationError = validateWebsiteUrl(item.url);
+      if (validationError) return setError(`${index + 1}行目: ${validationError}`);
+      if (item.title.length > 500) return setError(`${index + 1}行目: タイトルは500文字以内で入力してください。`);
     }
     setBusy(true);
     try {
-      await createWebsiteDataSource({
-        url: values.url.trim(), title: values.title,
+      const settings = {
         category_id: values.category_id ? Number(values.category_id) : null,
         type_1_value_id: values.type_1_value_id ? Number(values.type_1_value_id) : null,
         type_2_value_id: values.type_2_value_id ? Number(values.type_2_value_id) : null,
@@ -86,8 +96,11 @@ export default function DataSourceWebsiteNewPage() {
         priority: values.priority,
         answer_source_enabled: values.answer_source_enabled,
         reference_link_visible: values.reference_link_visible,
-      });
+      };
+      if (importFile) await importWebsiteDataSources(importFile, settings);
+      else await createWebsiteDataSources(items.map((item) => ({ ...item, ...settings })));
       setValues(initialValues);
+      setImportFile(null);
       router.push("/data-sources");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Webサイトの追加に失敗しました。");
@@ -127,13 +140,17 @@ export default function DataSourceWebsiteNewPage() {
         <div className={styles.divider} />
         {error && <div className={styles.error} role="alert">{error}</div>}
         <div className={styles.formRows}>
-          <div className={styles.formRow}>
+          <div className={`${styles.formRow} ${styles.urlRow}`}>
             <span className={styles.rowLabel}>WebサイトURL（必須）：</span>
-            <FormField wrapperClassName={styles.urlField} aria-label="WebサイトURL" value={values.url} maxLength={500} disabled={busy} placeholder="https://www.example.com/" onChange={(event) => setValue("url", event.target.value)} description="※httpまたはhttpsで始まるURLを入力してください。URLへの接続確認は行いません。" />
-          </div>
-          <div className={styles.formRow}>
-            <span className={styles.rowLabel}>タイトル：</span>
-            <FormField wrapperClassName={styles.titleField} aria-label="タイトル" value={values.title} maxLength={500} disabled={busy} onChange={(event) => setValue("title", event.target.value)} description="※未入力の場合、タイトルはURLとなります。" />
+            <div className={styles.urlInputArea}>
+              <textarea className={styles.urlTextarea} aria-label="WebサイトURL" value={values.url} maxLength={100000} disabled={busy || Boolean(importFile)} placeholder="https://www.example.com/" onChange={(event) => setValue("url", event.target.value)} />
+              <div className={styles.urlHelp}>※複数のURLは改行して入力してください。タイトルを指定する場合は「URL,タイトル」の形式で入力してください。<br/>※タイトル未指定時は、クロール後にWebサイトのtitleタグを登録します。取得できない場合はURLを使用します。</div>
+            </div>
+            <div className={styles.importControls}>
+              <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => importInputRef.current?.click()} disabled={busy}>ファイルから一括入力</Button>
+              {importFile && <><span className={styles.importFileName}>{importFile.name}</span><Button variant="text" onClick={() => setImportFile(null)} disabled={busy}>選択解除</Button></>}
+              <input ref={importInputRef} className={styles.hiddenFileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="URLリスト取込ファイル" onChange={(event) => { const file = event.target.files?.[0] ?? null; setImportFile(file); if (file) setValue("url", ""); event.currentTarget.value = ""; }} />
+            </div>
           </div>
           <div className={styles.formRow}>
             <span className={styles.rowLabel}>カテゴリ：</span>
@@ -161,7 +178,7 @@ export default function DataSourceWebsiteNewPage() {
           </div>
         </div>
         <div className={styles.actions}>
-          <Button type="submit" variant="primary" disabled={!values.url.trim() || busy}>{busy ? "追加中..." : "Webサイトを追加する"}</Button>
+          <Button type="submit" variant="primary" disabled={(!values.url.trim() && !importFile) || busy}>{busy ? "追加中..." : "Webサイトを追加する"}</Button>
           <Button variant="secondary" onClick={() => requestNavigate("/data-sources")} disabled={busy}>キャンセル</Button>
         </div>
       </form>
@@ -169,6 +186,7 @@ export default function DataSourceWebsiteNewPage() {
         if (busy) return;
         setLeaveOpen(false);
         setValues(initialValues);
+        setImportFile(null);
         router.push("/data-sources");
       }}>{leaveMessage}</Modal>
     </AdminLayout>

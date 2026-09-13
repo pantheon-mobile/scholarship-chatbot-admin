@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class IngestionResult:
     character_count: int | None = None
+    discovered_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,10 @@ class HttpIngestionProcessor:
             response = await client.post(f"{self.endpoint}/process", json=payload)
             response.raise_for_status()
             body = response.json()
-        return IngestionResult(character_count=body.get("character_count"))
+        return IngestionResult(
+            character_count=body.get("character_count"),
+            discovered_title=body.get("discovered_title"),
+        )
 
 
 class LocalDataSourceCleanupProcessor:
@@ -116,6 +120,20 @@ class AwsIngestionProcessor:
         artifacts = self._artifacts(data_source, kind, crawl_report=crawl_report)
         if not artifacts:
             raise RuntimeError("取り込み対象の文書が0件です。")
+        discovered_title = None
+        if crawl_report is not None and data_source.website is not None:
+            root_url = data_source.website.url.rstrip("/")
+            root_page = next((
+                page for page in crawl_report.get("pages", [])
+                if str(page.get("source_url", "")).rstrip("/") == root_url
+            ), None)
+            if root_page:
+                discovered_title = str(root_page.get("title") or "").strip()[:500] or None
+        effective_title = (
+            discovered_title
+            if discovered_title and data_source.website is not None and data_source.title == data_source.website.url
+            else data_source.title
+        )
         prefix = os.getenv(
             f"INGESTION_{kind}_S3_PREFIX",
             self._default_s3_prefix(kind),
@@ -133,7 +151,7 @@ class AwsIngestionProcessor:
                 "data_source_id": str(data_source.id),
                 "source_type": data_source.source_type,
                 "source_format": data_source.format,
-                "source_title": data_source.title[:500],
+                "source_title": effective_title[:500],
                 "answer_source_enabled": bool(data_source.answer_source_enabled),
                 "answer_priority": data_source.priority,
                 "reference_link_visible": bool(data_source.reference_link_visible),
@@ -176,7 +194,8 @@ class AwsIngestionProcessor:
             },
         )
         return IngestionResult(
-            character_count=total_characters if has_character_count else None
+            character_count=total_characters if has_character_count else None,
+            discovered_title=discovered_title,
         )
 
     async def cleanup(self, data_sources: list[DataSource]) -> None:

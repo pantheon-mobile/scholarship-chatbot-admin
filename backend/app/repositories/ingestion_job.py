@@ -83,7 +83,13 @@ class IngestionJobRepository:
         await self.session.commit()
         return job
 
-    async def mark_succeeded(self, job_id: int, *, character_count: int | None = None) -> None:
+    async def mark_succeeded(
+        self,
+        job_id: int,
+        *,
+        character_count: int | None = None,
+        discovered_title: str | None = None,
+    ) -> None:
         job = await self._get_for_update(job_id)
         now = datetime.now(timezone.utc)
         job.status = "SUCCEEDED"
@@ -94,6 +100,10 @@ class IngestionJobRepository:
             job.data_source.character_count = character_count
         if job.data_source.website is not None:
             job.data_source.website.last_fetched_at = now
+            # A URL is the temporary title used only when the operator omitted it.
+            # Replace that placeholder after the first successful crawl.
+            if discovered_title and job.data_source.title == job.data_source.website.url:
+                job.data_source.title = discovered_title[:500]
         job.data_source.updated_at = now
         job.data_source.version += 1
         await self.session.commit()

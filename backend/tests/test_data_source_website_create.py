@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from openpyxl import Workbook
 
 from app.api.v1.data_sources import get_service
 from app.main import app
@@ -170,3 +172,57 @@ async def test_api_missing_url_uses_url_required_code():
         app.dependency_overrides.clear()
     assert response.status_code == 422
     assert response.json()["detail"] == {"code": "URL_REQUIRED", "message": "URLを入力してください。"}
+
+
+@pytest.mark.anyio
+async def test_bulk_api_creates_each_website():
+    service = AsyncMock()
+    first = DataSourceService.serialize(website_row(data_source_id=1, url="https://example.com/a", title="A"), {}, {})
+    second = DataSourceService.serialize(website_row(data_source_id=2, url="https://example.com/b", title="https://example.com/b"), {}, {})
+    service.create_website_source.side_effect = [first, second]
+    app.dependency_overrides[get_service] = lambda: service
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/data-sources/websites/bulk", json={"items": [
+                payload(url="https://example.com/a", title="A").model_dump(),
+                payload(url="https://example.com/b", title="").model_dump(),
+            ]})
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 201
+    assert response.json()["created_count"] == 2
+    assert service.create_website_source.await_count == 2
+
+
+@pytest.mark.anyio
+async def test_excel_import_creates_websites_with_shared_settings():
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["URL", "タイトル"])
+    sheet.append(["https://example.com/a", "案内A"])
+    sheet.append(["https://example.com/b", ""])
+    content = BytesIO()
+    workbook.save(content)
+    service = AsyncMock()
+    service.create_website_source.side_effect = [
+        DataSourceService.serialize(website_row(data_source_id=1), {}, {}),
+        DataSourceService.serialize(website_row(data_source_id=2), {}, {}),
+    ]
+    app.dependency_overrides[get_service] = lambda: service
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/data-sources/websites/import",
+                files={"file": ("urls.xlsx", content.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                data={"priority": "HIGH", "answer_source_enabled": "false", "reference_link_visible": "true"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 201
+    assert response.json()["created_count"] == 2
+    first_payload = service.create_website_source.await_args_list[0].args[0]
+    second_payload = service.create_website_source.await_args_list[1].args[0]
+    assert (first_payload.url, first_payload.title) == ("https://example.com/a", "案内A")
+    assert (second_payload.url, second_payload.title) == ("https://example.com/b", "")
+    assert first_payload.priority == "HIGH"
+    assert first_payload.answer_source_enabled is False

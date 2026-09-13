@@ -47,7 +47,9 @@ class IngestionWorker:
             try:
                 result = await self.processor.process(job.data_source)
                 await self.repository.mark_succeeded(
-                    job.id, character_count=result.character_count
+                    job.id,
+                    character_count=result.character_count,
+                    discovered_title=result.discovered_title,
                 )
                 succeeded += 1
                 logger.info("ingestion job succeeded", extra={"job_id": job.id})

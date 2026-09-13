@@ -95,6 +95,11 @@ export type WebsiteDataSourceUpdate = WebsiteDataSourceCreate & {
   version: number;
 };
 
+export type WebsiteBulkCreateResponse = {
+  items: DataSource[];
+  created_count: number;
+};
+
 export type DataSourceImportRowError = { row: number; column: string; code: string; message: string };
 export type DataSourceImportResponse = { updated_count: number; processed_count: number };
 

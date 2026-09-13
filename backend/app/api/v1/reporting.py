@@ -29,6 +29,8 @@ def operation_description(method: str, path: str, surface: str | None = None) ->
         ("POST", "/api/v1/data-sources/import"): "データソース一覧更新",
         ("POST", "/api/v1/data-sources/files"): "データソース（ファイル）登録",
         ("POST", "/api/v1/data-sources/websites"): "データソース（Webサイト）登録",
+        ("POST", "/api/v1/data-sources/websites/bulk"): "データソース（Webサイト）登録",
+        ("POST", "/api/v1/data-sources/websites/import"): "データソース（Webサイト）登録",
         ("GET", "/api/v1/data-source-types/export"): "種別一覧ダウンロード",
         ("GET", "/api/v1/faqs/export"): "FAQ一覧ダウンロード",
         ("POST", "/api/v1/faqs/import"): "FAQ一覧登録/更新",

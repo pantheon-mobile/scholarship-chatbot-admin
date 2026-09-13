@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DataSourceWebsiteNewPage from "@/app/data-sources/websites/new/page";
 
 const push = vi.fn();
-const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createWebsiteDataSource: vi.fn(), downloadWebsiteImportTemplate: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchDataSourceTypes: vi.fn(), createWebsiteDataSources: vi.fn(), importWebsiteDataSources: vi.fn(), downloadWebsiteImportTemplate: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/api", () => ({ fetchDataSourceTypes: api.fetchDataSourceTypes }));
 vi.mock("@/lib/categoriesApi", () => ({ fetchCategories: vi.fn().mockResolvedValue({ items: [{ id: 7, name: "給付", parent_id: null, display_order: 1 }] }) }));
 vi.mock("@/lib/dataSourcesApi", () => ({
-  createWebsiteDataSource: api.createWebsiteDataSource,
+  createWebsiteDataSources: api.createWebsiteDataSources,
+  importWebsiteDataSources: api.importWebsiteDataSources,
   downloadWebsiteImportTemplate: api.downloadWebsiteImportTemplate,
 }));
 
@@ -21,7 +22,8 @@ const types = [
 beforeEach(() => {
   push.mockReset();
   api.fetchDataSourceTypes.mockReset().mockResolvedValue(types);
-  api.createWebsiteDataSource.mockReset().mockResolvedValue({ id: 1 });
+  api.createWebsiteDataSources.mockReset().mockResolvedValue({ items: [{ id: 1 }], created_count: 1 });
+  api.importWebsiteDataSources.mockReset().mockResolvedValue({ items: [{ id: 1 }], created_count: 1 });
   api.downloadWebsiteImportTemplate.mockReset().mockResolvedValue(new Blob(["xlsx"]));
 });
 afterEach(cleanup);
@@ -42,22 +44,19 @@ describe("CB-205 website add page", () => {
     expect((screen.getByRole("button", { name: "Webサイトを追加する" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("URL、任意タイトル、種別、優先度、独立トグルを登録する", async () => {
+  it("複数URL、任意タイトル、種別、優先度、独立トグルを登録する", async () => {
     await renderPage();
-    fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "  https://example.com/scholarship  " } });
-    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "奨学金案内" } });
+    fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "  https://example.com/scholarship,奨学金案内  \nhttps://example.com/news" } });
     fireEvent.change(screen.getByLabelText("対象者"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("給付区分"), { target: { value: "20" } });
     fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "7" } });
     fireEvent.change(screen.getByLabelText("回答利用の優先度"), { target: { value: "HIGH" } });
     fireEvent.click(screen.getAllByRole("switch")[1]);
     fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
-    await waitFor(() => expect(api.createWebsiteDataSource).toHaveBeenCalledWith({
-      url: "https://example.com/scholarship", title: "奨学金案内",
-      category_id: 7,
-      type_1_value_id: 10, type_2_value_id: 20, type_3_value_id: null,
-      priority: "HIGH", answer_source_enabled: true, reference_link_visible: false,
-    }));
+    await waitFor(() => expect(api.createWebsiteDataSources).toHaveBeenCalledWith([
+      { url: "https://example.com/scholarship", title: "奨学金案内", category_id: 7, type_1_value_id: 10, type_2_value_id: 20, type_3_value_id: null, priority: "HIGH", answer_source_enabled: true, reference_link_visible: false },
+      { url: "https://example.com/news", title: "", category_id: 7, type_1_value_id: 10, type_2_value_id: 20, type_3_value_id: null, priority: "HIGH", answer_source_enabled: true, reference_link_visible: false },
+    ]));
     expect(push).toHaveBeenCalledWith("/data-sources");
   });
 
@@ -66,15 +65,15 @@ describe("CB-205 website add page", () => {
     fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "ftp://example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
     expect((await screen.findByRole("alert")).textContent).toContain("正しいURLを入力してください。");
-    expect(api.createWebsiteDataSource).not.toHaveBeenCalled();
+    expect(api.createWebsiteDataSources).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "https://example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
-    await waitFor(() => expect(api.createWebsiteDataSource).toHaveBeenCalledWith(expect.objectContaining({ title: "" })));
+    await waitFor(() => expect(api.createWebsiteDataSources).toHaveBeenCalledWith([expect.objectContaining({ title: "" })]));
   });
 
   it("登録中は入力・戻る・二重送信を禁止する", async () => {
-    let resolve!: (value: { id: number }) => void;
-    api.createWebsiteDataSource.mockReturnValue(new Promise((done) => { resolve = done; }));
+    let resolve!: (value: { items: Array<{ id: number }>; created_count: number }) => void;
+    api.createWebsiteDataSources.mockReturnValue(new Promise((done) => { resolve = done; }));
     await renderPage();
     fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "https://example.com" } });
     const submit = screen.getByRole("button", { name: "Webサイトを追加する" });
@@ -82,17 +81,31 @@ describe("CB-205 website add page", () => {
     expect((screen.getByLabelText("WebサイトURL") as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "データソース一覧に戻る" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(submit);
-    expect(api.createWebsiteDataSource).toHaveBeenCalledTimes(1);
-    resolve({ id: 1 });
+    expect(api.createWebsiteDataSources).toHaveBeenCalledTimes(1);
+    resolve({ items: [{ id: 1 }], created_count: 1 });
     await waitFor(() => expect(push).toHaveBeenCalledWith("/data-sources"));
   });
 
   it("登録失敗を表示する", async () => {
-    api.createWebsiteDataSource.mockRejectedValue(new Error("Webサイトの追加に失敗しました。"));
+    api.createWebsiteDataSources.mockRejectedValue(new Error("Webサイトの追加に失敗しました。"));
     await renderPage();
     fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "https://example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Webサイトの追加に失敗しました。");
+  });
+
+  it("ExcelのURLリストを共通設定付きで一括入力する", async () => {
+    await renderPage();
+    const file = new File(["xlsx"], "urls.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    fireEvent.change(screen.getByLabelText("URLリスト取込ファイル"), { target: { files: [file] } });
+    expect(screen.getByText("urls.xlsx")).not.toBeNull();
+    expect((screen.getByLabelText("WebサイトURL") as HTMLTextAreaElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Webサイトを追加する" }));
+    await waitFor(() => expect(api.importWebsiteDataSources).toHaveBeenCalledWith(file, expect.objectContaining({
+      category_id: 7, priority: "MEDIUM", answer_source_enabled: true, reference_link_visible: true,
+    })));
+    expect(push).toHaveBeenCalledWith("/data-sources");
   });
 
   it("初期値との差分だけをdirtyとし、戻すと確認なしになる", async () => {
@@ -107,7 +120,7 @@ describe("CB-205 website add page", () => {
 
   it("dirty時は各離脱操作とbeforeunloadで確認する", async () => {
     await renderPage();
-    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "入力中" } });
+    fireEvent.change(screen.getByLabelText("WebサイトURL"), { target: { value: "https://example.com" } });
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);

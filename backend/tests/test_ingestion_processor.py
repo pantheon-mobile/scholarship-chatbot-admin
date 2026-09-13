@@ -161,6 +161,37 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
     assert result.character_count is None
 
 
+@pytest.mark.anyio
+async def test_web_process_returns_root_title_and_uses_it_in_metadata(monkeypatch):
+    monkeypatch.setenv("INGESTION_WEB_KNOWLEDGE_BASE_ID", "web-kb")
+    monkeypatch.setenv("INGESTION_WEB_DATA_SOURCE_ID", "web-ds")
+    document = SimpleNamespace(
+        name="web-root.md", markdown="# 取得したタイトル\n\n本文", source_url="https://example.com/",
+        metadata={"page_title": "取得したタイトル"},
+    )
+    def fake_crawl(url, report):
+        report.update({"pages": [{"source_url": url, "title": "取得したタイトル", "content_hash": "hash"}], "errors": [], "skipped": [], "summary": {}})
+        return [document]
+    monkeypatch.setattr("app.services.ingestion_processor.crawl_website", fake_crawl)
+    processor = object.__new__(AwsIngestionProcessor)
+    processor.bucket = "development-bucket"
+    processor.s3 = MagicMock()
+    processor.s3.get_object.side_effect = RuntimeError("no manifest")
+    processor._clear_prefix = MagicMock()
+    processor._synchronize = MagicMock()
+    data_source = SimpleNamespace(
+        id=43, source_type="WEB", format="Web", title="https://example.com/",
+        answer_source_enabled=True, priority="MEDIUM", reference_link_visible=True,
+        website=SimpleNamespace(url="https://example.com/"), file=None,
+    )
+
+    result = await processor.process(data_source)
+
+    metadata_upload = next(call.kwargs for call in processor.s3.put_object.call_args_list if call.kwargs["Key"].endswith(".metadata.json"))
+    assert "取得したタイトル" in metadata_upload["Body"].decode("utf-8")
+    assert result.discovered_title == "取得したタイトル"
+
+
 def test_web_crawl_logs_compare_manifest_and_store_audit_files():
     processor = object.__new__(AwsIngestionProcessor)
     processor.bucket = "development-bucket"
