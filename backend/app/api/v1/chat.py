@@ -220,5 +220,8 @@ async def send_message(
         return await service.answer(payload.question, payload.bedrock_session_id)
     except ChatConfigurationError:
         raise HTTPException(status_code=503, detail="チャット機能の設定が完了していません。") from None
-    except ChatGenerationError:
-        raise HTTPException(status_code=502, detail="回答を生成できませんでした。時間をおいて再度お試しください。") from None
+    except ChatGenerationError as error:
+        detail = "回答を生成できませんでした。時間をおいて再度お試しください。"
+        if _flag("ENABLE_DEVELOPMENT_CPF_MOCK"):
+            detail = f"{detail} 診断情報: {error}"
+        raise HTTPException(status_code=502, detail=detail) from None

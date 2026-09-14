@@ -114,7 +114,7 @@ class ChatService:
             raise
         except Exception as error:
             logger.exception("Bedrock chat response failed")
-            raise ChatGenerationError("Bedrock response failed") from error
+            raise ChatGenerationError(f"{type(error).__name__}: {error}") from error
         answer = str(response.get("output", {}).get("text", "")).strip()
         if not answer:
             raise ChatGenerationError("Bedrock returned an empty answer")
