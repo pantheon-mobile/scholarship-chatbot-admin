@@ -96,6 +96,19 @@ describe("CB-202 data sources", () => {
     await waitFor(() => expect(api.fetchDataSources).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: "奨学金", category_id: "11", page: 1 })));
   });
 
+  it("カテゴリと各種別の未設定データを絞り込める", async () => {
+    await renderPage();
+    expect(screen.getAllByRole("option", { name: "（未設定）" })).toHaveLength(4);
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: "UNSET" } });
+    fireEvent.change(screen.getByLabelText("対象者"), { target: { value: "UNSET" } });
+    fireEvent.change(screen.getByLabelText("種別2"), { target: { value: "UNSET" } });
+    fireEvent.change(screen.getByLabelText("種別3"), { target: { value: "UNSET" } });
+    fireEvent.click(screen.getByRole("button", { name: "絞り込み検索" }));
+    await waitFor(() => expect(api.fetchDataSources).toHaveBeenLastCalledWith(expect.objectContaining({
+      category_id: "UNSET", type_1_value_id: "UNSET", type_2_value_id: "UNSET", type_3_value_id: "UNSET", page: 1,
+    })));
+  });
+
   it("IDをソートし、表示件数とページを変更する", async () => {
     await renderPage();
     fireEvent.click(screen.getByRole("button", { name: /IDを昇順/ }));

@@ -248,11 +248,11 @@ export default function DataSourcesPage() {
           <FormField label="キーワード" wrapperClassName={styles.keyword} placeholder="キーワードを入力" value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} />
           <SelectField label="形式" value={draft.format} onChange={(event) => setDraft({ ...draft, format: event.target.value })}><option value="">すべて</option>{["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","Web"].map((value) => <option key={value}>{value}</option>)}</SelectField>
           <SelectField label="状態" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option value="">すべて</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
-          <CategorySelectField label="カテゴリ" wrapperClassName={styles.category} categories={categories} emptyLabel="すべて" value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })} />
+          <CategorySelectField label="カテゴリ" wrapperClassName={styles.category} categories={categories} emptyLabel="すべて" unsetLabel="（未設定）" value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })} />
           {["TYPE_1","TYPE_2","TYPE_3"].map((code, index) => {
             const key = `type_${index + 1}_value_id` as "type_1_value_id" | "type_2_value_id" | "type_3_value_id";
             const type = typeMap[code];
-            return <SelectField key={code} label={type?.display_label ?? `種別${index + 1}`} value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}><option value="">すべて</option>{type?.values.map((value) => <option key={value.id} value={value.id}>{value.value_name}</option>)}</SelectField>;
+            return <SelectField key={code} label={type?.display_label ?? `種別${index + 1}`} value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}><option value="">すべて</option><option value="UNSET">（未設定）</option>{type?.values.map((value) => <option key={value.id} value={value.id}>{value.value_name}</option>)}</SelectField>;
           })}
           <SelectField label="回答ソース" value={draft.answer_source_enabled} onChange={(event) => setDraft({ ...draft, answer_source_enabled: event.target.value })}><option value="">すべて</option><option value="true">有効</option><option value="false">無効</option></SelectField>
           <SelectField label="優先度" value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })}><option value="">すべて</option><option value="HIGH">高</option><option value="MEDIUM">中</option><option value="LOW">低</option></SelectField>

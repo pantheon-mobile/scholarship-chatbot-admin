@@ -91,6 +91,19 @@ def test_all_filters_are_combined_as_independent_and_conditions():
     assert "data_sources.category_id" in str(conditions[3])
 
 
+def test_unset_category_and_classifications_create_missing_value_conditions():
+    filters = DataSourceFilters(
+        category_id="UNSET", type_1_value_id="UNSET",
+        type_2_value_id="UNSET", type_3_value_id="UNSET",
+    )
+    conditions = DataSourceRepository._conditions(filters)
+    rendered = "\n".join(str(condition.compile(compile_kwargs={"literal_binds": True})) for condition in conditions)
+    assert len(conditions) == 4
+    assert "data_sources.category_id IS NULL" in rendered
+    assert rendered.count("NOT (EXISTS") == 3
+    assert "TYPE_1" in rendered and "TYPE_2" in rendered and "TYPE_3" in rendered
+
+
 @pytest.mark.anyio
 async def test_category_path_and_legacy_fallback_use_one_category_query():
     categories = [
@@ -127,6 +140,24 @@ async def test_page_not_found_has_dedicated_error_code(mock_service):
         response = await client.get("/api/v1/data-sources?page=99")
     assert response.status_code == 422
     assert response.json()["detail"] == {"code": "PAGE_NOT_FOUND", "message": "ページがありません。"}
+
+
+@pytest.mark.anyio
+async def test_api_accepts_unset_category_and_classification_filters(mock_service):
+    mock_service.list.return_value = {
+        "items": [], "page": 1, "page_size": 10, "total_count": 0,
+        "total_pages": 0, "total_size_bytes": 0, "sort": "updated_at", "order": "desc",
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.get(
+            "/api/v1/data-sources?category_id=UNSET&type_1_value_id=UNSET"
+            "&type_2_value_id=UNSET&type_3_value_id=UNSET"
+        )
+    filters = mock_service.list.await_args.args[0]
+    assert filters.category_id == "UNSET"
+    assert filters.type_1_value_id == "UNSET"
+    assert filters.type_2_value_id == "UNSET"
+    assert filters.type_3_value_id == "UNSET"
 
 
 @pytest.mark.anyio

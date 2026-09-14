@@ -10,6 +10,8 @@ type CategorySelectFieldProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "c
   label?: string;
   wrapperClassName?: string;
   emptyLabel?: string;
+  unsetLabel?: string;
+  unsetValue?: string;
   error?: string;
 };
 
@@ -34,10 +36,11 @@ function flattenCategories(categories: Category[]) {
   return result;
 }
 
-export function CategorySelectField({ categories, emptyLabel = "未選択", ...props }: CategorySelectFieldProps) {
+export function CategorySelectField({ categories, emptyLabel = "未選択", unsetLabel, unsetValue = "UNSET", ...props }: CategorySelectFieldProps) {
   const options = useMemo(() => flattenCategories(categories), [categories]);
   return <SelectField {...props}>
     <option value="">{emptyLabel}</option>
+    {unsetLabel && <option value={unsetValue}>{unsetLabel}</option>}
     {options.map(({ category, depth }) => (
       <option key={category.id} value={category.id}>{`${"　".repeat(depth)}${category.name}`}</option>
     ))}

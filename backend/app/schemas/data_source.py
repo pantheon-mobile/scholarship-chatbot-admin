@@ -9,6 +9,7 @@ DataSourceStatus = Literal["PREPARING", "TRAINING", "AVAILABLE", "ERROR"]
 Priority = Literal["HIGH", "MEDIUM", "LOW"]
 SortColumn = Literal["id", "title", "updated_at"]
 SortOrder = Literal["asc", "desc"]
+UnsettableId = int | Literal["UNSET"]
 
 
 class DataSourceFileResponse(BaseModel):
@@ -70,10 +71,10 @@ class DataSourceFilters(BaseModel):
     keyword: str | None = None
     format: str | None = None
     status: DataSourceStatus | None = None
-    category_id: int | None = Field(default=None, ge=1)
-    type_1_value_id: int | None = None
-    type_2_value_id: int | None = None
-    type_3_value_id: int | None = None
+    category_id: UnsettableId | None = None
+    type_1_value_id: UnsettableId | None = None
+    type_2_value_id: UnsettableId | None = None
+    type_3_value_id: UnsettableId | None = None
     answer_source_enabled: bool | None = None
     priority: Priority | None = None
     reference_link_visible: bool | None = None

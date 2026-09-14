@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 import os
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
@@ -73,10 +74,10 @@ def get_filters(
     keyword: str | None = None,
     format: str | None = None,
     status: str | None = None,
-    category_id: int | None = None,
-    type_1_value_id: int | None = None,
-    type_2_value_id: int | None = None,
-    type_3_value_id: int | None = None,
+    category_id: int | Literal["UNSET"] | None = None,
+    type_1_value_id: int | Literal["UNSET"] | None = None,
+    type_2_value_id: int | Literal["UNSET"] | None = None,
+    type_3_value_id: int | Literal["UNSET"] | None = None,
     answer_source_enabled: bool | None = None,
     priority: str | None = None,
     reference_link_visible: bool | None = None,

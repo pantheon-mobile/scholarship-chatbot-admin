@@ -27,7 +27,9 @@ class DataSourceRepository:
             conditions.append(DataSource.format == filters.format)
         if filters.status:
             conditions.append(DataSource.status == filters.status)
-        if filters.category_id is not None:
+        if filters.category_id == "UNSET":
+            conditions.append(DataSource.category_id.is_(None))
+        elif filters.category_id is not None:
             conditions.append(DataSource.category_id == filters.category_id)
         if filters.answer_source_enabled is not None:
             conditions.append(DataSource.answer_source_enabled == filters.answer_source_enabled)
@@ -40,7 +42,12 @@ class DataSourceRepository:
             ("TYPE_2", filters.type_2_value_id),
             ("TYPE_3", filters.type_3_value_id),
         ):
-            if value_id is not None:
+            if value_id == "UNSET":
+                conditions.append(~exists().where(
+                    DataSourceClassificationValue.data_source_id == DataSource.id,
+                    DataSourceClassificationValue.classification_type.has(type_code=type_code),
+                ))
+            elif value_id is not None:
                 conditions.append(exists().where(
                     DataSourceClassificationValue.data_source_id == DataSource.id,
                     DataSourceClassificationValue.classification_value_id == value_id,
