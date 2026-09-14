@@ -46,6 +46,14 @@ class FaqClassificationRepository:
             statement = statement.where(FaqClassificationValue.id != exclude_id)
         return (await self.session.execute(statement)).scalar_one() > 0
 
+    async def display_label_exists(self, display_label: str, *, exclude_id: int | None = None) -> bool:
+        statement = select(func.count()).select_from(FaqClassificationType).where(
+            FaqClassificationType.display_label == display_label,
+        )
+        if exclude_id is not None:
+            statement = statement.where(FaqClassificationType.id != exclude_id)
+        return (await self.session.execute(statement)).scalar_one() > 0
+
     async def update_label(self, type_id: int, display_label: str, version: int) -> bool:
         result = await self.session.execute(
             update(FaqClassificationType)

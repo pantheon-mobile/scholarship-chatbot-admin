@@ -21,6 +21,10 @@ class DuplicateValueError(Exception):
     pass
 
 
+class DuplicateLabelError(Exception):
+    pass
+
+
 class OptimisticLockError(Exception):
     pass
 
@@ -44,6 +48,8 @@ class ClassificationService:
 
     async def update_type_label(self, type_id: int, payload: ClassificationTypeUpdate) -> ClassificationType:
         await self.get_type(type_id)
+        if await self.repository.display_label_exists(payload.display_label, exclude_id=type_id):
+            raise DuplicateLabelError("duplicate display label")
         try:
             return await self.repository.update_type_label(type_id, payload.display_label, payload.version)
         except ValueError as exc:

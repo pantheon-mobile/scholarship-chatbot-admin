@@ -55,6 +55,7 @@ async def test_four_fixed_types_can_have_zero_values():
 async def test_label_update_trims_and_uses_version():
     repository = AsyncMock()
     repository.get_type.side_effect = [classification_type(1), classification_type(1, version=2)]
+    repository.display_label_exists.return_value = False
     repository.update_label.return_value = True
     result = await FaqClassificationService(repository).update_label(
         1, FaqClassificationLabelUpdate(display_label="  問合せ区分  ", version=1)
@@ -62,6 +63,21 @@ async def test_label_update_trims_and_uses_version():
     assert result.version == 2
     repository.update_label.assert_awaited_once_with(1, "問合せ区分", 1)
     repository.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_duplicate_label_is_rejected_excluding_current_type():
+    repository = AsyncMock()
+    repository.get_type.return_value = classification_type(1)
+    repository.display_label_exists.return_value = True
+    with pytest.raises(FaqClassificationError) as caught:
+        await FaqClassificationService(repository).update_label(
+            1, FaqClassificationLabelUpdate(display_label="共通区分", version=1)
+        )
+    assert caught.value.code == "FAQ_CLASSIFICATION_LABEL_DUPLICATE"
+    assert caught.value.message == "同じラベル名が他の区分に既に設定されています。"
+    repository.display_label_exists.assert_awaited_once_with("共通区分", exclude_id=1)
+    repository.update_label.assert_not_awaited()
 
 
 @pytest.mark.anyio
@@ -81,6 +97,7 @@ async def test_label_validation(label, code):
 async def test_label_version_conflict_rolls_back():
     repository = AsyncMock()
     repository.get_type.return_value = classification_type(1)
+    repository.display_label_exists.return_value = False
     repository.update_label.return_value = False
     with pytest.raises(FaqClassificationError) as caught:
         await FaqClassificationService(repository).update_label(
@@ -204,6 +221,7 @@ async def test_reorder_is_atomic_and_returns_defined_errors(repository_result, c
 async def test_database_failure_rolls_back():
     repository = AsyncMock()
     repository.get_type.return_value = classification_type(1)
+    repository.display_label_exists.return_value = False
     repository.update_label.side_effect = RuntimeError("db error")
     with pytest.raises(RuntimeError):
         await FaqClassificationService(repository).update_label(

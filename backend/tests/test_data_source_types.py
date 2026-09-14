@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 
 from app.api.v1.data_source_types import get_service
 from app.main import app
-from app.services.classification_service import ClassificationService, DuplicateValueError
+from app.services.classification_service import ClassificationService, DuplicateLabelError, DuplicateValueError
 
 
 @pytest.fixture
@@ -66,6 +66,31 @@ async def test_update_type_label(service, classification_type):
 
 
 @pytest.mark.anyio
+async def test_duplicate_type_label_is_rejected_with_clear_message(service):
+    service.update_type_label.side_effect = DuplicateLabelError()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.patch(
+            "/api/v1/data-source-types/1",
+            json={"display_label": "対象者", "version": 1},
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "同じラベル名が他の種別に既に設定されています。"
+
+
+@pytest.mark.anyio
+async def test_type_label_duplicate_is_checked_excluding_current_type():
+    repository = AsyncMock()
+    repository.get_type.return_value = type("Type", (), {"id": 1})()
+    repository.display_label_exists.return_value = True
+    with pytest.raises(DuplicateLabelError):
+        await ClassificationService(repository).update_type_label(
+            1, type("Payload", (), {"display_label": "対象者", "version": 1})()
+        )
+    repository.display_label_exists.assert_awaited_once_with("対象者", exclude_id=1)
+    repository.update_type_label.assert_not_awaited()
+
+
+@pytest.mark.anyio
 async def test_duplicate_value_returns_422(service):
     service.add_value.side_effect = DuplicateValueError()
 
@@ -76,6 +101,18 @@ async def test_duplicate_value_returns_422(service):
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_duplicate_value_update_returns_clear_422_message(service):
+    service.update_value.side_effect = DuplicateValueError()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.patch(
+            "/api/v1/data-source-types/1/values/10",
+            json={"value_name": "在学生", "version": 1},
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "同じ種別内に同じ値が既に存在します。"
 
 
 @pytest.mark.anyio

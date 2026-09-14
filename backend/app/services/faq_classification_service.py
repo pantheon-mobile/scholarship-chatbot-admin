@@ -43,6 +43,8 @@ class FaqClassificationService:
     async def update_label(self, type_id: int, payload: FaqClassificationLabelUpdate) -> FaqClassificationType:
         await self.get_type(type_id)
         label = self.normalized(payload.display_label, "FAQ_CLASSIFICATION_LABEL_REQUIRED", "区分ラベル名を入力してください。")
+        if await self.repository.display_label_exists(label, exclude_id=type_id):
+            raise FaqClassificationError("FAQ_CLASSIFICATION_LABEL_DUPLICATE", "同じラベル名が他の区分に既に設定されています。")
         try:
             if not await self.repository.update_label(type_id, label, payload.version):
                 raise FaqClassificationError("FAQ_CLASSIFICATION_VERSION_CONFLICT", "他の操作で情報が更新されています。再読み込みしてください。")

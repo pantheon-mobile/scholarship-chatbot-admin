@@ -379,10 +379,16 @@ async def test_excel_uses_japanese_display_values_and_jst():
         SimpleNamespace(id=11, name="給付", parent_id=10),
         SimpleNamespace(id=12, name="学部", parent_id=11),
     ]
+    repository.list_import_classifications.return_value = [
+        SimpleNamespace(id=1, type_code="TYPE_1", display_label="対象者", values=[]),
+        SimpleNamespace(id=2, type_code="TYPE_2", display_label="奨学金区分", values=[]),
+        SimpleNamespace(id=3, type_code="TYPE_3", display_label="所属", values=[]),
+    ]
     data = await DataSourceService(repository).export_excel(DataSourceFilters())
     worksheet = load_workbook(BytesIO(data)).active
     values = list(worksheet.values)
     assert values[0][14] == "参照元リンク"
+    assert values[0][7:10] == ("対象者", "奨学金区分", "所属")
     assert values[1][1] == "ファイル"
     assert values[1][5] == "利用可"
     assert values[1][6] == "奨学金/給付/学部"
@@ -392,10 +398,10 @@ async def test_excel_uses_japanese_display_values_and_jst():
     assert values[1][15] == "2026/08/06 10:02"
 
 
-def make_import_upload(row_values):
+def make_import_upload(row_values, headers=None):
     workbook = Workbook()
     worksheet = workbook.active
-    worksheet.append(["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "種別1", "種別2", "種別3", "サイズ", "文字数", "回答ソース", "優先度", "参照元リンク", "更新日時"])
+    worksheet.append(headers or ["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "種別1", "種別2", "種別3", "サイズ", "文字数", "回答ソース", "優先度", "参照元リンク", "更新日時"])
     worksheet.append(row_values)
     output = BytesIO()
     workbook.save(output)
@@ -409,10 +415,13 @@ async def test_data_source_excel_import_validates_then_updates_atomically():
     row = make_row()
     repository.get_for_update_many.return_value = [row]
     repository.list_categories.return_value = []
-    repository.list_import_classifications.return_value = [SimpleNamespace(
-        id=1, type_code="TYPE_1", values=[SimpleNamespace(id=1, value_name="在学生")]
-    )]
-    upload = make_import_upload([1, "ファイル", "更新タイトル", "sample.pdf", "pdf", "利用可", "", "在学生", "", "", 1024, 2000, "無効", "中", "非表示", "2026/08/06 10:02"])
+    repository.list_import_classifications.return_value = [
+        SimpleNamespace(id=1, type_code="TYPE_1", display_label="対象者", values=[SimpleNamespace(id=1, value_name="在学生")]),
+        SimpleNamespace(id=2, type_code="TYPE_2", display_label="奨学金区分", values=[]),
+        SimpleNamespace(id=3, type_code="TYPE_3", display_label="所属", values=[]),
+    ]
+    headers = ["ID", "種類", "タイトル", "ファイル名／URL", "形式", "状態", "カテゴリ", "対象者", "奨学金区分", "所属", "サイズ", "文字数", "回答ソース", "優先度", "参照元リンク", "更新日時"]
+    upload = make_import_upload([1, "ファイル", "更新タイトル", "sample.pdf", "pdf", "利用可", "", "在学生", "", "", 1024, 2000, "無効", "中", "非表示", "2026/08/06 10:02"], headers)
     result = await DataSourceService(repository).import_excel(upload)
     assert result.updated_count == 1
     repository.apply_import_updates.assert_awaited_once()

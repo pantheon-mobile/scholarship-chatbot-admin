@@ -18,6 +18,7 @@ from app.services.classification_service import (
     ClassificationService,
     NotFoundError,
     DuplicateValueError,
+    DuplicateLabelError,
     OptimisticLockError,
     InvalidOrderError,
 )
@@ -55,6 +56,8 @@ async def update_type_label(
         return await service.update_type_label(type_id, payload)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="指定された種別が見つかりません。")
+    except DuplicateLabelError:
+        raise HTTPException(status_code=422, detail="同じラベル名が他の種別に既に設定されています。")
     except OptimisticLockError:
         raise HTTPException(status_code=409, detail="更新前の情報と異なります。再度画面を更新してください。")
 

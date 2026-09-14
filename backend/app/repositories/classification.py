@@ -46,6 +46,14 @@ class ClassificationRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one() > 0
 
+    async def display_label_exists(self, display_label: str, exclude_id: int | None = None) -> bool:
+        stmt = select(func.count()).select_from(ClassificationType).where(
+            ClassificationType.display_label == display_label,
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(ClassificationType.id != exclude_id)
+        return (await self.session.execute(stmt)).scalar_one() > 0
+
     async def update_type_label(self, type_id: int, label: str, expected_version: int) -> ClassificationType:
         stmt = (
             update(ClassificationType)

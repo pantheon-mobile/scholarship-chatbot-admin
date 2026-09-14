@@ -3,6 +3,15 @@ import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+async function errorMessage(response: Response, fallback: string) {
+  try {
+    const body = await response.json();
+    if (typeof body.detail === "string") return body.detail;
+    if (body.detail?.message) return body.detail.message;
+  } catch {}
+  return fallback;
+}
+
 export async function fetchDataSourceTypes(): Promise<ClassificationType[]> {
   const res = await authenticatedFetch(`${apiBase}/api/v1/data-source-types`, { cache: "no-store" });
   if (!res.ok) {
@@ -18,7 +27,7 @@ export async function updateTypeLabel(typeId: number, display_label: string, ver
     body: JSON.stringify({ display_label, version }),
   });
   if (!res.ok) {
-    throw new Error("種別ラベル名の更新に失敗しました。");
+    throw new Error(await errorMessage(res, "種別ラベル名の更新に失敗しました。"));
   }
   return res.json();
 }
@@ -30,7 +39,7 @@ export async function addClassificationValue(typeId: number, value_name: string)
     body: JSON.stringify({ value_name }),
   });
   if (!res.ok) {
-    throw new Error("種別値の追加に失敗しました。");
+    throw new Error(await errorMessage(res, "種別値の追加に失敗しました。"));
   }
   return res.json();
 }
@@ -42,7 +51,7 @@ export async function updateClassificationValue(typeId: number, valueId: number,
     body: JSON.stringify({ value_name, version }),
   });
   if (!res.ok) {
-    throw new Error("種別値の更新に失敗しました。");
+    throw new Error(await errorMessage(res, "種別値の更新に失敗しました。"));
   }
   return res.json();
 }

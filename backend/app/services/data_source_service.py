@@ -495,10 +495,17 @@ class DataSourceService:
         source_labels = {"FILE": "ファイル", "WEB": "Web"}
         status_labels = {"PREPARING": "準備中", "TRAINING": "学習中", "AVAILABLE": "利用可", "ERROR": "エラー"}
         priority_labels = {"HIGH": "高", "MEDIUM": "中", "LOW": "低"}
+        type_definitions = await self.repository.list_import_classifications()
+        type_labels = {item.type_code: item.display_label for item in type_definitions}
+        headers = [
+            *DATA_SOURCE_IMPORT_HEADERS[:7],
+            *[type_labels.get(f"TYPE_{index}", f"種別{index}") for index in range(1, 4)],
+            *DATA_SOURCE_IMPORT_HEADERS[10:],
+        ]
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "データソース一覧"
-        worksheet.append(DATA_SOURCE_IMPORT_HEADERS)
+        worksheet.append(headers)
         for row in all_rows:
             values = {item.type_code: item.value_name for item in row.classifications}
             location = row.file.file_name if row.file else row.website.url if row.website else ""
@@ -548,12 +555,19 @@ class DataSourceService:
         except (BadZipFile, InvalidFileException, KeyError, OSError, ValueError):
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
         worksheet = workbook.active
+        type_definitions = await self.repository.list_import_classifications()
+        type_labels = {item.type_code: item.display_label for item in type_definitions}
+        expected_headers = [
+            *DATA_SOURCE_IMPORT_HEADERS[:7],
+            *[type_labels.get(f"TYPE_{index}", f"種別{index}") for index in range(1, 4)],
+            *DATA_SOURCE_IMPORT_HEADERS[10:],
+        ]
         if worksheet.max_column != len(DATA_SOURCE_IMPORT_HEADERS):
             workbook.close()
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
         header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=len(DATA_SOURCE_IMPORT_HEADERS)))
         headers = [self._import_text(cell.value) for cell in header_cells]
-        if headers != DATA_SOURCE_IMPORT_HEADERS or any(cell.data_type == "f" for cell in header_cells):
+        if headers != expected_headers or any(cell.data_type == "f" for cell in header_cells):
             workbook.close()
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
         if worksheet.max_row - 1 > DATA_SOURCE_IMPORT_MAX_ROWS:
@@ -592,7 +606,6 @@ class DataSourceService:
         categories = await self.repository.list_categories()
         category_paths = self.category_paths(categories)
         category_by_path = {path: category_id for category_id, path in category_paths.items()}
-        type_definitions = await self.repository.list_import_classifications()
         types = {item.type_code: (int(item.id), {value.value_name: int(value.id) for value in item.values}) for item in type_definitions}
         source_labels = {"FILE": "ファイル", "WEB": "Web"}
         status_labels = {"PREPARING": "準備中", "TRAINING": "学習中", "AVAILABLE": "利用可", "ERROR": "エラー"}
