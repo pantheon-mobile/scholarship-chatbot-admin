@@ -39,17 +39,18 @@ export type UsageDownloadFilters = {
   operationType?: string;
 };
 
-export async function downloadUsageXlsx(kind: "users" | "access-logs" | "operation-logs", from: string, to: string, filters: UsageDownloadFilters = {}): Promise<void> {
+export async function downloadUsageFile(kind: "users" | "access-logs" | "operation-logs", from: string, to: string, filters: UsageDownloadFilters = {}): Promise<void> {
   const query = new URLSearchParams({ from, to });
   if (filters.role) query.set("role", filters.role);
   if (filters.surface) query.set("surface", filters.surface);
   if (filters.userIds?.trim()) query.set("user_ids", filters.userIds.trim());
   if (filters.operationType) query.set("operation_type", filters.operationType);
-  const response = await fetch(`${apiBase}/api/v1/usage/${kind}.xlsx?${query}`, { credentials: "include" });
-  if (!response.ok) throw new Error(await message(response, "Excelを取得できませんでした。"));
+  const extension = kind === "users" ? "xlsx" : "csv";
+  const response = await fetch(`${apiBase}/api/v1/usage/${kind}.${extension}?${query}`, { credentials: "include" });
+  if (!response.ok) throw new Error(await message(response, "ファイルを取得できませんでした。"));
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") ?? "";
-  const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] ?? `${kind}.xlsx`;
+  const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] ?? `${kind}.${extension}`;
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url; anchor.download = filename; anchor.click();

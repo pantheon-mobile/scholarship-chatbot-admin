@@ -229,13 +229,41 @@ async def test_bulk_delete_failure_is_reported_without_partial_success(failure, 
 @pytest.mark.anyio
 async def test_excel_uses_dynamic_labels_japanese_values_and_jst():
     repository = AsyncMock()
-    repository.list.return_value = ([make_faq(chat_enabled=True), make_faq(2, chat_enabled=False)], 2, 1)
+    first = make_faq(chat_enabled=True)
+    first.similar_questions = [
+        SimpleNamespace(question="類似質問B", display_order=2),
+        SimpleNamespace(question="類似質問A", display_order=1),
+    ]
+    repository.list.return_value = ([first, make_faq(2, chat_enabled=False)], 2, 1)
     content = await FaqService(repository).export_excel(FaqFilters(), {f"FAQ_TYPE_{i}": f"表示区分{i}" for i in range(1, 5)})
     sheet = load_workbook(BytesIO(content)).active
-    assert [cell.value for cell in sheet[1]] == ["ID", "質問", "回答", "表示区分1", "表示区分2", "表示区分3", "表示区分4", "チャット利用", "更新日時"]
-    assert sheet.cell(2, 4).value == "奨学金" and sheet.cell(2, 5).value is None
-    assert sheet.cell(2, 8).value == "公開" and sheet.cell(3, 8).value == "非公開"
-    assert sheet.cell(2, 9).value == "2026/08/01 10:02"
+    assert [cell.value for cell in sheet[1]] == [
+        *FAQ_IMPORT_FIXED_HEADERS,
+        "表示区分1", "表示区分2", "表示区分3", "表示区分4", "チャット利用", "更新日時",
+    ]
+    assert sheet.cell(2, 4).value == "類似質問A" and sheet.cell(2, 5).value == "類似質問B"
+    assert sheet.cell(2, 14).value == "奨学金" and sheet.cell(2, 15).value is None
+    assert sheet.cell(2, 18).value == "公開" and sheet.cell(3, 18).value == "非公開"
+    assert sheet.cell(2, 19).value == "2026/08/01 10:02"
+
+
+@pytest.mark.anyio
+async def test_import_accepts_export_columns_and_ignores_updated_at():
+    repository = AsyncMock()
+    repository.list_import_classifications.return_value = make_import_types()
+    repository.get_for_update_many.return_value = [SimpleNamespace(id=7, version=3)]
+    repository.update.return_value = True
+    headers = [
+        *FAQ_IMPORT_FIXED_HEADERS,
+        *[f"表示区分{i}" for i in range(1, 5)],
+        "チャット利用", "更新日時",
+    ]
+    row = [*import_row(faq_id=7, similar=["類似質問"]), "2026/09/14 12:34"]
+
+    result = await FaqService(repository).import_excel(make_import_file([row], headers=headers))
+
+    assert result.updated_count == 1
+    assert repository.update.await_args.kwargs["similar_questions"] == ["類似質問"]
 
 
 @pytest.mark.anyio

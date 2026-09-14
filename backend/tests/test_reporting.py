@@ -1,5 +1,6 @@
+import csv
 from datetime import date, datetime, timezone
-from io import BytesIO
+from io import BytesIO, StringIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -52,6 +53,10 @@ async def test_admin_chat_history_can_read_all_users():
 
 def decoded_xlsx(response):
     return list(load_workbook(BytesIO(response.body), data_only=True).active.values)
+
+
+def decoded_csv(response):
+    return list(csv.reader(StringIO(response.body.decode("utf-8-sig"))))
 
 
 @pytest.mark.anyio
@@ -137,17 +142,23 @@ async def test_access_and_operation_exports_contain_readable_identity_and_action
     )
     service = SimpleNamespace(repository=repository)
 
-    access_rows = decoded_xlsx(await access_logs_xlsx(
+    access_response = await access_logs_xlsx(
         date(2026, 9, 4), date(2026, 9, 4), _=SimpleNamespace(), service=service,
-    ))
-    operation_rows = decoded_xlsx(await operation_logs_xlsx(
+    )
+    operation_response = await operation_logs_xlsx(
         date(2026, 9, 4), date(2026, 9, 4), _=SimpleNamespace(), service=service,
-    ))
+    )
+    access_rows = decoded_csv(access_response)
+    operation_rows = decoded_csv(operation_response)
 
-    assert access_rows[0] == ("アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA")
-    assert access_rows[1][1:] == ("F0000003", "職員", "管理サイト", "192.0.2.1", "Test Browser")
-    assert operation_rows[0] == ("操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA")
-    assert operation_rows[1][1:] == ("F0000009", "システム管理者", "FAQを登録", "管理サイト", "192.0.2.2", "Test Browser")
+    assert access_rows[0] == ["アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA"]
+    assert access_rows[1][1:] == ["F0000003", "職員", "管理サイト", "192.0.2.1", "Test Browser"]
+    assert operation_rows[0] == ["操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA"]
+    assert operation_rows[1][1:] == ["F0000009", "システム管理者", "FAQを登録", "管理サイト", "192.0.2.2", "Test Browser"]
+    assert access_response.body.startswith(b"\xef\xbb\xbf")
+    assert operation_response.body.startswith(b"\xef\xbb\xbf")
+    assert access_response.headers["content-disposition"].endswith('.csv"')
+    assert operation_response.headers["content-disposition"].endswith('.csv"')
 
 
 def test_operation_description_explains_special_operations():
@@ -183,6 +194,8 @@ def test_operation_description_explains_special_operations():
     ("GET", "/api/v1/chat-history/export.xlsx", None, "チャット履歴ダウンロード"),
     ("GET", "/api/v1/usage/access-logs.xlsx", None, "アクセスログダウンロード"),
     ("GET", "/api/v1/usage/operation-logs.xlsx", None, "操作ログダウンロード"),
+    ("GET", "/api/v1/usage/access-logs.csv", None, "アクセスログダウンロード"),
+    ("GET", "/api/v1/usage/operation-logs.csv", None, "操作ログダウンロード"),
 ])
 def test_operation_description_matches_customer_audit_spec(method, path, surface, expected):
     assert operation_description(method, path, surface) == expected

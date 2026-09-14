@@ -1,5 +1,6 @@
+import csv
 from datetime import date, datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -40,6 +41,8 @@ def operation_description(method: str, path: str, surface: str | None = None) ->
         ("GET", "/api/v1/usage/users.xlsx"): "ユーザリストダウンロード",
         ("GET", "/api/v1/usage/access-logs.xlsx"): "アクセスログダウンロード",
         ("GET", "/api/v1/usage/operation-logs.xlsx"): "操作ログダウンロード",
+        ("GET", "/api/v1/usage/access-logs.csv"): "アクセスログダウンロード",
+        ("GET", "/api/v1/usage/operation-logs.csv"): "操作ログダウンロード",
     }
     if name := exact_operations.get((method, path)):
         return name
@@ -68,6 +71,8 @@ def operation_description(method: str, path: str, surface: str | None = None) ->
         ("/usage/users.xlsx", "ユーザーリスト"),
         ("/usage/access-logs.xlsx", "アクセスログ"),
         ("/usage/operation-logs.xlsx", "操作ログ"),
+        ("/usage/access-logs.csv", "アクセスログ"),
+        ("/usage/operation-logs.csv", "操作ログ"),
     ]
     resource = next((label for prefix, label in resources if path.startswith(f"/api/v1{prefix}")), "管理データ")
     if path.endswith((".csv", ".xlsx", "/export", "/import-template")):
@@ -135,6 +140,18 @@ def xlsx_response(filename: str, sheet_name: str, headers: list[str], rows: list
     return Response(
         content=output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def csv_response(filename: str, headers: list[str], rows: list[list[object]]) -> Response:
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return Response(
+        content=("\ufeff" + output.getvalue()).encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -210,7 +227,8 @@ async def usage_users_xlsx(
     )
 
 
-@router.get("/usage/access-logs.xlsx")
+@router.get("/usage/access-logs.csv")
+@router.get("/usage/access-logs.xlsx", include_in_schema=False)
 async def access_logs_xlsx(
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -229,8 +247,8 @@ async def access_logs_xlsx(
     rows = await service.repository.access_logs(
         start_at, end_at, surface=surface, role=role, user_ids=parsed_user_ids(user_ids)
     )
-    return xlsx_response(
-        f"accesslog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "アクセスログ",
+    return csv_response(
+        f"accesslog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.csv",
         ["アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
             display_datetime(row.get("accessed_at")), row.get("subject") or f"利用者-{row['visitor_key'][:12]}",
@@ -241,7 +259,8 @@ async def access_logs_xlsx(
     )
 
 
-@router.get("/usage/operation-logs.xlsx")
+@router.get("/usage/operation-logs.csv")
+@router.get("/usage/operation-logs.xlsx", include_in_schema=False)
 async def operation_logs_xlsx(
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -266,8 +285,8 @@ async def operation_logs_xlsx(
         rows = [row for row in rows if row.get("surface") == surface]
     if operation_type:
         rows = [row for row in rows if operation_kind(row["http_method"], row["request_path"]) == operation_type]
-    return xlsx_response(
-        f"operationlog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "操作ログ",
+    return csv_response(
+        f"operationlog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.csv",
         ["操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
             display_datetime(row.get("operated_at")), row.get("operator_subject") or f"利用者-{row['operator_key'][:12]}",

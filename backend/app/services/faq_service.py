@@ -226,12 +226,21 @@ class FaqService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "FAQ一覧"
-        worksheet.append(["ID", "質問", "回答", *[labels.get(f"FAQ_TYPE_{i}", f"区分{i}") for i in range(1, 5)], "チャット利用", "更新日時"])
+        worksheet.append([
+            *FAQ_IMPORT_FIXED_HEADERS,
+            *[labels.get(f"FAQ_TYPE_{i}", f"区分{i}") for i in range(1, 5)],
+            "チャット利用", "更新日時",
+        ])
         jst = ZoneInfo("Asia/Tokyo")
         for row in rows:
             values = {item.classification_type.type_code: item.classification_value.value_name for item in row.classification_assignments}
+            similar_questions = [
+                item.question for item in sorted(row.similar_questions, key=lambda item: item.display_order)
+            ][:FAQ_IMPORT_SIMILAR_COUNT]
             worksheet.append([
-                row.id, row.question, row.answer, *[values.get(f"FAQ_TYPE_{i}", "") for i in range(1, 5)],
+                row.id, row.question, row.answer,
+                *similar_questions, *([""] * (FAQ_IMPORT_SIMILAR_COUNT - len(similar_questions))),
+                *[values.get(f"FAQ_TYPE_{i}", "") for i in range(1, 5)],
                 "公開" if row.chat_enabled else "非公開", row.updated_at.astimezone(jst).strftime("%Y/%m/%d %H:%M"),
             ])
         output = BytesIO()
@@ -311,7 +320,9 @@ class FaqService:
             raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
 
         worksheet = workbook.active
-        expected_column_count = len(FAQ_IMPORT_FIXED_HEADERS) + 5
+        import_column_count = len(FAQ_IMPORT_FIXED_HEADERS) + 5
+        has_updated_at = worksheet.max_column == import_column_count + 1
+        expected_column_count = import_column_count + (1 if has_updated_at else 0)
         if worksheet.max_column != expected_column_count:
             workbook.close()
             raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
@@ -321,7 +332,8 @@ class FaqService:
             any(cell.data_type == "f" for cell in header_cells)
             or headers[:len(FAQ_IMPORT_FIXED_HEADERS)] != FAQ_IMPORT_FIXED_HEADERS
             or any(not value for value in headers[len(FAQ_IMPORT_FIXED_HEADERS):len(FAQ_IMPORT_FIXED_HEADERS) + 4])
-            or headers[-1] != "チャット利用"
+            or headers[import_column_count - 1] != "チャット利用"
+            or (has_updated_at and headers[-1] != "更新日時")
         ):
             workbook.close()
             raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
@@ -338,9 +350,11 @@ class FaqService:
         entries: list[FaqImportEntry] = []
 
         for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=expected_column_count), start=2):
-            if all(self._text(cell.value) == "" for cell in cells):
+            import_cells = cells[:import_column_count]
+            if all(self._text(cell.value) == "" for cell in import_cells):
                 continue
-            formula_columns = {index for index, cell in enumerate(cells) if cell.data_type == "f"}
+            # 一覧ダウンロード由来の「更新日時」は表示情報であり、取込処理では常に無視する。
+            formula_columns = {index for index, cell in enumerate(import_cells) if cell.data_type == "f"}
             for index in sorted(formula_columns):
                 errors.append(self._error(row_number, headers[index], "FAQ_IMPORT_FORMULA_NOT_ALLOWED", "数式は入力できません。"))
 
@@ -391,7 +405,7 @@ class FaqService:
                 else:
                     classifications.append((int(type_definition[0]), int(value_id)))
 
-            chat_index = expected_column_count - 1
+            chat_index = import_column_count - 1
             chat_text = self._text(cells[chat_index].value) if chat_index not in formula_columns else ""
             if chat_index not in formula_columns and chat_text not in ("公開", "非公開"):
                 errors.append(self._error(row_number, "チャット利用", "FAQ_CHAT_ENABLED_INVALID", "チャット利用は「公開」または「非公開」で入力してください。"))
