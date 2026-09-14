@@ -1,26 +1,71 @@
 .periodForm {
   display: flex;
-  align-items: flex-end;
-  gap: 18px;
-  margin-bottom: 24px;
-  padding: 20px;
-  border: 1px solid #c9cdd1;
-  background: #f7f7f7;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-.periodForm label { width: 220px; }
-.periodForm button { margin-left: 6px; }
-.periodSeparator { padding-bottom: 8px; font-weight: 700; }
+.periodForm label { width: 150px; }
+.periodForm button { min-width: 82px; margin-left: 4px; }
+.periodLabel { flex: 0 0 auto; font-size: 14px; font-weight: 600; }
+.periodSeparator { flex: 0 0 auto; font-weight: 700; }
 .error { margin-bottom: 20px; padding: 12px 15px; border: 1px solid #efb4b4; background: #fff2f2; color: #b01818; font-size: 15px; }
 .loading { margin: 32px 0; color: #555; }
-.dashboardContent { display: grid; gap: 28px; }
-.sectionTitle { min-height: 48px; display: flex; align-items: center; margin: 0; padding: 0 18px; border: 1px solid #c9cdd1; border-bottom: 0; background: #ededed; font-size: 20px; font-weight: 700; }
-.metricsTable { table-layout: fixed; }
-.metricLabel { width: 30%; background: #f7f7f7; font-weight: 600; }
-.metricValue { width: 20%; text-align: right; font-variant-numeric: tabular-nums; }
-.breakdownGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
-.breakdownGrid td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.dashboardContent { display: grid; gap: 14px; }
+.metricsPanel {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 12px 20px;
+  border: 1px solid #c9cdd1;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 2px 7px rgb(0 0 0 / 10%);
+}
+.metric {
+  min-width: 0;
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  text-align: center;
+}
+.metric:nth-child(n + 7) { border-top: 1px solid #d5d5d5; }
+.metricNewRow { grid-column-start: 1; }
+.metric dt { min-height: 32px; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1.2; font-weight: 500; }
+.metric dd { margin: 3px 0 0; font-size: 22px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
+.breakdownGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+.breakdownPanel {
+  min-width: 0;
+  padding: 13px 16px 16px;
+  border: 1px solid #d2d5d8;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 2px 7px rgb(0 0 0 / 8%);
+}
+.breakdownPanel h2 { margin: 0 0 8px; font-size: 15px; line-height: 1.4; font-weight: 700; }
+.simpleList { display: grid; gap: 5px; }
+.simpleList > div { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: baseline; font-size: 13px; }
+.simpleList strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+.breakdownHeader,
+.breakdownRow { display: grid; grid-template-columns: minmax(72px, 1fr) 72px 62px; gap: 8px; align-items: baseline; font-size: 13px; }
+.breakdownHeader { margin-bottom: 3px; font-size: 12px; }
+.breakdownHeader span:not(:first-child),
+.breakdownRow span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.breakdownRow { padding: 2px 0; }
 
 @media (max-width: 1400px) {
+  .metricsPanel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .metric:nth-child(n + 4) { border-top: 1px solid #d5d5d5; }
+  .metricNewRow { grid-column-start: auto; }
   .breakdownGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .periodForm { flex-wrap: wrap; }
+  .periodLabel { flex-basis: 100%; }
+  .metricsPanel { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 10px; }
+  .metric:nth-child(n + 3) { border-top: 1px solid #d5d5d5; }
 }

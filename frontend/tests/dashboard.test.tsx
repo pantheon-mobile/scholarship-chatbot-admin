@@ -48,17 +48,17 @@ describe("CB-201 Dashboard", () => {
   it("JSTの当月1日から当日を初期表示し1回取得する", async () => {
     expect(initialDashboardPeriod(new Date("2026-08-31T16:30:00Z"))).toEqual({ from: "2026-09-01", to: "2026-09-01" });
     render(<DashboardPage />);
-    expect((screen.getByLabelText("From") as HTMLInputElement).value).toBe("2026-08-01");
-    expect((screen.getByLabelText("To") as HTMLInputElement).value).toBe("2026-08-19");
+    expect((screen.getByLabelText("開始日") as HTMLInputElement).value).toBe("2026-08-01");
+    expect((screen.getByLabelText("終了日") as HTMLInputElement).value).toBe("2026-08-19");
     await waitFor(() => expect(fetchDashboard).toHaveBeenCalledWith("2026-08-01", "2026-08-19"));
     expect(fetchDashboard).toHaveBeenCalledTimes(1);
   });
 
   it("期間変更だけでは取得せず、集計ボタンで再取得する", async () => {
     render(<DashboardPage />);
-    await screen.findByText("基本指標");
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-05" } });
-    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-10" } });
+    await screen.findByText("アクセス数");
+    fireEvent.change(screen.getByLabelText("開始日"), { target: { value: "2026-08-05" } });
+    fireEvent.change(screen.getByLabelText("終了日"), { target: { value: "2026-08-10" } });
     expect(fetchDashboard).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "集計" }));
     await waitFor(() => expect(fetchDashboard).toHaveBeenLastCalledWith("2026-08-05", "2026-08-10"));
@@ -67,9 +67,9 @@ describe("CB-201 Dashboard", () => {
 
   it("全指標、8時間帯、7曜日、小数1桁、新HeaderとSidebarを表示する", async () => {
     render(<DashboardPage />);
-    await screen.findByText("基本指標");
+    await screen.findByText("アクセス数");
     expect(screen.getByRole("heading", { name: "ダッシュボード" })).not.toBeNull();
-    expect(screen.getByText("チャット回答種別利用状況")).not.toBeNull();
+    expect(screen.getByText("チャット種別利用")).not.toBeNull();
     expect(screen.getByText("87.5%")).not.toBeNull();
     expect(screen.getByText("2.3")).not.toBeNull();
     expect(screen.getAllByText(/時$/)).toHaveLength(8);
@@ -92,7 +92,7 @@ describe("CB-201 Dashboard", () => {
       answer_types: { ...response.answer_types, faq_rate: null, generated_ai_rate: null },
     });
     render(<DashboardPage />);
-    await screen.findByText("基本指標");
+    await screen.findByText("アクセス数");
     expect(screen.getAllByText("－").length).toBeGreaterThanOrEqual(6);
     expect(screen.getAllByText("0").length).toBeGreaterThan(0);
   });
@@ -101,8 +101,8 @@ describe("CB-201 Dashboard", () => {
     fetchDashboard.mockRejectedValueOnce(new Error("開始日は終了日以前を指定してください。")).mockResolvedValueOnce(response);
     render(<DashboardPage />);
     expect((await screen.findByRole("alert")).textContent).toContain("開始日は終了日以前を指定してください。");
-    expect(screen.queryByText("基本指標")).toBeNull();
+    expect(screen.queryByText("アクセス数")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "集計" }));
-    expect(await screen.findByText("基本指標")).not.toBeNull();
+    expect(await screen.findByText("アクセス数")).not.toBeNull();
   });
 });
