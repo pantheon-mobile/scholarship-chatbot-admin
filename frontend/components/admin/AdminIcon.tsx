@@ -3,7 +3,7 @@ import { SVGProps } from "react";
 export type AdminIconName =
   | "university" | "menu" | "dashboard" | "database" | "help" | "list"
   | "chat" | "chart" | "back" | "download" | "plus" | "edit" | "trash" | "grip" | "search" | "upload" | "close"
-  | "chevronRight" | "chevronDown";
+  | "refresh" | "view" | "chevronRight" | "chevronDown";
 
 type AdminIconProps = SVGProps<SVGSVGElement> & { name: AdminIconName; size?: number };
 
@@ -27,6 +27,8 @@ export function AdminIcon({ name, size = 24, ...props }: AdminIconProps) {
     search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></>,
     upload: <><path d="M7 18H5.5a3.5 3.5 0 0 1-.5-7A6.8 6.8 0 0 1 18.2 9a4.5 4.5 0 0 1 .3 9H17"/><path d="M12 19V9m-4 4 4-4 4 4"/></>,
     close: <><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></>,
+    refresh: <><path d="M20 7v5h-5"/><path d="M18.2 16.5A8 8 0 1 1 19.7 9L20 12"/></>,
+    view: <><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></>,
     chevronRight: <path d="m9 5 7 7-7 7"/>,
     chevronDown: <path d="m5 9 7 7 7-7"/>,
   };

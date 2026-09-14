@@ -296,7 +296,7 @@ export default function FaqsPage() {
               <TableCell className={styles.chatColumn}><StatusBadge tone={row.chat_enabled ? "success" : "neutral"}>{row.chat_enabled ? "公開" : "非公開"}</StatusBadge></TableCell>
               <TableCell className={styles.dateColumn}>{new Date(row.updated_at).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</TableCell>
               <TableCell className={styles.actionsColumn}><div className={styles.rowActions}>
-                <Button variant="text" onClick={(event) => openReference(row.id, event.currentTarget)}>参照</Button>
+                <Button className={styles.iconAction} variant="text" aria-label="参照" title="参照" icon={<AdminIcon name="view" size={17} />} onClick={(event) => openReference(row.id, event.currentTarget)} />
                 <Button variant="text" onClick={() => router.push(`/faqs/${row.id}/edit`)}>編集</Button>
                 <Button variant="text" focusTone="danger" onClick={() => { setError(null); setDeleteRows([row]); }}>削除</Button>
               </div></TableCell>
