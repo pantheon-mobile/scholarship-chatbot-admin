@@ -74,6 +74,28 @@ async def test_chat_accepts_configured_prompt_with_required_placeholders(monkeyp
     assert prompt == "資料:$search_results$ 質問:$query$"
 
 
+@pytest.mark.anyio
+async def test_default_chat_prompt_targets_staff_and_retrieves_ten_results(monkeypatch):
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    monkeypatch.setenv("CHAT_MODEL_ARN", "arn:aws:bedrock:ap-northeast-1::foundation-model/test")
+    monkeypatch.delenv("CHAT_SYSTEM_PROMPT", raising=False)
+    monkeypatch.delenv("CHAT_NUMBER_OF_RESULTS", raising=False)
+    client = Mock()
+    client.retrieve.return_value = {"retrievalResults": []}
+    client.retrieve_and_generate.return_value = {"output": {"text": "回答"}, "citations": []}
+
+    await ChatService(client).answer("質問")
+
+    configuration = client.retrieve_and_generate.call_args.kwargs[
+        "retrieveAndGenerateConfiguration"
+    ]["knowledgeBaseConfiguration"]
+    prompt = configuration["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
+    assert "職員向け" in prompt
+    assert "利用者自身が担当職員" in prompt
+    assert "内部の検索処理" in prompt
+    assert configuration["retrievalConfiguration"]["vectorSearchConfiguration"]["numberOfResults"] == 10
+
+
 def test_chat_uses_more_relevant_lower_priority_when_score_gap_is_large(monkeypatch):
     monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
     client = Mock()

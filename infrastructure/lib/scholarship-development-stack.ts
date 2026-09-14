@@ -389,7 +389,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         AUTH_COOKIE_DOMAIN: config.authCookieDomain ?? "",
         CORS_ALLOWED_ORIGINS: config.corsAllowedOrigins ?? (config.domainName ? `https://${config.domainName}` : ""),
         CHAT_SEARCH_TYPE: config.chatSearchType ?? "HYBRID",
-        CHAT_NUMBER_OF_RESULTS: value(config.chatNumberOfResults, 5),
+        CHAT_NUMBER_OF_RESULTS: value(config.chatNumberOfResults, 10),
         CHAT_PRIORITY_CANDIDATE_COUNT: value(config.chatPriorityCandidateCount, 20),
         CHAT_PRIORITY_SCORE_TOLERANCE: value(config.chatPriorityScoreTolerance, 0.05),
         CHAT_MAX_TOKENS: value(config.chatMaxTokens, 1200),

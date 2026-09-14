@@ -31,7 +31,7 @@
   "chatGoodFeedbackOptions": "知りたい内容だった|分かりやすかった|参照資料が役立った",
   "chatBadFeedbackOptions": "回答が違う|情報が不足している|分かりにくい|参照資料が適切でない",
   "chatSearchType": "HYBRID",
-  "chatNumberOfResults": 5,
+  "chatNumberOfResults": 10,
   "chatPriorityCandidateCount": 20,
   "chatPriorityScoreTolerance": 0.05,
   "chatMaxTokens": 1200,

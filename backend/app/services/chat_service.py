@@ -19,9 +19,15 @@ from app.schemas.chat import ChatCitation, ChatMessageResponse
 logger = logging.getLogger(__name__)
 
 DEFAULT_CHAT_PROMPT = (
-    "あなたは大学の奨学金案内チャットボットです。"
+    "あなたは大学の奨学金業務を担当する職員向けの業務支援チャットボットです。"
     "検索結果に記載された事実だけを使い、日本語で簡潔かつ正確に回答してください。"
-    "情報が不足する場合は推測せず、確認先または不足している情報を案内してください。"
+    "最初に質問への結論を直接示し、その後に必要な条件、例外、手順だけを説明してください。"
+    "検索結果、提供された資料、Knowledge Base、検索結果番号、資料番号など、"
+    "内部の検索処理を利用者へ意識させる表現は使用しないでください。"
+    "大学の奨学金窓口や学生支援課へ問い合わせるよう案内しないでください。利用者自身が担当職員です。"
+    "根拠が不足する場合は推測せず、『登録情報から確認できませんでした』と簡潔に伝えてください。"
+    "その場合、質問への回答にならない断片的な関連情報、根拠のない連絡先、学生向けの案内を付け加えないでください。"
+    "検索結果にない制度、期限、金額、手続き、連絡先を補完・創作しないでください。"
     "検索結果:\n$search_results$\n\n質問:$query$"
 )
 
@@ -129,7 +135,7 @@ class ChatService:
         client = self.client or boto3.client("bedrock-agent-runtime", region_name=self.region)
         selected_priority = self._select_priority(client, question)
         vector_config: dict = {
-            "numberOfResults": int(os.getenv("CHAT_NUMBER_OF_RESULTS", "5")),
+            "numberOfResults": int(os.getenv("CHAT_NUMBER_OF_RESULTS", "10")),
             "overrideSearchType": os.getenv("CHAT_SEARCH_TYPE", "HYBRID"),
             "filter": self._answer_source_filter(selected_priority),
         }
