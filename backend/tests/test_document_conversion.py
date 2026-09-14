@@ -27,6 +27,19 @@ def test_xlsx_is_split_into_visible_markdown_sheets():
     assert documents[0].name == "sheet-001.md"
     assert "## シート: 入力" in documents[0].markdown
     assert "| 授業料 | 1000 |" in documents[0].markdown
+    assert documents[0].metadata == {
+        "source_file_type": "excel",
+        "workbook_name": "sample.xlsx",
+        "sheet_name": "入力",
+        "sheet_index": 1,
+        "sheet_count": 1,
+        "document_part_id": "SHEET_001",
+        "original_extension": ".xlsx",
+        "formula_mode": "cached_value",
+        "cell_range": "A1:B2",
+        "conversion_method": "sheet_to_markdown",
+        "ingestion_format": "EXCEL_MARKDOWN",
+    }
 
 
 def test_docx_keeps_headings_paragraphs_and_tables():
@@ -48,7 +61,7 @@ def test_docx_keeps_headings_paragraphs_and_tables():
     assert "| 第一種 | 50000 |" in converted
 
 
-def test_pptx_keeps_slide_order_text_and_tables():
+def test_pptx_keeps_slide_order_text_and_structure_metadata():
     presentation = Presentation()
     slide = presentation.slides.add_slide(presentation.slide_layouts[5])
     slide.shapes.title.text = "制度概要"
@@ -57,10 +70,15 @@ def test_pptx_keeps_slide_order_text_and_tables():
     output = BytesIO()
     presentation.save(output)
 
-    converted = convert_pptx(output.getvalue(), "guide.pptx")[0].markdown
+    document = convert_pptx(output.getvalue(), "guide.pptx")[0]
+    converted = document.markdown
 
     assert "## 1. 制度概要" in converted
     assert "対象者は学生です。" in converted
+    assert document.metadata["slide_count"] == 1
+    assert document.metadata["text_shape_count"] >= 2
+    assert document.metadata["conversion_method"] == "pptx_to_markdown"
+    assert document.metadata["ingestion_format"] == "PPT_MARKDOWN"
 
 
 class FakeWebResponse:

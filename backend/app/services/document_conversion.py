@@ -147,6 +147,7 @@ def _table_markdown(rows: list[list[str]]) -> str:
 def convert_xlsx(content: bytes, name: str) -> list[ConvertedDocument]:
     workbook = load_workbook(io.BytesIO(content), data_only=True, read_only=True)
     documents = []
+    visible_sheets = [sheet for sheet in workbook.worksheets if sheet.sheet_state == "visible"]
     for index, sheet in enumerate(workbook.worksheets, start=1):
         if sheet.sheet_state != "visible":
             continue
@@ -159,7 +160,19 @@ def convert_xlsx(content: bytes, name: str) -> list[ConvertedDocument]:
         documents.append(ConvertedDocument(
             name=f"sheet-{index:03d}.md",
             markdown=f"# {name}\n\n## シート: {sheet.title}\n\n{_table_markdown(rows)}",
-            metadata={"sheet_name": sheet.title, "sheet_index": index},
+            metadata={
+                "source_file_type": "excel",
+                "workbook_name": name,
+                "sheet_name": sheet.title,
+                "sheet_index": index,
+                "sheet_count": len(visible_sheets),
+                "document_part_id": f"SHEET_{index:03d}",
+                "original_extension": ".xlsx",
+                "formula_mode": "cached_value",
+                "cell_range": sheet.calculate_dimension(),
+                "conversion_method": "sheet_to_markdown",
+                "ingestion_format": "EXCEL_MARKDOWN",
+            },
         ))
     workbook.close()
     return documents
@@ -188,15 +201,21 @@ def convert_docx(content: bytes, name: str) -> list[ConvertedDocument]:
 def convert_pptx(content: bytes, name: str) -> list[ConvertedDocument]:
     presentation = Presentation(io.BytesIO(content))
     blocks = [f"# {name}"]
+    table_count = 0
+    image_count = 0
+    text_shape_count = 0
+    notes_count = 0
     for slide_number, slide in enumerate(presentation.slides, start=1):
         title = slide.shapes.title.text.strip() if slide.shapes.title else f"スライド {slide_number}"
         blocks.extend([f"## {slide_number}. {title}", f"<!-- slide {slide_number} -->"])
         for shape in slide.shapes:
             if getattr(shape, "has_table", False):
+                table_count += 1
                 blocks.append(_table_markdown(
                     [[cell.text.strip() for cell in row.cells] for row in shape.table.rows]
                 ))
             elif getattr(shape, "has_text_frame", False):
+                text_shape_count += 1
                 text = shape.text.strip()
                 if text and text != title:
                     blocks.append(text)
@@ -205,8 +224,27 @@ def convert_pptx(content: bytes, name: str) -> list[ConvertedDocument]:
         except Exception:
             notes = ""
         if notes:
+            notes_count += 1
             blocks.extend(["### 発表者ノート", notes])
-    return [ConvertedDocument("source.md", "\n\n".join(blocks))]
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            if getattr(shape, "shape_type", None) == 13:  # MSO_SHAPE_TYPE.PICTURE
+                image_count += 1
+    return [ConvertedDocument(
+        "source.md",
+        "\n\n".join(blocks),
+        metadata={
+            "source_file_type": "powerpoint",
+            "original_extension": ".pptx",
+            "slide_count": len(presentation.slides),
+            "table_count": table_count,
+            "image_count": image_count,
+            "text_shape_count": text_shape_count,
+            "notes_count": notes_count,
+            "conversion_method": "pptx_to_markdown",
+            "ingestion_format": "PPT_MARKDOWN",
+        },
+    )]
 
 
 def _vision_page_markdown(page, page_number: int) -> str:

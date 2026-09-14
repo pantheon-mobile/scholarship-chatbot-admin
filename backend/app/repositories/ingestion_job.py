@@ -6,7 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.data_source import DataSource, DataSourceWebsite, IngestionJob
+from app.models.category import Category
+from app.models.data_source import (
+    DataSource,
+    DataSourceClassificationValue,
+    DataSourceWebsite,
+    IngestionJob,
+)
 
 
 class IngestionJobRepository:
@@ -59,6 +65,13 @@ class IngestionJobRepository:
             .options(
                 selectinload(IngestionJob.data_source).selectinload(DataSource.file),
                 selectinload(IngestionJob.data_source).selectinload(DataSource.website),
+                selectinload(IngestionJob.data_source).selectinload(DataSource.category),
+                selectinload(IngestionJob.data_source)
+                .selectinload(DataSource.classification_links)
+                .selectinload(DataSourceClassificationValue.classification_type),
+                selectinload(IngestionJob.data_source)
+                .selectinload(DataSource.classification_links)
+                .selectinload(DataSourceClassificationValue.classification_value),
             )
             .order_by(IngestionJob.scheduled_at, IngestionJob.id)
             .with_for_update(skip_locked=True)
@@ -68,6 +81,19 @@ class IngestionJobRepository:
         if job is None:
             await self.session.rollback()
             return None
+
+        if job.data_source.category_id is not None:
+            categories = list((await self.session.execute(select(Category))).scalars().all())
+            by_id = {category.id: category for category in categories}
+            names: list[str] = []
+            category_id = job.data_source.category_id
+            visited: set[int] = set()
+            while category_id in by_id and category_id not in visited:
+                visited.add(category_id)
+                category = by_id[category_id]
+                names.append(category.name)
+                category_id = category.parent_id
+            job.data_source._ingestion_category_path = "/".join(reversed(names))
 
         job.status = "RUNNING"
         job.started_at = now

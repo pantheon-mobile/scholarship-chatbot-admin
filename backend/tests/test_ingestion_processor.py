@@ -42,6 +42,13 @@ def test_word_docx_is_uploaded_as_original_without_markdown_conversion():
         "conversion_method": "original",
         "ingestion_format": "WORD_DOCX",
         "original_source_file_name": "guide.docx",
+        "source_file_type": "word",
+        "original_extension": ".docx",
+        "paragraph_count": 0,
+        "table_count": 0,
+        "heading_count": 0,
+        "header_present": False,
+        "footer_present": False,
     }
 
 
@@ -129,6 +136,26 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
         answer_source_enabled=True,
         priority="HIGH",
         reference_link_visible=False,
+        category_id=10,
+        category_name=None,
+        _ingestion_category_path="奨学金/給付/申請",
+        classification_links=[
+            SimpleNamespace(
+                classification_type=SimpleNamespace(type_code="TYPE_1"),
+                classification_value_id=21,
+                classification_value=SimpleNamespace(value_name="在学生"),
+            ),
+            SimpleNamespace(
+                classification_type=SimpleNamespace(type_code="TYPE_2"),
+                classification_value_id=35,
+                classification_value=SimpleNamespace(value_name="給付"),
+            ),
+            SimpleNamespace(
+                classification_type=SimpleNamespace(type_code="TYPE_3"),
+                classification_value_id=48,
+                classification_value=SimpleNamespace(value_name="大学"),
+            ),
+        ],
         website=None,
         file=SimpleNamespace(
             file_name="guide.docx",
@@ -152,11 +179,26 @@ async def test_word_process_uploads_docx_and_sidecar_then_synchronizes(monkeypat
         ),
     }
     metadata_upload = processor.s3.put_object.call_args_list[1].kwargs
+    metadata_body = metadata_upload["Body"].decode("utf-8")
     assert metadata_upload["Key"].endswith("guide.docx.metadata.json")
     assert b'"ingestion_format": "WORD_DOCX"' in metadata_upload["Body"]
     assert b'"answer_source_enabled": true' in metadata_upload["Body"]
     assert b'"answer_priority": "HIGH"' in metadata_upload["Body"]
     assert b'"reference_link_visible": false' in metadata_upload["Body"]
+    assert b'"category_id": 10' in metadata_upload["Body"]
+    assert "奨学金/給付/申請" in metadata_upload["Body"].decode("utf-8")
+    assert b'"type_1_id": 21' in metadata_upload["Body"]
+    assert "在学生" in metadata_upload["Body"].decode("utf-8")
+    assert b'"type_2_id": 35' in metadata_upload["Body"]
+    assert b'"type_3_id": 48' in metadata_upload["Body"]
+    assert '"datasource_id": "42"' in metadata_body
+    assert '"type1": "在学生"' in metadata_body
+    assert '"type2": "給付"' in metadata_body
+    assert '"type3": "大学"' in metadata_body
+    assert '"answer_source": "enabled"' in metadata_body
+    assert '"priority": "high"' in metadata_body
+    assert '"source_file_name": "guide.docx"' in metadata_body
+    assert '"original_title": "奨学金案内"' in metadata_body
     processor._synchronize.assert_called_once_with("word-kb", "word-ds")
     assert result.character_count is None
 

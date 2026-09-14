@@ -13,6 +13,7 @@ from typing import Protocol
 
 import boto3
 import httpx
+from docx import Document
 
 from app.models.data_source import DataSource
 from app.services.document_conversion import (
@@ -72,6 +73,7 @@ class HttpIngestionProcessor:
                 "mime_type": data_source.file.mime_type,
             } if data_source.file else None,
             "website": {"url": data_source.website.url} if data_source.website else None,
+            "metadata": AwsIngestionProcessor._data_source_metadata(data_source),
         }
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(f"{self.endpoint}/process", json=payload)
@@ -147,6 +149,10 @@ class AwsIngestionProcessor:
                 total_characters += artifact.character_count
                 has_character_count = True
             key = f"{source_prefix}{artifact.name}"
+            artifact_metadata = dict(artifact.metadata or {})
+            management_metadata = self._data_source_metadata(data_source)
+            if artifact_metadata.get("category") and management_metadata.get("category"):
+                artifact_metadata["content_category"] = artifact_metadata.pop("category")
             attributes = {
                 "data_source_id": str(data_source.id),
                 "source_type": data_source.source_type,
@@ -158,7 +164,11 @@ class AwsIngestionProcessor:
                 "ingestion_kind": kind,
                 "source_url": artifact.source_url or "",
                 "processed_at": datetime.now(timezone.utc).isoformat(),
-                **(artifact.metadata or {}),
+                **artifact_metadata,
+                **management_metadata,
+                **self._artifact_identity_metadata(
+                    data_source, artifact, effective_title, kind
+                ),
             }
             attributes = {key: value for key, value in attributes.items() if value not in (None, "")}
             metadata = json.dumps(
@@ -197,6 +207,76 @@ class AwsIngestionProcessor:
             character_count=total_characters if has_character_count else None,
             discovered_title=discovered_title,
         )
+
+    @staticmethod
+    def _data_source_metadata(data_source: DataSource) -> dict:
+        """Build category/classification attributes shared by every artifact."""
+        metadata: dict[str, str | int] = {}
+        category_id = getattr(data_source, "category_id", None)
+        if category_id is not None:
+            metadata["category_id"] = int(category_id)
+        category_path = str(
+            getattr(data_source, "_ingestion_category_path", None)
+            or getattr(data_source, "category_name", None)
+            or ""
+        ).strip()
+        if category_path:
+            metadata["category_path"] = category_path
+            metadata["category"] = category_path
+
+        links = getattr(data_source, "classification_links", None) or []
+        for link in links:
+            classification_type = getattr(link, "classification_type", None)
+            classification_value = getattr(link, "classification_value", None)
+            type_code = str(getattr(classification_type, "type_code", "")).upper()
+            if type_code not in {"TYPE_1", "TYPE_2", "TYPE_3"}:
+                continue
+            suffix = type_code.removeprefix("TYPE_")
+            value_id = getattr(link, "classification_value_id", None)
+            value_name = str(getattr(classification_value, "value_name", "")).strip()
+            if value_id is not None:
+                metadata[f"type_{suffix}_id"] = int(value_id)
+            if value_name:
+                metadata[f"type_{suffix}"] = value_name
+                metadata[f"type{suffix}"] = value_name
+        metadata["answer_source"] = (
+            "enabled" if bool(getattr(data_source, "answer_source_enabled", True)) else "disabled"
+        )
+        metadata["priority"] = str(getattr(data_source, "priority", "MEDIUM")).lower()
+        return metadata
+
+    @staticmethod
+    def _artifact_identity_metadata(
+        data_source: DataSource,
+        artifact: IngestionArtifact,
+        effective_title: str,
+        kind: str,
+    ) -> dict:
+        original_name = (
+            data_source.file.file_name
+            if getattr(data_source, "file", None)
+            else artifact.source_url or artifact.name
+        )
+        default_formats = {
+            "PDF": "PDF_MARKDOWN",
+            "WEB": "WEB_MARKDOWN",
+            "EXCEL": "EXCEL_MARKDOWN",
+            "WORD": "WORD_DOCX",
+            "PPT": "PPT_MARKDOWN",
+            "TEXT": "TEXT_MARKDOWN",
+        }
+        return {
+            # Keep the proven PoC keys as aliases while retaining the management
+            # application's canonical keys used by chat filtering.
+            "datasource_id": str(data_source.id),
+            "ingestion_format": (artifact.metadata or {}).get(
+                "ingestion_format", default_formats[kind]
+            ),
+            "source_file_name": artifact.name,
+            "original_source_file_name": PurePath(str(original_name)).name,
+            "original_title": effective_title[:500],
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     async def cleanup(self, data_sources: list[DataSource]) -> None:
         """Remove source-specific artifacts, refresh affected KBs, then originals."""
@@ -265,6 +345,30 @@ class AwsIngestionProcessor:
         name = data_source.file.file_name
         extension = data_source.format.lower().lstrip(".")
         if extension == "docx":
+            paragraph_count = table_count = headings = 0
+            header_present = footer_present = False
+            try:
+                document = Document(io.BytesIO(content))
+                paragraph_count = len(document.paragraphs)
+                table_count = len(document.tables)
+                headings = sum(
+                    1 for paragraph in document.paragraphs
+                    if paragraph.style and (paragraph.style.name or "").lower().startswith("heading")
+                )
+                header_present = any(
+                    paragraph.text.strip()
+                    for section in document.sections
+                    for paragraph in section.header.paragraphs
+                )
+                footer_present = any(
+                    paragraph.text.strip()
+                    for section in document.sections
+                    for paragraph in section.footer.paragraphs
+                )
+            except Exception:
+                # Bedrock can ingest valid Office variants that python-docx may
+                # not fully understand; structural metadata must not block them.
+                logger.warning("Word structure metadata could not be extracted", exc_info=True)
             return [IngestionArtifact(
                 name=PurePath(name).name,
                 body=content,
@@ -276,6 +380,13 @@ class AwsIngestionProcessor:
                     "conversion_method": "original",
                     "ingestion_format": "WORD_DOCX",
                     "original_source_file_name": PurePath(name).name,
+                    "source_file_type": "word",
+                    "original_extension": ".docx",
+                    "paragraph_count": paragraph_count,
+                    "table_count": table_count,
+                    "heading_count": headings,
+                    "header_present": header_present,
+                    "footer_present": footer_present,
                 },
             )]
         if extension == "pdf":
