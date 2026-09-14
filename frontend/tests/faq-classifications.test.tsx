@@ -94,7 +94,7 @@ describe("CB-212 FAQ classifications", () => {
   it("ラベル編集を保存・キャンセルできる", async () => {
     await renderPage();
     fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
-    const input = screen.getByLabelText("区分1の区分ラベル");
+    const input = screen.getByLabelText("区分1の区分ラベル名");
     fireEvent.change(input, { target: { value: "問合せ区分" } });
     fireEvent.click(screen.getAllByRole("button", { name: "更新" })[0]);
     await waitFor(() => expect(api.updateFaqClassificationLabel).toHaveBeenCalledWith(1, "問合せ区分", 1));
@@ -102,7 +102,7 @@ describe("CB-212 FAQ classifications", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
     fireEvent.click(screen.getAllByRole("button", { name: "キャンセル" })[0]);
-    expect(screen.queryByLabelText("区分1の区分ラベル")).toBeNull();
+    expect(screen.queryByLabelText("区分1の区分ラベル名")).toBeNull();
   });
 
   it("区分値を追加・編集でき、処理中は二重送信を防ぐ", async () => {

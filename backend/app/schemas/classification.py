@@ -39,7 +39,7 @@ class ClassificationTypeBase(BaseModel):
     def strip_display_label(cls, v: str) -> str:
         trimmed = v.strip()
         if not trimmed:
-            raise ValueError("種別ラベルを入力してください。")
+            raise ValueError("種別ラベル名を入力してください。")
         return trimmed
 
 

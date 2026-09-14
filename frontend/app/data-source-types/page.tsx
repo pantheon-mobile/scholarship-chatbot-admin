@@ -188,7 +188,7 @@ export default function DataSourceTypesPage() {
     const type = types.find((item) => item.id === typeId);
     const newLabel = editingLabel[typeId]?.trim();
     if (!type || !newLabel) {
-      setError("種別ラベルを入力してください。");
+      setError("種別ラベル名を入力してください。");
       return;
     }
     try {
@@ -371,7 +371,7 @@ export default function DataSourceTypesPage() {
                               inputClassName={styles.labelInput}
                               value={editingLabel[type.id]}
                               maxLength={100}
-                              aria-label={`${type.fixed_name}の種別ラベル`}
+                              aria-label={`${type.fixed_name}の種別ラベル名`}
                               onChange={(event) => setEditingLabel((current) => ({ ...current, [type.id]: event.target.value }))}
                             />
                           ) : type.display_label}

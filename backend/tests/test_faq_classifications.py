@@ -222,7 +222,7 @@ async def test_excel_contains_empty_and_registered_types():
     content = await FaqClassificationService(repository).export_excel()
     rows = list(load_workbook(BytesIO(content)).active.values)
     assert rows == [
-        ("区分", "区分タイトル名", "区分値"),
+        ("区分", "区分ラベル名", "区分値"),
         ("区分1", "区分1", None),
         ("区分2", "区分2", "申請"),
     ]

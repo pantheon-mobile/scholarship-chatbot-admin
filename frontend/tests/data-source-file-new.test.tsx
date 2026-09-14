@@ -35,7 +35,7 @@ async function choose(input: HTMLInputElement, files: File[]) {
 }
 
 describe("CB-203 file add page", () => {
-  it("初期値と種別ラベルを表示する", async () => {
+  it("初期値と種別ラベル名を表示する", async () => {
     renderPage();
     expect((screen.getByRole("button", { name: "ファイルを追加する" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText("回答利用の優先度") as HTMLSelectElement).value).toBe("MEDIUM");

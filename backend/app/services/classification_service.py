@@ -105,7 +105,7 @@ class ClassificationService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "種別"
-        worksheet.append(["種別", "種別タイトル名", "種別値"])
+        worksheet.append(["種別", "種別ラベル名", "種別値"])
         for classification_type in types:
             for value in classification_type.values:
                 worksheet.append([

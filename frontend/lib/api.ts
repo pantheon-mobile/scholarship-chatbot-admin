@@ -18,7 +18,7 @@ export async function updateTypeLabel(typeId: number, display_label: string, ver
     body: JSON.stringify({ display_label, version }),
   });
   if (!res.ok) {
-    throw new Error("種別ラベルの更新に失敗しました。");
+    throw new Error("種別ラベル名の更新に失敗しました。");
   }
   return res.json();
 }

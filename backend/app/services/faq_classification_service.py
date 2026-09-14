@@ -42,7 +42,7 @@ class FaqClassificationService:
 
     async def update_label(self, type_id: int, payload: FaqClassificationLabelUpdate) -> FaqClassificationType:
         await self.get_type(type_id)
-        label = self.normalized(payload.display_label, "FAQ_CLASSIFICATION_LABEL_REQUIRED", "区分ラベルを入力してください。")
+        label = self.normalized(payload.display_label, "FAQ_CLASSIFICATION_LABEL_REQUIRED", "区分ラベル名を入力してください。")
         try:
             if not await self.repository.update_label(type_id, label, payload.version):
                 raise FaqClassificationError("FAQ_CLASSIFICATION_VERSION_CONFLICT", "他の操作で情報が更新されています。再読み込みしてください。")
@@ -135,7 +135,7 @@ class FaqClassificationService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "区分"
-        worksheet.append(["区分", "区分タイトル名", "区分値"])
+        worksheet.append(["区分", "区分ラベル名", "区分値"])
         for classification_type in types:
             if not classification_type.values:
                 worksheet.append([classification_type.fixed_name, classification_type.display_label, ""])

@@ -124,7 +124,7 @@ export default function FaqClassificationsPage() {
 
   const saveLabel = async (type: FaqClassificationType) => {
     const label = editingLabels[type.id]?.trim() ?? "";
-    if (!label) { setError("区分ラベルを入力してください。"); return; }
+    if (!label) { setError("区分ラベル名を入力してください。"); return; }
     try {
       setBusy(true);
       replaceType(await updateFaqClassificationLabel(type.id, label, type.version));
@@ -252,7 +252,7 @@ export default function FaqClassificationsPage() {
                     compact
                     wrapperClassName={styles.labelField}
                     inputClassName={styles.labelInput}
-                    aria-label={`${type.fixed_name}の区分ラベル`}
+                    aria-label={`${type.fixed_name}の区分ラベル名`}
                     value={editingLabels[type.id]}
                     onChange={(event) => setEditingLabels((current) => ({ ...current, [type.id]: event.target.value }))}
                   /> : type.display_label}

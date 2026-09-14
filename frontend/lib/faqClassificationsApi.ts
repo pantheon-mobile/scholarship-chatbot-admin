@@ -29,7 +29,7 @@ export async function updateFaqClassificationLabel(typeId: number, displayLabel:
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ display_label: displayLabel, version }),
   });
-  if (!response.ok) return parseError(response, "区分ラベルの更新に失敗しました。");
+  if (!response.ok) return parseError(response, "区分ラベル名の更新に失敗しました。");
   return response.json();
 }
 

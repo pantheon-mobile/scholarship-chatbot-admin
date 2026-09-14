@@ -1,11 +1,13 @@
+from io import BytesIO
 from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from openpyxl import load_workbook
 
 from app.api.v1.data_source_types import get_service
 from app.main import app
-from app.services.classification_service import DuplicateValueError
+from app.services.classification_service import ClassificationService, DuplicateValueError
 
 
 @pytest.fixture
@@ -74,6 +76,20 @@ async def test_duplicate_value_returns_422(service):
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_excel_uses_classification_label_name_header(classification_type):
+    repository = AsyncMock()
+    repository.list_types.return_value = [classification_type]
+
+    content = await ClassificationService(repository).export_excel()
+    rows = list(load_workbook(BytesIO(content)).active.values)
+
+    assert rows == [
+        ("種別", "種別ラベル名", "種別値"),
+        ("種別1", "対象者", "在学生"),
+    ]
 
 
 @pytest.mark.anyio
