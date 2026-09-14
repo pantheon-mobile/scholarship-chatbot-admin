@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminIcon, AdminLayout, Button, FormField, PageHeader, SelectField } from "@/components/admin";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { downloadChatHistory } from "@/lib/reportingApi";
 import styles from "./page.module.css";
 
@@ -9,6 +10,8 @@ function initialPeriod() { const today = new Date(); const yesterday = new Date(
 
 export default function ChatHistoryPage() {
   const router = useRouter(); const [initial] = useState(initialPeriod);
+  const { user } = useAuth();
+  const canFilterByUser = user?.role === "admin";
   const [from, setFrom] = useState(initial.from); const [to, setTo] = useState(initial.to);
   const [answerType, setAnswerType] = useState(""); const [rating, setRating] = useState(""); const [comment, setComment] = useState(""); const [role, setRole] = useState(""); const [userIds, setUserIds] = useState("");
   const [loading, setLoading] = useState(false); const [error, setError] = useState("");
@@ -21,8 +24,10 @@ export default function ChatHistoryPage() {
       <SelectField label="チャット回答種別：" value={answerType} onChange={(e) => setAnswerType(e.target.value)}><option value="">（全て）</option><option value="FAQ">FAQ</option><option value="GENERATED_AI">生成AI</option></SelectField>
       <SelectField label="評価：" value={rating} onChange={(e) => setRating(e.target.value)}><option value="">（全て）</option><option value="RATED">Good＆Bad</option><option value="GOOD">Goodのみ</option><option value="BAD">Badのみ</option><option value="NONE">評価なし</option></SelectField>
       <SelectField label="コメント：" value={comment} onChange={(e) => setComment(e.target.value)}><option value="">（全て）</option><option value="WITH">コメント有</option><option value="WITHOUT">コメントなし</option></SelectField>
-      <SelectField label="権限：" value={role} onChange={(e) => setRole(e.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField>
-      <FormField label="ログインID：" value={userIds} placeholder="カンマ区切りで複数指定" onChange={(e) => setUserIds(e.target.value)} />
+      {canFilterByUser && <>
+        <SelectField label="権限：" value={role} onChange={(e) => setRole(e.target.value)}><option value="">（全て）</option><option value="staff">職員</option><option value="admin">システム管理者</option></SelectField>
+        <FormField label="ログインID：" value={userIds} placeholder="カンマ区切りで複数指定" onChange={(e) => setUserIds(e.target.value)} />
+      </>}
       <Button variant="download" icon={<AdminIcon name="download" size={18} />} disabled={loading} onClick={() => void download()}>{loading ? "作成中..." : "履歴ダウンロード"}</Button>
     </section>
   </AdminLayout>;

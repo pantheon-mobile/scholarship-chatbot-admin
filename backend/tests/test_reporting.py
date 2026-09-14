@@ -81,6 +81,24 @@ async def test_chat_history_export_matches_specified_filename_and_columns():
 
 
 @pytest.mark.anyio
+async def test_staff_chat_history_export_ignores_user_filters_and_limits_to_self(monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    repository = SimpleNamespace(chat_history_export=AsyncMock(return_value=[]))
+    current = SimpleNamespace(role="staff", site="faculty", subject="F0000003")
+
+    await chat_history_export(
+        date(2026, 9, 4), date(2026, 9, 4), answer_type=None, rating=None, comment=None,
+        role="admin", user_ids="F0000009", current=current,
+        service=SimpleNamespace(repository=repository),
+    )
+
+    expected = AnalyticsService(repository).visitor_key("AUTHENTICATED", "faculty:F0000003")
+    assert repository.chat_history_export.await_args.kwargs["visitor_key"] == expected
+    assert repository.chat_history_export.await_args.kwargs["role"] is None
+    assert repository.chat_history_export.await_args.kwargs["user_ids"] is None
+
+
+@pytest.mark.anyio
 async def test_usage_user_export_contains_cpf_identity():
     now = datetime(2026, 9, 4, tzinfo=timezone.utc)
     repository = SimpleNamespace(usage_users=AsyncMock(return_value=[{
