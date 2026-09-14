@@ -26,7 +26,12 @@ class FaqRepository:
             conditions.append(Faq.chat_enabled == filters.chat_enabled)
         for index in range(1, 5):
             value_id = getattr(filters, f"classification_{index}_value_id")
-            if value_id is not None:
+            if value_id == "UNSET":
+                conditions.append(~exists().where(
+                    FaqClassificationAssignment.faq_id == Faq.id,
+                    FaqClassificationAssignment.classification_type.has(type_code=f"FAQ_TYPE_{index}"),
+                ))
+            elif value_id is not None:
                 conditions.append(exists().where(
                     FaqClassificationAssignment.faq_id == Faq.id,
                     FaqClassificationAssignment.classification_type_id == type_ids[f"FAQ_TYPE_{index}"],

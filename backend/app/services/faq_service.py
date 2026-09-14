@@ -63,7 +63,7 @@ class FaqService:
         for index in range(1, 5):
             type_code = f"FAQ_TYPE_{index}"
             value_id = getattr(filters, f"classification_{index}_value_id")
-            if value_id is not None:
+            if value_id is not None and value_id != "UNSET":
                 type_id = await self.repository.resolve_value_type(type_code, value_id)
                 if type_id is None:
                     raise FaqError("INVALID_FAQ_CLASSIFICATION", "指定された区分値が正しくありません。")

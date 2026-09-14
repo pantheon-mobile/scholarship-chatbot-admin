@@ -259,7 +259,7 @@ export default function FaqsPage() {
           const type = typeMap[`FAQ_TYPE_${index}`];
           const key = `classification_${index}_value_id` as keyof Pick<FaqFilters, "classification_1_value_id" | "classification_2_value_id" | "classification_3_value_id" | "classification_4_value_id">;
           return <SelectField key={index} label={type?.display_label ?? `区分${index}`} value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}>
-            <option value="">すべて</option>{type?.values.map((value) => <option key={value.id} value={value.id}>{value.value_name}</option>)}
+            <option value="">すべて</option><option value="UNSET">（未設定）</option>{type?.values.map((value) => <option key={value.id} value={value.id}>{value.value_name}</option>)}
           </SelectField>;
         })}
         <SelectField label="チャット利用" value={draft.chat_enabled} onChange={(event) => setDraft({ ...draft, chat_enabled: event.target.value })}>

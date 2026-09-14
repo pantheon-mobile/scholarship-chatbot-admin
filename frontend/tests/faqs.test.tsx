@@ -95,6 +95,19 @@ describe("CB-208 FAQ list", () => {
     })));
   });
 
+  it("各区分の未設定FAQを絞り込める", async () => {
+    await renderPage();
+    expect(screen.getAllByRole("option", { name: "（未設定）" })).toHaveLength(4);
+    for (let index = 1; index <= 4; index += 1) {
+      fireEvent.change(screen.getByLabelText(`表示区分${index}`), { target: { value: "UNSET" } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "絞り込み検索" }));
+    await waitFor(() => expect(faqApi.fetchFaqs).toHaveBeenLastCalledWith(expect.objectContaining({
+      classification_1_value_id: "UNSET", classification_2_value_id: "UNSET",
+      classification_3_value_id: "UNSET", classification_4_value_id: "UNSET", page: 1,
+    })));
+  });
+
   it("ID・更新日時ソート、表示件数、ページングを更新する", async () => {
     faqApi.fetchFaqs.mockResolvedValue({ ...result, total_pages: 2 });
     await renderPage();

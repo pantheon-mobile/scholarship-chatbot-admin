@@ -124,6 +124,25 @@ def test_keyword_or_and_all_other_filters_are_and_conditions():
     assert all("faq_similar_questions" not in str(condition) for condition in conditions)
 
 
+def test_unset_classification_filters_create_missing_assignment_conditions():
+    filters = FaqFilters(**{f"classification_{index}_value_id": "UNSET" for index in range(1, 5)})
+    conditions = FaqRepository.conditions(filters, {})
+    rendered = "\n".join(str(condition.compile(compile_kwargs={"literal_binds": True})) for condition in conditions)
+    assert len(conditions) == 4
+    assert rendered.count("NOT (EXISTS") == 4
+    assert all(f"FAQ_TYPE_{index}" in rendered for index in range(1, 5))
+
+
+@pytest.mark.anyio
+async def test_unset_classification_filters_do_not_require_value_validation():
+    repository = AsyncMock()
+    repository.list.return_value = ([], 0, 0)
+    filters = FaqFilters(**{f"classification_{index}_value_id": "UNSET" for index in range(1, 5)})
+    await FaqService(repository).list(filters)
+    repository.resolve_value_type.assert_not_awaited()
+    repository.list.assert_awaited_once_with(filters, {})
+
+
 @pytest.mark.anyio
 async def test_list_serializes_dynamic_classifications_and_paging():
     repository = AsyncMock()
@@ -227,6 +246,20 @@ async def test_api_page_not_found_and_invalid_classification_codes(mock_service)
             response = await client.get("/api/v1/faqs")
         assert response.status_code == 422
         assert response.json()["detail"]["code"] == code
+
+
+@pytest.mark.anyio
+async def test_api_accepts_unset_classification_filters(mock_service):
+    mock_service.list.return_value = {
+        "items": [], "page": 1, "page_size": 10, "total_count": 0,
+        "total_pages": 0, "sort": "updated_at", "order": "desc",
+    }
+    query = "&".join(f"classification_{index}_value_id=UNSET" for index in range(1, 5))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(f"/api/v1/faqs?{query}")
+    assert response.status_code == 200
+    filters = mock_service.list.await_args.args[0]
+    assert all(getattr(filters, f"classification_{index}_value_id") == "UNSET" for index in range(1, 5))
 
 
 @pytest.mark.anyio

@@ -5,14 +5,15 @@ from pydantic import BaseModel, Field, field_validator
 
 FaqSortColumn = Literal["id", "updated_at"]
 SortOrder = Literal["asc", "desc"]
+UnsettableId = int | Literal["UNSET"]
 
 
 class FaqFilters(BaseModel):
     keyword: str | None = None
-    classification_1_value_id: int | None = Field(default=None, ge=1)
-    classification_2_value_id: int | None = Field(default=None, ge=1)
-    classification_3_value_id: int | None = Field(default=None, ge=1)
-    classification_4_value_id: int | None = Field(default=None, ge=1)
+    classification_1_value_id: UnsettableId | None = None
+    classification_2_value_id: UnsettableId | None = None
+    classification_3_value_id: UnsettableId | None = None
+    classification_4_value_id: UnsettableId | None = None
     chat_enabled: bool | None = None
     sort: FaqSortColumn = "updated_at"
     order: SortOrder = "desc"
