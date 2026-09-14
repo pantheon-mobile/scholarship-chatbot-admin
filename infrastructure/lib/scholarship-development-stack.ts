@@ -424,7 +424,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     backendContainer.addPortMappings({ containerPort: 8000 });
     bucket.grantReadWrite(backendTask.taskRole);
     backendTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
-      actions: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate", "bedrock:GetInferenceProfile"],
+      actions: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate", "bedrock:GetInferenceProfile", "bedrock:InvokeModel"],
       resources: ["*"],
     }));
     const backendService = new ecs.FargateService(this, "BackendService", { cluster, capacityProviderStrategies: serviceCapacityProviderStrategies, taskDefinition: backendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });

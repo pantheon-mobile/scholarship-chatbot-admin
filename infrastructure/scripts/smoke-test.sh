@@ -48,8 +48,16 @@ if [[ -n "${TOKEN:-}" ]]; then
   check "Chat UI configuration" curl --fail --silent --show-error -b "$COOKIE_JAR" \
     "$APPLICATION_URL/api/v1/chat/config" -o /dev/null || overall=1
   check "Chat response pipeline" bash -c '
-    response=$(curl --fail --silent --show-error -b "$1" -X POST "$2/api/v1/chat/messages" \
-      -H "Content-Type: application/json" -d "{\"question\":\"登録資料に情報がない場合の動作確認です\"}") &&
+    response_file=$(mktemp)
+    trap '\''rm -f "$response_file"'\'' EXIT
+    if ! curl --fail-with-body --silent --show-error -b "$1" -X POST "$2/api/v1/chat/messages" \
+      -H "Content-Type: application/json" -d "{\"question\":\"登録資料に情報がない場合の動作確認です\"}" \
+      -o "$response_file"; then
+      echo "Chat response API body:" >&2
+      cat "$response_file" >&2
+      exit 1
+    fi
+    response=$(cat "$response_file") &&
     python3 -c '\''import json,sys; value=json.load(sys.stdin); assert isinstance(value.get("answer"),str) and value["answer"]'\'' <<<"$response"
   ' _ "$COOKIE_JAR" "$APPLICATION_URL" || overall=1
 fi
