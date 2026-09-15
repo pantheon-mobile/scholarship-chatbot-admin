@@ -6,6 +6,8 @@ import { FormField, Modal, SelectField } from "@/components/admin";
 import { Category } from "@/types/category";
 import styles from "./category-form-modal.module.css";
 
+const CATEGORY_NAME_MAX_LENGTH = 30;
+
 export type CategoryFormValues = { name: string; parent_id: number | null };
 
 type CategoryFormModalProps = {
@@ -75,10 +77,13 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
   }, [mode, category, categories]);
   const options = useMemo(() => hierarchyOptions(categories, excluded), [categories, excluded]);
   const normalizedName = name.trim();
+  const nameLength = Array.from(normalizedName).length;
+  const tooLong = nameLength > CATEGORY_NAME_MAX_LENGTH;
+  const lengthError = `カテゴリは${CATEGORY_NAME_MAX_LENGTH}文字以内で入力してください。`;
   const dirty = mode === "create"
     ? normalizedName.length > 0 || parentId !== null
     : normalizedName !== initialName || parentId !== initialParentId;
-  const nameError = localError || (["CATEGORY_NAME_REQUIRED", "CATEGORY_NAME_TOO_LONG", "CATEGORY_NAME_DUPLICATE"].includes(errorCode ?? "") ? error : undefined);
+  const nameError = localError || (tooLong ? lengthError : undefined) || (["CATEGORY_NAME_REQUIRED", "CATEGORY_NAME_TOO_LONG", "CATEGORY_NAME_DUPLICATE"].includes(errorCode ?? "") ? error : undefined);
   const parentError = errorCode === "PARENT_CATEGORY_NOT_FOUND" || errorCode === "CATEGORY_CYCLE_NOT_ALLOWED" ? error : undefined;
   const modalError = nameError || parentError ? undefined : error;
 
@@ -87,8 +92,8 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
       setLocalError("カテゴリが入力されていません");
       return;
     }
-    if (normalizedName.length > 15) {
-      setLocalError("カテゴリは15文字以内で入力してください。");
+    if (tooLong) {
+      setLocalError(lengthError);
       return;
     }
     setLocalError("");
@@ -100,7 +105,7 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
     title={mode === "create" ? "カテゴリ新規追加" : "カテゴリ編集"}
     confirmLabel={busy ? (mode === "create" ? "登録中..." : "更新中...") : mode === "create" ? "カテゴリ登録" : "カテゴリ更新"}
     busy={busy}
-    confirmDisabled={!normalizedName || normalizedName.length > 15 || (mode === "edit" && !dirty)}
+    confirmDisabled={!normalizedName || tooLong || (mode === "edit" && !dirty)}
     error={modalError}
     onConfirm={submit}
     onClose={onClose}
@@ -109,6 +114,8 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
       <FormField
         id={`${mode}-category-name`}
         label="カテゴリ名"
+        aria-label="カテゴリ名"
+        description={`${nameLength} / ${CATEGORY_NAME_MAX_LENGTH}文字`}
         value={name}
         error={nameError}
         aria-required="true"

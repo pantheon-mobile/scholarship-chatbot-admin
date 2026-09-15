@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.core.category_limits import CATEGORY_NAME_MAX_LENGTH
 from app.repositories.category import CategoryRepository
 from app.schemas.category import CategoryBulkDeleteRequest, CategoryBulkDeleteResponse, CategoryCreateRequest, CategoryListResponse, CategoryOrderRequest, CategoryResponse, CategoryUpdateRequest
 from app.services.category_service import (
@@ -43,7 +44,7 @@ def raise_write_error(exc: Exception) -> None:
     if isinstance(exc, CategoryNameRequiredError):
         raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_REQUIRED", "カテゴリが入力されていません"))
     if isinstance(exc, CategoryNameTooLongError):
-        raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_TOO_LONG", "カテゴリは15文字以内で入力してください。"))
+        raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_TOO_LONG", f"カテゴリは{CATEGORY_NAME_MAX_LENGTH}文字以内で入力してください。"))
     if isinstance(exc, ParentCategoryNotFoundError):
         raise HTTPException(status_code=422, detail=error("PARENT_CATEGORY_NOT_FOUND", "親カテゴリが見つかりません。"))
     if isinstance(exc, DuplicateCategoryNameError):

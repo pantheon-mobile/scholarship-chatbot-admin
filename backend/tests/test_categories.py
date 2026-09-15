@@ -71,7 +71,7 @@ async def test_service_trims_name_and_rejects_duplicate_within_same_parent():
     with pytest.raises(CategoryNameRequiredError):
         service.normalize_name(" " * 3)
     with pytest.raises(CategoryNameTooLongError):
-        service.normalize_name("あ" * 16)
+        service.normalize_name("あ" * 31)
 
 
 @pytest.mark.anyio
@@ -151,9 +151,11 @@ async def test_update_rejects_missing_cycle_duplicate_not_found_and_version_conf
             await service.update(category_id, payload)
 
 
-def test_name_boundary_accepts_one_and_fifteen_characters():
-    assert CategoryService.normalize_name("あ") == "あ"
-    assert CategoryService.normalize_name("あ" * 15) == "あ" * 15
+@pytest.mark.parametrize("length", [1, 15, 16, 29, 30])
+@pytest.mark.parametrize("character", ["あ", "𠮷", "a"])
+def test_name_boundary_accepts_up_to_thirty_characters(length, character):
+    name = character * length
+    assert CategoryService.normalize_name(f" {name} ") == name
 
 
 @pytest.mark.anyio
@@ -380,3 +382,36 @@ async def test_export_filename_uses_category_timestamp(api_service):
     disposition = response.headers["content-disposition"]
     assert disposition.startswith("attachment; filename=category")
     assert disposition.endswith(".xlsx")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("method", ["post", "put"])
+@pytest.mark.parametrize("length", [29, 30, 31])
+async def test_api_name_length_with_real_service(method, length):
+    name = "あ" * length
+    repository = AsyncMock()
+    repository.list_all.return_value = [category(1, "既存", None, 1)]
+    repository.add.return_value = category(2, name, None, 2)
+    if method == "put":
+        repository.list_all.side_effect = [
+            [category(1, "既存", None, 1)], [category(1, name, None, 1, 2)],
+        ]
+    app.dependency_overrides[get_service] = lambda: CategoryService(repository)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.request(method, "/api/v1/categories" + ("/1" if method == "put" else ""),
+                                            json={"name": name, "parent_id": None, "version": 1})
+        if length <= 30:
+            assert response.status_code == (201 if method == "post" else 200)
+            assert response.json()["name"] == name
+            repository.commit.assert_awaited_once()
+        else:
+            assert response.status_code == 422
+            assert response.json()["detail"] == {
+                "code": "CATEGORY_NAME_TOO_LONG", "message": "カテゴリは30文字以内で入力してください。",
+            }
+            repository.add.assert_not_awaited()
+            repository.update_category.assert_not_awaited()
+            repository.commit.assert_not_awaited()
+    finally:
+        app.dependency_overrides.clear()

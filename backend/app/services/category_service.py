@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
 from app.models.category import Category
+from app.core.category_limits import CATEGORY_NAME_MAX_LENGTH
 from app.repositories.category import CategoryRepository
 from app.schemas.category import CategoryCreateRequest, CategoryDeleteTarget, CategoryOrderRequest, CategoryResponse, CategoryUpdateRequest
 
@@ -96,7 +97,7 @@ class CategoryService:
         normalized = name.strip()
         if not normalized:
             raise CategoryNameRequiredError()
-        if len(normalized) > 15:
+        if len(normalized) > CATEGORY_NAME_MAX_LENGTH:
             raise CategoryNameTooLongError()
         return normalized
 

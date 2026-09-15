@@ -187,6 +187,36 @@ describe("CB-213 categories", () => {
     expect(api.fetchCategories).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["create", "edit"])("%sで29・30文字を許可し31文字を拒否する", async (mode) => {
+    await renderPage();
+    if (mode === "create") {
+      fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    } else {
+      const row = screen.getByText("申請").closest("tr")!;
+      fireEvent.click(row.querySelectorAll("button")[2]);
+    }
+    const input = screen.getByLabelText("カテゴリ名");
+    const submit = screen.getByRole("button", { name: mode === "create" ? "カテゴリ登録" : "カテゴリ更新" }) as HTMLButtonElement;
+    for (const length of [29, 30, 31]) {
+      fireEvent.change(input, { target: { value: "あ".repeat(length) } });
+      expect(submit.disabled).toBe(length > 30);
+      expect(screen.getByText(`${length} / 30文字`)).not.toBeNull();
+    }
+    expect(screen.getByText("カテゴリは30文字以内で入力してください。")).not.toBeNull();
+    fireEvent.click(submit);
+    expect(api.createCategory).not.toHaveBeenCalled();
+    expect(api.updateCategory).not.toHaveBeenCalled();
+    // Supplementary-plane characters count the same way as Python and PostgreSQL.
+    const name = "𠮷".repeat(30);
+    fireEvent.change(input, { target: { value: ` ${name} ` } });
+    expect(submit.disabled).toBe(false);
+    expect(screen.getByText("30 / 30文字")).not.toBeNull();
+    fireEvent.click(submit);
+    await waitFor(() => mode === "create"
+      ? expect(api.createCategory).toHaveBeenCalledWith({ name, parent_id: null })
+      : expect(api.updateCategory).toHaveBeenCalledWith(3, { name, parent_id: 1, version: 1 }));
+  });
+
   it("新規登録失敗時はModalと入力値を維持し、フィールドエラーを表示する", async () => {
     api.createCategory.mockRejectedValueOnce(new CategoryApiError("同じ親カテゴリ内に同名のカテゴリがあります。", 422, "CATEGORY_NAME_DUPLICATE"));
     await renderPage();

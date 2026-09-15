@@ -4,6 +4,7 @@ from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped
 
 from app.db.base_class import Base
+from app.core.category_limits import CATEGORY_NAME_MAX_LENGTH
 
 
 class Category(Base):
@@ -28,7 +29,7 @@ class Category(Base):
     )
 
     id: Mapped[int] = Column(BigInteger, primary_key=True)
-    name: Mapped[str] = Column(String(15), nullable=False)
+    name: Mapped[str] = Column(String(CATEGORY_NAME_MAX_LENGTH), nullable=False)
     parent_id: Mapped[int | None] = Column(ForeignKey("categories.id", ondelete="CASCADE"), nullable=True, index=True)
     display_order: Mapped[int] = Column(Integer, nullable=False)
     version: Mapped[int] = Column(Integer, nullable=False, default=1)
