@@ -71,7 +71,7 @@ async def test_chat_accepts_configured_prompt_with_required_placeholders(monkeyp
     client.retrieve_and_generate.return_value = {"output": {"text": "回答"}, "citations": []}
     await ChatService(client).answer("質問")
     prompt = client.retrieve_and_generate.call_args.kwargs["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
-    assert prompt == "資料:$search_results$ 質問:$query$"
+    assert prompt == "資料:$search_results$ 質問:$query$\n\n$output_format_instructions$"
 
 
 @pytest.mark.anyio
@@ -113,7 +113,7 @@ def test_chat_filter_excludes_disabled_sources():
     }
 
 
-def test_chat_keeps_citation_title_but_hides_uri_when_link_is_disabled():
+def test_chat_omits_citation_when_link_is_disabled():
     response = {"citations": [{
         "retrievedReferences": [{
             "location": {"s3Location": {"uri": "s3://bucket/guide.md"}},
@@ -127,8 +127,7 @@ def test_chat_keeps_citation_title_but_hides_uri_when_link_is_disabled():
 
     citations = ChatService._citations(response)
 
-    assert citations[0].title == "奨学金案内"
-    assert citations[0].uri is None
+    assert citations == []
 
 
 def test_chat_keeps_legacy_citation_link_when_visibility_metadata_is_missing():

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import BinaryIO, Protocol
+from typing import BinaryIO, Iterator, Protocol
 
 
 class StorageAdapter(Protocol):
@@ -16,3 +16,5 @@ class StorageAdapter(Protocol):
     def exists(self, storage_key: str) -> bool: ...
 
     def read(self, storage_key: str) -> bytes: ...
+
+    def iter_read(self, storage_key: str) -> Iterator[bytes]: ...

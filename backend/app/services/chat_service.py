@@ -28,7 +28,7 @@ DEFAULT_CHAT_PROMPT = (
     "根拠が不足する場合は推測せず、『登録情報から確認できませんでした』と簡潔に伝えてください。"
     "その場合、質問への回答にならない断片的な関連情報、根拠のない連絡先、学生向けの案内を付け加えないでください。"
     "検索結果にない制度、期限、金額、手続き、連絡先を補完・創作しないでください。"
-    "検索結果:\n$search_results$\n\n質問:$query$"
+    "検索結果:\n$search_results$\n\n質問:$query$\n\n$output_format_instructions$"
 )
 
 
@@ -48,6 +48,8 @@ class ChatService:
         self.knowledge_base_id = os.getenv("CHAT_KNOWLEDGE_BASE_ID", "").strip()
         self.model_arn = os.getenv("CHAT_MODEL_ARN", "").strip()
         self.prompt = os.getenv("CHAT_SYSTEM_PROMPT", DEFAULT_CHAT_PROMPT).strip() or DEFAULT_CHAT_PROMPT
+        if "$output_format_instructions$" not in self.prompt:
+            self.prompt += "\n\n$output_format_instructions$"
         self.client = client
 
     @staticmethod
@@ -224,21 +226,31 @@ class ChatService:
                     if isinstance(value, dict):
                         uri = value.get("uri") or value.get("url") or uri
                 metadata = reference.get("metadata", {}) or {}
-                uri = uri or metadata.get("source_url") or metadata.get("x-amz-bedrock-kb-source-uri")
+                uri = metadata.get("source_url") or uri or metadata.get("x-amz-bedrock-kb-source-uri")
                 title = str(metadata.get("source_title") or metadata.get("source_file_name") or "参照資料")
                 if title == "参照資料" and uri:
                     title = PurePosixPath(urlparse(str(uri)).path).name or title
                 link_visible = metadata.get("reference_link_visible", True)
                 if isinstance(link_visible, str):
                     link_visible = link_visible.strip().lower() not in {"false", "0", "no", "off"}
-                if not link_visible:
+                raw_id = metadata.get("data_source_id") or metadata.get("datasource_id")
+                try:
+                    data_source_id = int(str(raw_id)) if raw_id is not None else None
+                except (TypeError, ValueError):
+                    data_source_id = None
+                if data_source_id is not None and data_source_id <= 0:
+                    data_source_id = None
+                if not link_visible and data_source_id is None:
+                    continue
+                if uri and urlparse(str(uri)).scheme not in {"http", "https"}:
                     uri = None
-                key = (title, str(uri) if uri else None)
+                key = (str(data_source_id) if data_source_id else title, str(uri) if uri else None)
                 if key in seen:
                     continue
                 seen.add(key)
                 citations.append(ChatCitation(
                     title=title,
+                    data_source_id=data_source_id,
                     uri=str(uri) if uri else None,
                     excerpt=str(excerpt).strip()[:500] if excerpt else None,
                 ))

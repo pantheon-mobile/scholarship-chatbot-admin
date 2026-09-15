@@ -12,6 +12,7 @@ class ChatMessageRequest(BaseModel):
 
 class ChatCitation(BaseModel):
     title: str
+    data_source_id: int | None = None
     uri: str | None = None
     excerpt: str | None = None
 

@@ -63,3 +63,11 @@ class S3Storage:
     def _validate_key(self, storage_key: str) -> None:
         if not storage_key.startswith(self.prefix) or ".." in storage_key.split("/"):
             raise ValueError("invalid_storage_key")
+
+    def iter_read(self, storage_key: str):
+        self._validate_key(storage_key)
+        body = self.client.get_object(Bucket=self.bucket, Key=storage_key)["Body"]
+        try:
+            yield from body.iter_chunks(chunk_size=1024 * 1024)
+        finally:
+            body.close()

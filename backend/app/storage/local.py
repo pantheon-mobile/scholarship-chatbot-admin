@@ -46,3 +46,8 @@ class LocalStorage:
 
     def read(self, storage_key: str) -> bytes:
         return self._final_path(storage_key).read_bytes()
+
+    def iter_read(self, storage_key: str):
+        with self._final_path(storage_key).open("rb") as source:
+            while chunk := source.read(1024 * 1024):
+                yield chunk

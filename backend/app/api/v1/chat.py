@@ -1,13 +1,20 @@
 import os
+import asyncio
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.v1.auth import require_authenticated_session
 from app.core.db import get_db
+from app.models.data_source import DataSource
+from app.api.v1.data_sources import get_storage
+from app.storage.base import StorageAdapter
+from app.services.chat_citation_service import resolve_chat_citations
 from app.models.analytics import AnalyticsVisitor, ChatInteraction, ChatSession
 from app.models.faq import Faq
 from app.models.auth import AuthSession
@@ -217,7 +224,9 @@ async def send_message(
         faq_answer = service.answer_from_faq(payload.question, faqs)
         if faq_answer is not None:
             return faq_answer
-        return await service.answer(payload.question, payload.bedrock_session_id)
+        result = await service.answer(payload.question, payload.bedrock_session_id)
+        result.citations = await resolve_chat_citations(session, result.citations)
+        return result
     except ChatConfigurationError:
         raise HTTPException(status_code=503, detail="チャット機能の設定が完了していません。") from None
     except ChatGenerationError as error:
@@ -225,3 +234,31 @@ async def send_message(
         if _flag("ENABLE_DEVELOPMENT_CPF_MOCK"):
             detail = f"{detail} 診断情報: {error}"
         raise HTTPException(status_code=502, detail=detail) from None
+
+
+@router.get("/sources/{data_source_id}/download")
+async def download_chat_source(
+    data_source_id: int,
+    _current_user: AuthSession = Depends(require_authenticated_session),
+    session: AsyncSession = Depends(get_db),
+    storage: StorageAdapter = Depends(get_storage),
+):
+    row = (await session.execute(
+        select(DataSource).where(DataSource.id == data_source_id)
+        .options(selectinload(DataSource.file))
+    )).scalar_one_or_none()
+    if (row is None or row.source_type != "FILE" or row.file is None
+            or not row.reference_link_visible or not row.answer_source_enabled
+            or not row.file.storage_key):
+        raise HTTPException(status_code=404, detail="参照元ファイルが見つかりません。")
+    if not await asyncio.to_thread(storage.exists, row.file.storage_key):
+        raise HTTPException(status_code=404, detail="参照元ファイルが見つかりません。")
+    return StreamingResponse(
+        storage.iter_read(row.file.storage_key),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": "attachment; filename*=UTF-8''" + quote(row.file.file_name, safe=""),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

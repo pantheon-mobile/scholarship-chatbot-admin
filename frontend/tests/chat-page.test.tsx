@@ -134,3 +134,18 @@ describe("CB-101 チャットUI", () => {
     await waitFor(() => expect(api.deleteChatHistory).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
   });
 });
+
+it("生成AI回答の参照元タイトルを複数行のリンクとして表示する", async () => {
+  const citations = [
+    { title: "第一種奨学金の返還案内", uri: "/api/v1/chat/sources/7/download", data_source_id: 7 },
+    { title: "返還方式の説明", uri: "https://example.com/repayment" },
+  ];
+  api.sendChatMessage.mockResolvedValue({ answer: "定額返還方式と所得連動返還方式です。", answer_type: "GENERATED_AI", citations });
+  render(<ChatPage />);
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "第一種奨学金の返還方式は？" } });
+  fireEvent.keyDown(screen.getByLabelText("質問"), { key: "Enter", keyCode: 13 });
+  expect(await screen.findByText("【参照元】")).toBeTruthy();
+  expect(screen.getByRole("link", { name: citations[0].title }).getAttribute("href")).toBe("/api/v1/chat/sources/7/download");
+  expect(screen.getByRole("link", { name: citations[1].title }).getAttribute("href")).toBe(citations[1].uri);
+  expect(screen.getByRole("link", { name: citations[0].title }).closest("li")).not.toBe(screen.getByRole("link", { name: citations[1].title }).closest("li"));
+});
