@@ -133,7 +133,6 @@ export default function DataSourceWebsiteNewPage() {
         <div className={styles.topRow}>
           <Breadcrumb items={[{ label: "データソース一覧", onClick: () => requestNavigate("/data-sources") }, { label: "Webサイト追加" }]} />
           <div className={styles.topActions}>
-            <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={() => void downloadTemplate()} disabled={busy}>フォーマットをダウンロード</Button>
             <Button variant="secondary" icon={<AdminIcon name="back" size={19} />} onClick={() => requestNavigate("/data-sources")} disabled={busy}>データソース一覧に戻る</Button>
           </div>
         </div>
@@ -147,7 +146,8 @@ export default function DataSourceWebsiteNewPage() {
               <div className={styles.urlHelp}>※複数のURLは改行して入力してください。タイトルを指定する場合は「URL,タイトル」の形式で入力してください。<br/>※タイトル未指定時は、クロール後にWebサイトのtitleタグを登録します。取得できない場合はURLを使用します。</div>
             </div>
             <div className={styles.importControls}>
-              <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => importInputRef.current?.click()} disabled={busy}>ファイルから一括入力</Button>
+              <Button className={styles.importButton} variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => importInputRef.current?.click()} disabled={busy}>ファイルから一括入力</Button>
+              <Button className={styles.importButton} variant="download" icon={<AdminIcon name="download" size={18} />} onClick={() => void downloadTemplate()} disabled={busy}>フォーマットをダウンロード</Button>
               {importFile && <><span className={styles.importFileName}>{importFile.name}</span><Button variant="text" onClick={() => setImportFile(null)} disabled={busy}>選択解除</Button></>}
               <input ref={importInputRef} className={styles.hiddenFileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="URLリスト取込ファイル" onChange={(event) => { const file = event.target.files?.[0] ?? null; setImportFile(file); if (file) setValue("url", ""); event.currentTarget.value = ""; }} />
             </div>

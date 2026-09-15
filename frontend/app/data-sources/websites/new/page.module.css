@@ -13,6 +13,7 @@
 .urlTextarea:disabled { background: #f1f2f4; color: #6d737a; }
 .urlHelp { margin-top: 7px; color: #555d65; font-size: 13px; line-height: 1.5; }
 .importControls { min-width: 230px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.importControls .importButton { width: 230px; min-width: 230px; }
 .importFileName { max-width: 270px; color: #34383c; font-size: 13px; overflow-wrap: anywhere; }
 .hiddenFileInput { display: none; }
 .categoryField { width: 305px; }
