@@ -251,7 +251,11 @@ async def download_chat_source(
             or not row.reference_link_visible or not row.answer_source_enabled
             or not row.file.storage_key):
         raise HTTPException(status_code=404, detail="参照元ファイルが見つかりません。")
-    if not await asyncio.to_thread(storage.exists, row.file.storage_key):
+    try:
+        exists = await asyncio.to_thread(storage.exists, row.file.storage_key)
+    except (ValueError, FileNotFoundError):
+        exists = False
+    if not exists:
         raise HTTPException(status_code=404, detail="参照元ファイルが見つかりません。")
     return StreamingResponse(
         storage.iter_read(row.file.storage_key),

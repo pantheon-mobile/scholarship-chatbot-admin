@@ -129,3 +129,12 @@ def test_s3_download_streams_and_closes_body():
     assert b"".join(storage.iter_read("originals/guide.pdf")) == b"onetwo"
     storage.client.get_object.assert_called_once_with(Bucket="bucket", Key="originals/guide.pdf")
     body.close.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_original_from_another_storage_backend_returns_404(download_setup):
+    row = source(file=SimpleNamespace(storage_key="documents/admin/originals/source.pdf", file_name="source.pdf"))
+    app.dependency_overrides[get_db] = lambda: db_for(row)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/chat/sources/7/download")
+    assert response.status_code == 404
