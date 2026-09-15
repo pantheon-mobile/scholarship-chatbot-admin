@@ -74,3 +74,4 @@
   .composer { grid-template-columns: 1fr 60px; }
   .composer textarea { min-height: 52px; padding: 12px; }
 }
+@media (max-width: 760px) { .main { --header-height: 58px; } }
