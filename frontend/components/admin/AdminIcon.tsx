@@ -3,13 +3,17 @@ import { SVGProps } from "react";
 export type AdminIconName =
   | "university" | "menu" | "dashboard" | "database" | "help" | "list"
   | "chat" | "chart" | "back" | "download" | "plus" | "edit" | "trash" | "grip" | "search" | "upload" | "close"
-  | "refresh" | "view" | "chevronRight" | "chevronDown";
+  | "thumbUp" | "thumbDown" | "copy" | "bot" | "refresh" | "view" | "chevronRight" | "chevronDown";
 
 type AdminIconProps = SVGProps<SVGSVGElement> & { name: AdminIconName; size?: number };
 
 export function AdminIcon({ name, size = 24, ...props }: AdminIconProps) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const paths: Record<AdminIconName, React.ReactNode> = {
+    thumbUp: <path d="M7 10v11H3V10h4Zm0 0 5-7c2 0 3 1 2 4l-1 3h6c2 0 2 2 1 4l-2 7H7"/>,
+    thumbDown: <path d="M7 14V3H3v11h4Zm0 0 5 7c2 0 3-1 2-4l-1-3h6c2 0 2-2 1-4l-2-7H7"/>,
+    copy: <><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>,
+    bot: <><rect x="4" y="7" width="16" height="13" rx="4"/><path d="M12 3v4M1 12v4m22-4v4M9 16h6"/><circle cx="8.5" cy="12" r=".8"/><circle cx="15.5" cy="12" r=".8"/></>,
     university: <><path d="M3 8.5 12 3l9 5.5H3Z"/><path d="M5 20.5h14M3.5 22h17M6.5 8.5v12m3.7-12v12m3.6-12v12m3.7-12v12"/></>,
     menu: <path d="M3.5 6h17M3.5 12h17M3.5 18h17"/>,
     dashboard: <><circle cx="12" cy="12" r="9"/><circle cx="6.7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="8.7" cy="6.8" r="1" fill="currentColor" stroke="none"/><circle cx="12.4" cy="5.6" r="1" fill="currentColor" stroke="none"/><circle cx="16.2" cy="7.2" r="1" fill="currentColor" stroke="none"/><path d="m11 16.5 4.8-7.1"/><circle cx="11" cy="16.5" r="1.25" fill="currentColor" stroke="none"/></>,

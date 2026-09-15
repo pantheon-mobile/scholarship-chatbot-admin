@@ -10,6 +10,7 @@ export function MarkdownAnswer({ content }: { content: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          table: ({ children, ...props }) => <div className={styles.tableWrap}><table {...props}>{children}</table></div>,
           a: ({ children, ...props }) => (
             <a {...props} target="_blank" rel="noopener noreferrer">
               {children}

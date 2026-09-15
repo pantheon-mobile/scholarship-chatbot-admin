@@ -68,6 +68,13 @@ describe("CB-101 チャットUI", () => {
     fireEvent.change(screen.getByLabelText("コメント（任意）"), { target: { value: "助かりました" } });
     fireEvent.click(screen.getByRole("button", { name: "送信する" }));
     await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), "GOOD", "分かりやすい：助かりました"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Good" }).getAttribute("aria-pressed")).toBe("true"));
+    expect(screen.getByRole("button", { name: "Bad" }).getAttribute("aria-pressed")).toBe("false");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    fireEvent.click(screen.getByRole("button", { name: "回答をコピー" }));
+    await screen.findByText("コピー済み");
+    expect(writeText).toHaveBeenCalledWith("回答です");
   });
 
   it("利用者名ボタンからIDと操作メニューを表示し、閉じるで管理画面へ戻る", () => {
