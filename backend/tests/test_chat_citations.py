@@ -138,3 +138,19 @@ async def test_original_from_another_storage_backend_returns_404(download_setup)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/chat/sources/7/download")
     assert response.status_code == 404
+
+
+def test_public_citations_remain_compatible_with_history_completion_schema():
+    from app.schemas.chat import ChatMessageResponse
+    from app.schemas.analytics import InteractionCompletionRequest
+    response = ChatMessageResponse(answer="回答", answer_type="GENERATED_AI", citations=[
+        ChatCitation(title="返還案内", data_source_id=7, uri="/api/v1/chat/sources/7/download"),
+    ])
+    public_citations = response.model_dump()["citations"]
+    assert "data_source_id" not in public_citations[0]
+    payload = InteractionCompletionRequest.model_validate({
+        "processing_status": "COMPLETED", "answer_type": "GENERATED_AI",
+        "answer_displayed_at": "2026-09-15T12:00:00Z", "answer_text": response.answer,
+        "citations": public_citations,
+    })
+    assert payload.citations[0]["uri"] == "/api/v1/chat/sources/7/download"

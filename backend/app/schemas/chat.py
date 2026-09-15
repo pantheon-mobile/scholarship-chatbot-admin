@@ -12,7 +12,8 @@ class ChatMessageRequest(BaseModel):
 
 class ChatCitation(BaseModel):
     title: str
-    data_source_id: int | None = None
+    # Internal lookup only; preserve the string-only citation history contract.
+    data_source_id: int | None = Field(default=None, exclude=True)
     uri: str | None = None
     excerpt: str | None = None
 

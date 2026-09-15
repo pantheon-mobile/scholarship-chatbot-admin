@@ -137,7 +137,7 @@ describe("CB-101 チャットUI", () => {
 
 it("生成AI回答の参照元タイトルを複数行のリンクとして表示する", async () => {
   const citations = [
-    { title: "第一種奨学金の返還案内", uri: "/api/v1/chat/sources/7/download", data_source_id: 7 },
+    { title: "第一種奨学金の返還案内", uri: "/api/v1/chat/sources/7/download" },
     { title: "返還方式の説明", uri: "https://example.com/repayment" },
   ];
   api.sendChatMessage.mockResolvedValue({ answer: "定額返還方式と所得連動返還方式です。", answer_type: "GENERATED_AI", citations });
