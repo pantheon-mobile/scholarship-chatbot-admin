@@ -129,7 +129,7 @@ export default function DataSourceFileNewPage() {
         <div className={styles.formRows}>
           <div className={styles.formRow}>
             <span className={styles.rowLabel}>タイトル：</span>
-            <FormField wrapperClassName={styles.titleField} aria-label="タイトル" value={title} maxLength={500} disabled={busy || files.length !== 1} placeholder="※1ファイルのみ選択している場合に入力できます。" onChange={(event) => setTitle(event.target.value)} description="※未入力の場合、タイトルはファイル名となります。" />
+            <FormField wrapperClassName={styles.titleField} aria-label="タイトル" value={title} maxLength={500} disabled={busy || files.length !== 1} placeholder="※1ファイルのみ選択している場合に入力できます。" onChange={(event) => setTitle(event.target.value)} description="※未入力の場合、タイトルはファイル名となります。同名のファイルが登録済みの場合は、既存のファイルと登録情報を上書きします。利用可・準備中のデータのみ更新できます。" />
           </div>
           <div className={styles.formRow}>
             <span className={styles.rowLabel}>カテゴリ：</span>

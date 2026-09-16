@@ -6,6 +6,8 @@ from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.repositories.data_source_mutation import lock_mutations, lock_sources, queue_refresh
+from app.models.data_source import DataSource, DataSourceClassificationValue
 from app.models.classification import ClassificationType, ClassificationValue
 
 
@@ -25,6 +27,7 @@ class ClassificationRepository:
         result = await self.session.execute(
             select(ClassificationType)
             .where(ClassificationType.id == type_id)
+            .execution_options(populate_existing=True)
             .options(joinedload(ClassificationType.values))
         )
         return result.scalars().first()
@@ -89,6 +92,20 @@ class ClassificationRepository:
         return new_value
 
     async def update_value(self, value_id: int, type_id: int, value_name: str, expected_version: int) -> None:
+        await lock_mutations(self.session)
+        current = (await self.session.execute(select(ClassificationValue).where(
+            ClassificationValue.id == value_id, ClassificationValue.classification_type_id == type_id
+        ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+        if current is None or current.version != expected_version:
+            raise ValueError("version_mismatch")
+        if current.value_name == value_name:
+            return
+        rows = await lock_sources(self.session, DataSource.id.in_(select(
+            DataSourceClassificationValue.data_source_id
+        ).where(DataSourceClassificationValue.classification_value_id == value_id)))
+        await queue_refresh(self.session, rows)
+        for row in rows:
+            row.version += 1
         stmt = (
             update(ClassificationValue)
             .where(ClassificationValue.id == value_id)
@@ -102,6 +119,21 @@ class ClassificationRepository:
         await self.session.commit()
 
     async def delete_value(self, value_id: int, type_id: int, expected_version: int) -> None:
+        await lock_mutations(self.session)
+        current = (await self.session.execute(select(ClassificationValue).where(
+            ClassificationValue.id == value_id, ClassificationValue.classification_type_id == type_id
+        ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+        if current is None or current.version != expected_version:
+            raise ValueError("version_mismatch")
+        rows = await lock_sources(self.session, DataSource.id.in_(select(
+            DataSourceClassificationValue.data_source_id
+        ).where(DataSourceClassificationValue.classification_value_id == value_id)))
+        await queue_refresh(self.session, rows)
+        for row in rows:
+            row.version += 1
+        await self.session.execute(delete(DataSourceClassificationValue).where(
+            DataSourceClassificationValue.classification_value_id == value_id
+        ))
         stmt = (
             delete(ClassificationValue)
             .where(ClassificationValue.id == value_id)

@@ -117,6 +117,7 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
     onClose={onClose}
   >
     <div className={styles.form}>
+      {mode === "edit" && <p>変更すると対象のデータソースが準備中になります。学習中・エラーのデータがある場合は変更できません。</p>}
       <FormField
         id={`${mode}-category-name`}
         label="カテゴリ名"

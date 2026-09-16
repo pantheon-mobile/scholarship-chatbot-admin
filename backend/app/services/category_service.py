@@ -175,6 +175,10 @@ class CategoryService:
         if parent_changed:
             display_order = max((row.display_order for row in rows if row.parent_id == payload.parent_id), default=0) + 1
         try:
+            if name != category.name or parent_changed:
+                await self.repository.refresh_data_source_categories(
+                    self._descendant_ids({category_id}, self._children(rows))
+                )
             await self.repository.update_category(
                 category,
                 name=name,

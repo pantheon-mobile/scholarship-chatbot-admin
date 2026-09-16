@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.data_source_mutation import lock_mutations, lock_sources, queue_refresh
 from app.models.category import Category
 from app.models.data_source import DataSource
 
@@ -14,6 +15,7 @@ class CategoryRepository:
     async def list_all(self, *, for_update: bool = False) -> list[Category]:
         statement = select(Category).order_by(Category.parent_id.nullsfirst(), Category.display_order, Category.id)
         if for_update:
+            await lock_mutations(self.session)
             statement = statement.with_for_update()
         result = await self.session.execute(statement)
         return list(result.scalars().all())
@@ -24,16 +26,23 @@ class CategoryRepository:
     async def clear_data_source_categories(self, category_ids: set[int]) -> int:
         if not category_ids:
             return 0
-        rows = list((await self.session.execute(
-            select(DataSource).where(DataSource.category_id.in_(category_ids)).with_for_update()
-        )).scalars().all())
+        rows = await lock_sources(self.session, DataSource.category_id.in_(category_ids))
+        await queue_refresh(self.session, rows)
         now = datetime.now(timezone.utc)
         for row in rows:
             row.category_id = None
+            row.category_name = None
             row.version += 1
             row.updated_at = now
         await self.session.flush()
         return len(rows)
+
+    async def refresh_data_source_categories(self, category_ids: set[int]) -> None:
+        rows = await lock_sources(self.session, DataSource.category_id.in_(category_ids))
+        await queue_refresh(self.session, rows)
+        for row in rows:
+            row.version += 1
+        await self.session.flush()
 
     async def name_exists(self, parent_id: int | None, name: str, *, exclude_id: int | None = None) -> bool:
         statement = select(func.count()).select_from(Category).where(Category.name == name)

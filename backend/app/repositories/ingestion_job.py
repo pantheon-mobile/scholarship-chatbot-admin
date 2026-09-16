@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.repositories.data_source_mutation import lock_mutations
 from app.models.category import Category
 from app.models.data_source import (
     DataSource,
@@ -21,6 +22,7 @@ class IngestionJobRepository:
 
     async def enqueue_due_web_refreshes(self, *, interval_hours: int = 24) -> int:
         """Queue stale Web sources once; concurrent workers skip locked rows."""
+        await lock_mutations(self.session)
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(hours=max(interval_hours, 1))
         active_job = select(IngestionJob.id).where(
@@ -32,6 +34,7 @@ class IngestionJobRepository:
             .join(DataSource.website)
             .where(
                 DataSource.source_type == "WEB",
+                DataSource.status == "AVAILABLE",
                 DataSourceWebsite.last_fetched_at.is_not(None),
                 DataSourceWebsite.last_fetched_at <= cutoff,
                 ~active_job,
@@ -54,6 +57,7 @@ class IngestionJobRepository:
         return len(rows)
 
     async def claim_next(self, worker_id: str) -> IngestionJob | None:
+        await lock_mutations(self.session)
         now = datetime.now(timezone.utc)
         statement = (
             select(IngestionJob)
@@ -73,6 +77,7 @@ class IngestionJobRepository:
                 .selectinload(DataSource.classification_links)
                 .selectinload(DataSourceClassificationValue.classification_value),
             )
+            .execution_options(populate_existing=True)
             .order_by(IngestionJob.scheduled_at, IngestionJob.id)
             .with_for_update(skip_locked=True)
             .limit(1)
@@ -93,7 +98,7 @@ class IngestionJobRepository:
                 category = by_id[category_id]
                 names.append(category.name)
                 category_id = category.parent_id
-            job.data_source._ingestion_category_path = "/".join(reversed(names))
+            job.data_source._ingestion_category_path = ">".join(reversed(names))
 
         job.status = "RUNNING"
         job.started_at = now

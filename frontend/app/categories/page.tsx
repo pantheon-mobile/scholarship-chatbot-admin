@@ -232,6 +232,7 @@ export default function CategoriesPage() {
     </TableFrame>
     <Modal open={Boolean(deleteState)} title={deleteState?.kind === "bulk" ? "カテゴリの一括削除" : "カテゴリの削除"} variant="danger" confirmLabel={busy ? "削除中..." : "削除する"} busy={busy} error={error || undefined} onConfirm={confirmDelete} onClose={() => { if (!busy) { setDeleteState(null); setError(""); } }}>
       <p className={styles.modalText}>{modalBody}</p>
+      <p>対象のデータソースはカテゴリが未設定になり、準備中になります。学習中・エラーのデータがある場合は削除できません。</p>
     </Modal>
     <CategoryFormModal
       open={Boolean(formState)}

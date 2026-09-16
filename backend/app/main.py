@@ -51,6 +51,17 @@ def _is_audited_operation(request: Request) -> bool:
     return request.method in {"POST", "PUT", "PATCH", "DELETE"} or path.endswith((".csv", ".xlsx", "/export", "/import-template"))
 
 
+from fastapi.responses import JSONResponse
+from app.repositories.data_source_mutation import DataSourceMutationError
+
+
+@app.exception_handler(DataSourceMutationError)
+async def data_source_mutation_error(request: Request, exc: DataSourceMutationError):
+    return JSONResponse(status_code=409, content={"detail": {
+        "code": exc.code, "message": str(exc), "targets": exc.targets,
+    }})
+
+
 @app.middleware("http")
 async def record_admin_operation(request: Request, call_next):
     response = await call_next(request)

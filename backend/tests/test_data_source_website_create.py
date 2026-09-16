@@ -179,7 +179,7 @@ async def test_bulk_api_creates_each_website():
     service = AsyncMock()
     first = DataSourceService.serialize(website_row(data_source_id=1, url="https://example.com/a", title="A"), {}, {})
     second = DataSourceService.serialize(website_row(data_source_id=2, url="https://example.com/b", title="https://example.com/b"), {}, {})
-    service.create_website_source.side_effect = [first, second]
+    service.create_website_sources.return_value = [first, second]
     app.dependency_overrides[get_service] = lambda: service
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -191,7 +191,7 @@ async def test_bulk_api_creates_each_website():
         app.dependency_overrides.clear()
     assert response.status_code == 201
     assert response.json()["created_count"] == 2
-    assert service.create_website_source.await_count == 2
+    assert service.create_website_sources.await_count == 1
 
 
 @pytest.mark.anyio
@@ -204,7 +204,7 @@ async def test_excel_import_creates_websites_with_shared_settings():
     content = BytesIO()
     workbook.save(content)
     service = AsyncMock()
-    service.create_website_source.side_effect = [
+    service.create_website_sources.return_value = [
         DataSourceService.serialize(website_row(data_source_id=1), {}, {}),
         DataSourceService.serialize(website_row(data_source_id=2), {}, {}),
     ]
@@ -220,8 +220,8 @@ async def test_excel_import_creates_websites_with_shared_settings():
         app.dependency_overrides.clear()
     assert response.status_code == 201
     assert response.json()["created_count"] == 2
-    first_payload = service.create_website_source.await_args_list[0].args[0]
-    second_payload = service.create_website_source.await_args_list[1].args[0]
+    first_payload = service.create_website_sources.await_args.args[0][0]
+    second_payload = service.create_website_sources.await_args.args[0][1]
     assert (first_payload.url, first_payload.title) == ("https://example.com/a", "案内A")
     assert (second_payload.url, second_payload.title) == ("https://example.com/b", "")
     assert first_payload.priority == "HIGH"

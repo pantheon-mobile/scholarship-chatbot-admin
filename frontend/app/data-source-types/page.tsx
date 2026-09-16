@@ -351,6 +351,7 @@ export default function DataSourceTypesPage() {
       />
 
       {error && <div className={styles.error} role="alert">{error}</div>}
+      <p>種別値の変更・削除により対象のデータソースが準備中になります。学習中・エラーのデータがある場合は変更・削除できません。ラベル名の変更は対象外です。</p>
       {loading ? <p className={styles.loading}>読み込み中...</p> : (
         <div className={styles.typeList}>
           {types.map((type) => {

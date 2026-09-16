@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from io import BytesIO
 from pathlib import Path
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 from app.models.data_source import DataSource
+from app.repositories.data_source_mutation import DataSourceMutationError, ensure_editable
 from app.models.category import Category
 from app.repositories.data_source import DataSourceRepository
 from app.schemas.data_source import (
@@ -229,6 +232,9 @@ class DataSourceService:
             updated = await self.repository.update_file_attributes(
                 data_source_id, payload, title, classifications
             )
+        except DataSourceMutationError:
+            await self.repository.rollback()
+            raise
         except Exception as exc:
             await self.repository.rollback()
             raise DataSourceUpdateError() from exc
@@ -239,6 +245,7 @@ class DataSourceService:
     async def create_website_source(
         self,
         payload: WebsiteDataSourceCreateRequest,
+        *, commit: bool = True,
     ) -> DataSourceResponse:
         try:
             url = validate_website_url(payload.url)
@@ -278,11 +285,34 @@ class DataSourceService:
                 category_id=payload.category_id,
                 classifications=classifications,
             )
-            await self.repository.commit()
+            if commit:
+                await self.repository.commit()
+        except DataSourceMutationError:
+            await self.repository.rollback()
+            raise
         except Exception as exc:
             await self.repository.rollback()
             raise WebsiteDataSourceCreateError("WEB_DATA_SOURCE_CREATE_FAILED", "Webサイトの追加に失敗しました。") from exc
         return await self.get(data_source_id)
+
+    async def create_website_sources(self, payloads: list[WebsiteDataSourceCreateRequest], *, row_numbers: list[int] | None = None) -> list[DataSourceResponse]:
+        urls = [item.url.strip() for item in payloads]
+        if len(urls) != len(set(urls)):
+            raise WebsiteDataSourceCreateError("DUPLICATE_URL", "同じURLを一度に複数指定できません。")
+        result = []
+        try:
+            for index, payload in zip(row_numbers or range(1, len(payloads) + 1), payloads):
+                try:
+                    result.append(await self.create_website_source(payload, commit=False))
+                except DataSourceMutationError as exc:
+                    raise DataSourceMutationError(f"{index}行目: {exc}", code=exc.code, targets=exc.targets) from exc
+                except WebsiteDataSourceCreateError as exc:
+                    raise WebsiteDataSourceCreateError(exc.code, f"{index}行目: {exc.message}") from exc
+            await self.repository.commit()
+        except Exception:
+            await self.repository.rollback()
+            raise
+        return result
 
     async def update_website_attributes(
         self,
@@ -325,6 +355,9 @@ class DataSourceService:
             updated = await self.repository.update_website_attributes(
                 data_source_id, payload, url=url, title=title, classifications=classifications
             )
+        except DataSourceMutationError:
+            await self.repository.rollback()
+            raise
         except Exception as exc:
             await self.repository.rollback()
             raise WebsiteDataSourceUpdateError("WEB_DATA_SOURCE_UPDATE_FAILED", "Webサイトの更新に失敗しました。") from exc
@@ -473,10 +506,18 @@ class DataSourceService:
                 storage.delete_temporary(temporary_path)
             for storage_key in finalized_keys:
                 storage.delete(storage_key)
-            if isinstance(exc, FileUploadError):
+            if isinstance(exc, (FileUploadError, DataSourceMutationError)):
                 raise
             raise FileUploadError("FILE_SAVE_FAILED", "ファイルの追加に失敗しました。") from exc
 
+        for item in records:
+            previous = item.get("previous_storage_key")
+            if previous:
+                try:
+                    storage.delete(previous)
+                except Exception:
+                    # Replacement is already committed; do not discard the new file.
+                    logging.getLogger(__name__).exception("Failed to remove replaced original")
         result: list[DataSourceResponse] = []
         for data_source_id in ids:
             result.append(await self.get(data_source_id))
@@ -663,12 +704,20 @@ class DataSourceService:
             comparable = (title, category_id, sorted(classifications), answer == "有効", priority, reference == "表示")
             original = (row.title, row.category_id, sorted((int(link.classification_type_id), int(link.classification_value_id)) for link in row.classification_links), row.answer_source_enabled, row.priority, row.reference_link_visible)
             if comparable != original:
-                updates.append(proposed)
+                try:
+                    ensure_editable([row])
+                except DataSourceMutationError as exc:
+                    errors.append(DataSourceImportRowError(row=row_number, column="状態", code=exc.code, message=str(exc)))
+                else:
+                    updates.append(proposed)
         if errors:
             await self.repository.rollback()
             raise DataSourceImportError("DATA_SOURCE_IMPORT_VALIDATION_ERROR", "入力内容にエラーがあります。", errors)
         try:
             await self.repository.apply_import_updates(updates)
+        except DataSourceMutationError:
+            await self.repository.rollback()
+            raise
         except Exception as exc:
             await self.repository.rollback()
             raise DataSourceImportError("DATA_SOURCE_IMPORT_FAILED", "データソースの一括更新に失敗しました。") from exc

@@ -143,7 +143,7 @@ export default function DataSourceWebsiteNewPage() {
             <span className={styles.rowLabel}>WebサイトURL（必須）：</span>
             <div className={styles.urlInputArea}>
               <textarea className={styles.urlTextarea} aria-label="WebサイトURL" value={values.url} maxLength={100000} disabled={busy || Boolean(importFile)} placeholder="https://www.example.com/" onChange={(event) => setValue("url", event.target.value)} />
-              <div className={styles.urlHelp}>※複数のURLは改行して入力してください。タイトルを指定する場合は「URL,タイトル」の形式で入力してください。<br/>※タイトル未指定時は、クロール後にWebサイトのtitleタグを登録します。取得できない場合はURLを使用します。</div>
+              <div className={styles.urlHelp}>同一URLが登録済みの場合は既存の登録情報を更新します。利用可・準備中のデータのみ更新できます。<br/>※複数のURLは改行して入力してください。タイトルを指定する場合は「URL,タイトル」の形式で入力してください。<br/>※タイトル未指定時は、クロール後にWebサイトのtitleタグを登録します。取得できない場合はURLを使用します。</div>
             </div>
             <div className={styles.importControls}>
               <Button className={styles.importButton} variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => importInputRef.current?.click()} disabled={busy}>ファイルから一括入力</Button>

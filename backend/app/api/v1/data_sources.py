@@ -195,16 +195,11 @@ async def create_website_data_sources(
     payload: WebsiteBulkCreateRequest,
     service: DataSourceService = Depends(get_service),
 ):
-    items = []
-    for index, item in enumerate(payload.items, start=1):
-        try:
-            items.append(await service.create_website_source(item))
-        except WebsiteDataSourceCreateError as exc:
-            status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
-            raise HTTPException(
-                status_code=status_code,
-                detail={"code": exc.code, "message": f"{index}件目: {exc.message}"},
-            ) from None
+    try:
+        items = await service.create_website_sources(payload.items)
+    except WebsiteDataSourceCreateError as exc:
+        status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
     return WebsiteBulkCreateResponse(items=items, created_count=len(items))
 
 
@@ -235,19 +230,18 @@ async def import_website_data_sources(
         raise HTTPException(status_code=422, detail={"code": "EMPTY_FILE", "message": "登録するURLがありません。"})
     if len(source_rows) > 100:
         raise HTTPException(status_code=422, detail={"code": "TOO_MANY_URLS", "message": "一度に登録できるURLは100件までです。"})
-    items = []
-    for row_number, url, title in source_rows:
-        try:
-            items.append(await service.create_website_source(WebsiteDataSourceCreateRequest(
-                url=url, title=title, category_id=category_id,
-                type_1_value_id=type_1_value_id, type_2_value_id=type_2_value_id,
-                type_3_value_id=type_3_value_id, priority=priority,
-                answer_source_enabled=answer_source_enabled,
-                reference_link_visible=reference_link_visible,
-            )))
-        except WebsiteDataSourceCreateError as exc:
-            status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
-            raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": f"{row_number}行目: {exc.message}"}) from None
+    try:
+        payloads = [WebsiteDataSourceCreateRequest(
+            url=url, title=title, category_id=category_id,
+            type_1_value_id=type_1_value_id, type_2_value_id=type_2_value_id,
+            type_3_value_id=type_3_value_id, priority=priority,
+            answer_source_enabled=answer_source_enabled,
+            reference_link_visible=reference_link_visible,
+        ) for _, url, title in source_rows]
+        items = await service.create_website_sources(payloads, row_numbers=[number for number, _, _ in source_rows])
+    except WebsiteDataSourceCreateError as exc:
+        status_code = 500 if exc.code == "WEB_DATA_SOURCE_CREATE_FAILED" else 422
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from None
     return WebsiteBulkCreateResponse(items=items, created_count=len(items))
 
 

@@ -7,6 +7,9 @@ from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.repositories.data_source_mutation import (
+    DataSourceMutationError, ensure_editable, lock_mutations, lock_sources, queue_refresh,
+)
 from app.models.category import Category
 from app.models.classification import ClassificationType, ClassificationValue
 from app.models.data_source import DataSource, DataSourceClassificationValue, DataSourceFile, DataSourceWebsite, IngestionJob
@@ -105,7 +108,8 @@ class DataSourceRepository:
     async def get_for_update_many(self, ids: list[int]) -> list[DataSource]:
         if not ids:
             return []
-        statement = select(DataSource).where(DataSource.id.in_(ids)).with_for_update().options(
+        await lock_mutations(self.session)
+        statement = select(DataSource).where(DataSource.id.in_(ids)).order_by(DataSource.id).with_for_update().execution_options(populate_existing=True).options(
             selectinload(DataSource.file), selectinload(DataSource.website),
             selectinload(DataSource.classification_links).selectinload(DataSourceClassificationValue.classification_type),
             selectinload(DataSource.classification_links).selectinload(DataSourceClassificationValue.classification_value),
@@ -119,6 +123,7 @@ class DataSourceRepository:
         return list((await self.session.execute(statement)).scalars().unique().all())
 
     async def apply_import_updates(self, updates: list[dict]) -> None:
+        rows = await lock_sources(self.session, DataSource.id.in_([item["id"] for item in updates]))
         now = datetime.now(timezone.utc)
         for item in updates:
             data_source_id = item["id"]
@@ -139,12 +144,14 @@ class DataSourceRepository:
         await self.session.commit()
 
     async def category_exists(self, category_id: int) -> bool:
+        await lock_mutations(self.session)
         statement = select(Category.id).where(Category.id == category_id).with_for_update(read=True)
         return (await self.session.execute(statement)).scalar_one_or_none() is not None
 
     async def update_toggle(self, data_source_id: int, field: str, value: bool, version: int) -> bool:
         if field not in {"answer_source_enabled", "reference_link_visible"}:
             raise ValueError("invalid_toggle_field")
+        await lock_sources(self.session, DataSource.id == data_source_id)
         stmt = update(DataSource).where(DataSource.id == data_source_id, DataSource.version == version).values({
             field: value,
             "version": DataSource.version + 1,
@@ -191,6 +198,7 @@ class DataSourceRepository:
         return (await self.session.execute(stmt)).scalar_one() == 1
 
     async def resolve_classification_value(self, type_code: str, value_id: int) -> tuple[int, int] | None:
+        await lock_mutations(self.session)
         stmt = (
             select(ClassificationType.id, ClassificationValue.id)
             .join(ClassificationValue, ClassificationValue.classification_type_id == ClassificationType.id)
@@ -209,9 +217,25 @@ class DataSourceRepository:
         category_id: int | None,
         classifications: list[tuple[int, int]],
     ) -> list[int]:
+        await lock_mutations(self.session)
+        names = [item["file_name"] for item in files]
+        if len(set(names)) != len(names):
+            raise DataSourceMutationError("同名のファイルを一度に複数指定できません。", code="DATA_SOURCE_DUPLICATE")
         now = datetime.now(timezone.utc)
         rows: list[DataSource] = []
         for item in files:
+            existing = await self._find_existing("FILE", item["file_name"])
+            if existing is not None:
+                item["previous_storage_key"] = existing.file.storage_key
+                existing.file.storage_key = item["storage_key"]
+                existing.file.mime_type = item["content_type"] or None
+                existing.size_bytes = item["size_bytes"]
+                existing.format = item["extension"]
+                await self._replace_attributes(existing, title=item["title"], category_id=category_id,
+                    priority=priority, answer_source_enabled=answer_source_enabled,
+                    reference_link_visible=reference_link_visible, classifications=classifications)
+                rows.append(existing)
+                continue
             row = DataSource(
                 source_type="FILE",
                 title=item["title"],
@@ -242,7 +266,8 @@ class DataSourceRepository:
             self.session.add(row)
             rows.append(row)
         await self.session.flush()
-        await self.enqueue_ingestion_jobs([int(row.id) for row in rows], scheduled_at=now)
+        for row in rows:
+            await self._enqueue_refresh_if_idle(int(row.id))
         return [int(row.id) for row in rows]
 
     async def update_file_attributes(
@@ -252,6 +277,7 @@ class DataSourceRepository:
         title: str,
         classifications: list[tuple[int, int]],
     ) -> bool:
+        await lock_sources(self.session, DataSource.id == data_source_id)
         stmt = (
             update(DataSource)
             .where(DataSource.id == data_source_id, DataSource.version == payload.version)
@@ -297,6 +323,12 @@ class DataSourceRepository:
         category_id: int | None,
         classifications: list[tuple[int, int]],
     ) -> int:
+        existing = await self._find_existing("WEB", url)
+        if existing is not None:
+            await self._replace_attributes(existing, title=title, category_id=category_id,
+                priority=priority, answer_source_enabled=answer_source_enabled,
+                reference_link_visible=reference_link_visible, classifications=classifications)
+            return int(existing.id)
         row = DataSource(
             source_type="WEB",
             title=title,
@@ -347,21 +379,40 @@ class DataSourceRepository:
         ])
 
     async def _enqueue_refresh_if_idle(self, data_source_id: int) -> None:
-        active = (await self.session.execute(
-            select(IngestionJob.id).where(
-                IngestionJob.data_source_id == data_source_id,
-                IngestionJob.status.in_(("QUEUED", "RUNNING")),
-            ).limit(1)
-        )).scalar_one_or_none()
-        if active is None:
-            await self.enqueue_ingestion_jobs(
-                [data_source_id], scheduled_at=datetime.now(timezone.utc)
+        rows = await lock_sources(self.session, DataSource.id == data_source_id)
+        await queue_refresh(self.session, rows)
+
+    async def _find_existing(self, kind: str, identity: str) -> DataSource | None:
+        await lock_mutations(self.session)
+        model, column = (DataSourceFile, DataSourceFile.file_name) if kind == "FILE" else (DataSourceWebsite, DataSourceWebsite.url)
+        ids = list((await self.session.execute(select(model.data_source_id).where(column == identity))).scalars().all())
+        if len(ids) > 1:
+            raise DataSourceMutationError(
+                f"同じファイル名またはURLが複数登録されています（ID:{','.join(map(str, ids))}）。重複を解消してから再操作してください。",
+                code="DATA_SOURCE_DUPLICATE",
             )
-        await self.session.execute(
-            update(DataSource).where(DataSource.id == data_source_id).values(
-                status="PREPARING", updated_at=datetime.now(timezone.utc)
-            )
-        )
+        if not ids:
+            return None
+        rows = await self.get_for_update_many(ids)
+        ensure_editable(rows)
+        return rows[0]
+
+    async def _replace_attributes(self, row, *, title, category_id, priority,
+                                  answer_source_enabled, reference_link_visible, classifications):
+        row.title, row.category_id, row.category_name = title, category_id, None
+        row.priority = priority
+        row.answer_source_enabled = answer_source_enabled
+        row.reference_link_visible = reference_link_visible
+        row.character_count = None
+        row.version += 1
+        await self.session.execute(delete(DataSourceClassificationValue).where(
+            DataSourceClassificationValue.data_source_id == row.id
+        ))
+        self.session.add_all([DataSourceClassificationValue(data_source_id=row.id,
+            classification_type_id=type_id, classification_value_id=value_id)
+            for type_id, value_id in classifications])
+        await self.session.flush()
+        await self._enqueue_refresh_if_idle(row.id)
 
     async def enqueue_refresh(self, data_source_id: int) -> None:
         await self._enqueue_refresh_if_idle(data_source_id)
@@ -376,6 +427,12 @@ class DataSourceRepository:
         title: str,
         classifications: list[tuple[int, int]],
     ) -> bool:
+        await lock_sources(self.session, DataSource.id == data_source_id)
+        duplicate_ids = list((await self.session.execute(select(DataSourceWebsite.data_source_id).where(
+            DataSourceWebsite.url == url, DataSourceWebsite.data_source_id != data_source_id
+        ))).scalars().all())
+        if duplicate_ids:
+            raise DataSourceMutationError(f"同じURLが既に登録されています（ID:{','.join(map(str, duplicate_ids))}）。既存データを編集してください。", code="DATA_SOURCE_DUPLICATE")
         result = await self.session.execute(
             update(DataSource)
             .where(DataSource.id == data_source_id, DataSource.version == payload.version)

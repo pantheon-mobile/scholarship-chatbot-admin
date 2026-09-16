@@ -61,7 +61,7 @@ export async function deleteClassificationValue(typeId: number, valueId: number,
     method: "DELETE",
   });
   if (!res.ok) {
-    throw new Error("種別値の削除に失敗しました。");
+    throw new Error(await errorMessage(res, "種別値の削除に失敗しました。"));
   }
 }
 
