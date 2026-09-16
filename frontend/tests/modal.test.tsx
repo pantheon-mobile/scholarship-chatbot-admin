@@ -34,8 +34,11 @@ describe("Modal", () => {
 
     const cancel = screen.getByRole("button", { name: "キャンセル" });
     await waitFor(() => expect(document.activeElement).toBe(cancel));
+    const restoreFocus = vi.spyOn(trigger, "focus");
     fireEvent.keyDown(document, { key: "Escape" });
 
+    expect(restoreFocus).toHaveBeenCalledWith({ preventScroll: true });
+    restoreFocus.mockRestore();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });

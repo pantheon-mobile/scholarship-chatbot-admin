@@ -70,7 +70,7 @@ export function Modal({
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusTimer = window.setTimeout(() => {
       const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(focusableSelector);
-      (cancelRef.current ?? firstFocusable ?? dialogRef.current)?.focus();
+      (cancelRef.current ?? firstFocusable ?? dialogRef.current)?.focus({ preventScroll: true });
     }, 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -89,17 +89,17 @@ export function Modal({
       const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector));
       if (focusable.length === 0) {
         event.preventDefault();
-        dialogRef.current.focus();
+        dialogRef.current.focus({ preventScroll: true });
         return;
       }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        last.focus({ preventScroll: true });
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
 
@@ -107,7 +107,7 @@ export function Modal({
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKeyDown);
-      previouslyFocusedRef.current?.focus();
+      previouslyFocusedRef.current?.focus({ preventScroll: true });
     };
   }, [open]);
 

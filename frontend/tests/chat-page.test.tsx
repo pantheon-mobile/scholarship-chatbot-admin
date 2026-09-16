@@ -167,3 +167,27 @@ it.each(["NO_ANSWER", "GENERATED_AI"])("%sの分類に従って案内回答の�
   expect(Boolean(screen.queryByText("【参照元】"))).toBe(answerType !== "NO_ANSWER");
   expect(Boolean(screen.queryByRole("link", { name: "奨学金事務マニュアル" }))).toBe(answerType !== "NO_ANSWER");
 });
+
+it("3件目以降もチャット欄だけをスクロールし、評価保存では動かさない", async () => {
+  render(<ChatPage />);
+  await screen.findByRole("heading", { name: "試験チャット" });
+  const container = screen.getByRole("region", { name: "チャット" }).querySelector('[aria-live="polite"]') as HTMLElement;
+  const scrollTo = vi.fn();
+  Object.defineProperty(container, "scrollTo", { value: scrollTo, configurable: true });
+  Object.defineProperty(container, "scrollHeight", { value: 1600, configurable: true });
+  for (let index = 1; index <= 4; index++) {
+    fireEvent.change(screen.getByLabelText("質問"), { target: { value: `質問${index}` } });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Good" })).toHaveLength(index));
+    await waitFor(() => expect((screen.getByLabelText("質問") as HTMLTextAreaElement).disabled).toBe(false));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 1600, behavior: "smooth" });
+  }
+  for (const rating of ["Good", "Bad"]) {
+    scrollTo.mockClear();
+    fireEvent.click(screen.getAllByRole("button", { name: rating })[0]);
+    fireEvent.change(screen.getByLabelText("コメント（任意）"), { target: { value: "確認コメント" } });
+    fireEvent.click(screen.getByRole("button", { name: "送信する" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(scrollTo).not.toHaveBeenCalled();
+  }
+});
