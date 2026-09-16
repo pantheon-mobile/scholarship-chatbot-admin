@@ -307,16 +307,17 @@ def test_useful_answer_with_limited_missing_information_is_not_refusal():
 async def test_history_hides_old_refusal_citations_but_keeps_useful_answer_sources(monkeypatch):
     monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
     now = datetime.now(timezone.utc)
-    def interaction(number, answer):
+    def interaction(number, answer, answer_type="GENERATED_AI"):
         return SimpleNamespace(
             id=uuid4(), sequence_number=number, processing_status="COMPLETED", question_text="質問",
             answer_text=answer, answer_displayed_at=now, question_submitted_at=now,
             citations=[{"title": "資料", "uri": "https://example.com/guide"}],
-            feedback=None, answer_type="GENERATED_AI",
+            feedback=None, answer_type=answer_type,
         )
     row = SimpleNamespace(id=uuid4(), title=None, interactions=[
         interaction(1, "登録情報から確認できませんでした。"),
         interaction(2, "返還方式は2種類です。"),
+        interaction(3, "お答えするための情報がありません。", "NO_ANSWER"),
     ])
     result = Mock()
     result.scalar_one_or_none.return_value = row
@@ -327,3 +328,4 @@ async def test_history_hides_old_refusal_citations_but_keeps_useful_answer_sourc
     )
     assert detail.messages[1].citations == []
     assert detail.messages[3].citations[0].title == "資料"
+    assert detail.messages[5].citations == []

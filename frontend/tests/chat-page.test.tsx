@@ -156,3 +156,14 @@ it("生成AI回答の参照元タイトルを複数行のリンクとして表�
   expect(screen.getByRole("link", { name: citations[1].title }).getAttribute("href")).toBe(citations[1].uri);
   expect(screen.getByRole("link", { name: citations[0].title }).closest("li")).not.toBe(screen.getByRole("link", { name: citations[1].title }).closest("li"));
 });
+
+it.each(["NO_ANSWER", "GENERATED_AI"])("%sの分類に従って案内回答の参照元を制御する", async (answerType) => {
+  const answer = "ご質問の内容が具体的に記載されていないため、お答えすることができません。例えば、奨学金の採用基準や手続きについてお答えできます。";
+  api.sendChatMessage.mockResolvedValue({ answer, answer_type: answerType, citations: [{ title: "奨学金事務マニュアル", uri: "/api/v1/chat/sources/7/download" }] });
+  render(<ChatPage />);
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "クエスチョンがあるよ" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  await screen.findByText(answer);
+  expect(Boolean(screen.queryByText("【参照元】"))).toBe(answerType !== "NO_ANSWER");
+  expect(Boolean(screen.queryByRole("link", { name: "奨学金事務マニュアル" }))).toBe(answerType !== "NO_ANSWER");
+});

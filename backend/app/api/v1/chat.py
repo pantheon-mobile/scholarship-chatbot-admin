@@ -153,7 +153,7 @@ async def get_chat_session_history(
         if item.answer_text and item.answer_displayed_at:
             messages.append(ChatHistoryMessage(
                 id=f"{item.id}-answer", role="assistant", content=item.answer_text,
-                sent_at=item.answer_displayed_at, citations=[] if ChatService.is_no_answer(item.answer_text or "") else item.citations or [],
+                sent_at=item.answer_displayed_at, citations=[] if item.answer_type == "NO_ANSWER" or ChatService.is_no_answer(item.answer_text or "") else item.citations or [],
                 interaction_id=item.id, rating=item.feedback.rating if item.feedback else None,
                 answer_type=item.answer_type,
             ))
