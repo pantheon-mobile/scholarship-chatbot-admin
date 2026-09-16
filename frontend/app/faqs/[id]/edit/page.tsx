@@ -120,7 +120,9 @@ export default function FaqEditPage() {
     if (dirty) setPendingPath(path);
     else router.push(path);
   };
-  const addSimilarQuestion = () => setValue("similarQuestions", [...values.similarQuestions, ""]);
+  const addSimilarQuestion = () => {
+    if (values.similarQuestions.length < 10) setValue("similarQuestions", [...values.similarQuestions, ""]);
+  };
   const updateSimilarQuestion = (index: number, value: string) => setValue(
     "similarQuestions", values.similarQuestions.map((item, itemIndex) => itemIndex === index ? value : item),
   );
@@ -187,7 +189,8 @@ export default function FaqEditPage() {
                 <CharacterCountTextarea aria-label={`類似質問${index + 1}`} wrapperClassName={styles.similarField} textareaClassName={styles.similarTextarea} value={value} maxLength={1500} disabled={busy} error={(touched.has(`similar-${index}`) && currentErrors[`similar-${index}`]) || fieldErrors[`similar-${index}`]} onBlur={() => touch(`similar-${index}`)} onChange={(event) => updateSimilarQuestion(index, event.target.value)} />
                 <Button variant="text" focusTone="danger" icon={<AdminIcon name="close" size={18} />} disabled={busy} onClick={() => removeSimilarQuestion(index)}>削除</Button>
               </div>)}
-              <Button className={styles.addSimilar} variant="add" icon={<AdminIcon name="plus" size={19} />} disabled={busy} onClick={addSimilarQuestion}>類似質問を追加</Button>
+              <Button className={styles.addSimilar} variant="add" icon={<AdminIcon name="plus" size={19} />} disabled={busy || values.similarQuestions.length >= 10} onClick={addSimilarQuestion}>類似質問を追加</Button>
+              <small>類似質問は最大10件まで追加できます。</small>
             </div>
           </div>
           {[1,2,3,4].map((index) => {

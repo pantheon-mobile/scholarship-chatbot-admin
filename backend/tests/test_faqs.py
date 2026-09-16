@@ -786,3 +786,14 @@ async def test_import_api_success_and_structured_validation_errors(mock_service)
     assert invalid.json()["detail"]["errors"] == [{
         "row": 3, "column": "質問", "code": "FAQ_QUESTION_REQUIRED", "message": "質問を入力してください。",
     }]
+
+
+@pytest.mark.parametrize("count", [10, 11])
+def test_similar_question_count_limit(count):
+    payload = create_payload(similar_questions=["類似質問"] * count)
+    if count == 10:
+        assert len(FaqService.normalize_input_text(payload)[2]) == 10
+    else:
+        with pytest.raises(FaqError) as error:
+            FaqService.normalize_input_text(payload)
+        assert error.value.code == "FAQ_SIMILAR_QUESTION_LIMIT_EXCEEDED"

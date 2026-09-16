@@ -186,3 +186,16 @@ describe("CB-210 FAQ edit", () => {
     expect(dirtyEvent.defaultPrevented).toBe(true);
   });
 });
+
+it("類似質問は10件で追加を停止し、削除後に追加を再開できる", async () => {
+  await renderLoaded();
+  const add = screen.getByRole("button", { name: "類似質問を追加" }) as HTMLButtonElement;
+  for (let i = screen.queryAllByLabelText(/類似質問\d/).length; i < 11; i++) fireEvent.click(add);
+  expect(screen.getAllByLabelText(/類似質問\d/)).toHaveLength(10);
+  expect(add.disabled).toBe(true);
+  const firstRow = screen.getByLabelText("類似質問1").closest("div")!;
+  fireEvent.click(within(firstRow).getByRole("button", { name: /削除/ }));
+  expect(add.disabled).toBe(false);
+  fireEvent.click(add);
+  expect(screen.getAllByLabelText(/類似質問\d/)).toHaveLength(10);
+});

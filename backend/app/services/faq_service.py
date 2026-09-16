@@ -119,6 +119,8 @@ class FaqService:
             payload.answer, required_code="FAQ_ANSWER_REQUIRED", required_message="回答を入力してください。",
             max_length=4000, long_code="FAQ_ANSWER_TOO_LONG", long_message="回答は4000文字以内で入力してください。",
         )
+        if len(payload.similar_questions) > FAQ_IMPORT_SIMILAR_COUNT:
+            raise FaqError("FAQ_SIMILAR_QUESTION_LIMIT_EXCEEDED", "類似質問は10件以内で登録してください。")
         similar_questions = [cls.normalize_required(
             value, required_code="FAQ_SIMILAR_QUESTION_REQUIRED", required_message="類似質問を入力してください。",
             max_length=1500, long_code="FAQ_SIMILAR_QUESTION_TOO_LONG", long_message="類似質問は1500文字以内で入力してください。",
