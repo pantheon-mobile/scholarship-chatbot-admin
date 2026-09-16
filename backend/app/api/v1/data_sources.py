@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from io import BytesIO
 import os
@@ -9,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.data_source_mutation import DataSourceMutationError
 from app.core.db import get_db
 from app.repositories.data_source import DataSourceRepository
 from app.schemas.data_source import (
@@ -123,8 +125,16 @@ async def import_data_sources(file: UploadFile = File(...), service: DataSourceS
     try:
         return await service.import_excel(file)
     except DataSourceImportError as error:
+        if error.code == "DATA_SOURCE_IMPORT_FAILED":
+            logging.getLogger(__name__).exception("Data source import update failed")
         status = 500 if error.code == "DATA_SOURCE_IMPORT_FAILED" else 422
         raise HTTPException(status_code=status, detail={"code": error.code, "message": error.message, "errors": [item.model_dump() for item in error.errors]}) from None
+
+    except DataSourceMutationError:
+        raise
+    except Exception:
+        logging.getLogger(__name__).exception("Unexpected data source import failure")
+        raise HTTPException(status_code=500, detail={"code": "DATA_SOURCE_IMPORT_INTERNAL_ERROR", "message": "一覧ファイルの取込み中にサーバー内部エラーが発生しました。管理者へお問い合わせください。（DATA_SOURCE_IMPORT_INTERNAL_ERROR）"}) from None
 
 
 @router.get("/data-sources/websites/import-template")

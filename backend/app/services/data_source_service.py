@@ -642,12 +642,13 @@ class DataSourceService:
             except ValueError:
                 pass
 
+        # Snapshot loaded values before populate_existing refreshes shared ORM objects.
+        types = {item.type_code: (int(item.id), {value.value_name: int(value.id) for value in item.values}) for item in type_definitions}
         existing_rows = await self.repository.get_for_update_many(list(set(ids)))
         existing = {int(row.id): row for row in existing_rows}
         categories = await self.repository.list_categories()
         category_paths = self.category_paths(categories)
         category_by_path = {path: category_id for category_id, path in category_paths.items()}
-        types = {item.type_code: (int(item.id), {value.value_name: int(value.id) for value in item.values}) for item in type_definitions}
         source_labels = {"FILE": "ファイル", "WEB": "Web"}
         status_labels = {"PREPARING": "準備中", "TRAINING": "学習中", "AVAILABLE": "利用可", "ERROR": "エラー"}
         priority_by_label = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}

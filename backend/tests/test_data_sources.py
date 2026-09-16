@@ -482,3 +482,16 @@ async def test_export_import_round_trip_preserves_slash_in_category_names():
     await service.import_excel(UploadFile(filename="list.xlsx", file=output))
     updates = repository.apply_import_updates.await_args.args[0]
     assert updates[0]["category_id"] == 11
+
+
+@pytest.mark.anyio
+async def test_import_unexpected_failure_returns_safe_error_code(mock_service, caplog):
+    mock_service.import_excel.side_effect = RuntimeError("internal database detail")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/data-sources/import", files={"file": ("sources.xlsx", b"xlsx")})
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert detail["code"] == "DATA_SOURCE_IMPORT_INTERNAL_ERROR"
+    assert detail["code"] in detail["message"]
+    assert "internal database detail" not in response.text
+    assert "internal database detail" in caplog.text

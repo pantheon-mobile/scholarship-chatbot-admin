@@ -332,3 +332,24 @@ async def test_blocked_category_api_explains_target_and_preserves_master(db):
         assert (await db.get(Category, parent_id)).name == "親"
     finally:
         app.dependency_overrides.pop(get_service, None)
+
+
+@pytest.mark.parametrize("changed", [False, True])
+async def test_import_with_assigned_classification_loads_values_without_lazy_io(db, changed):
+    from io import BytesIO
+    from fastapi import UploadFile
+    from openpyxl import load_workbook
+    from app.schemas.data_source import DataSourceFilters
+    from app.services.data_source_service import DataSourceService
+
+    item, value = await classification(db)
+    row = await seed(db, classifications=[(item.id, value.id)])
+    service = DataSourceService(DataSourceRepository(db))
+    content = await service.export_excel(DataSourceFilters())
+    workbook = load_workbook(BytesIO(content))
+    if changed:
+        workbook.active.cell(2, 3).value = "更新タイトル"
+    output = BytesIO()
+    workbook.save(output)
+    result = await service.import_excel(UploadFile(filename="sources.xlsx", file=BytesIO(output.getvalue())))
+    assert result.updated_count == int(changed)
