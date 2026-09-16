@@ -279,7 +279,7 @@ def test_cycle_validation_rejects_self_and_descendant_parent():
 
 
 @pytest.mark.anyio
-async def test_excel_uses_tree_order_and_variable_depth():
+async def test_excel_uses_tree_order_and_three_category_columns():
     repository = AsyncMock()
     repository.list_all.return_value = TREE
     content = await CategoryService(repository).export_excel()
@@ -440,3 +440,41 @@ async def test_category_api_rejects_reserved_separator(method, path, payload):
         assert response.json()["detail"]["code"] == "CATEGORY_NAME_INVALID_CHARACTER"
     finally:
         app.dependency_overrides.pop(get_service, None)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("categories", [[], TREE[:1]])
+async def test_excel_uses_two_columns_for_empty_or_shallow_tree(categories):
+    repository = AsyncMock()
+    repository.list_all.return_value = categories
+    content = await CategoryService(repository).export_excel()
+    sheet = load_workbook(BytesIO(content)).active
+    assert sheet.max_column == 2
+    assert [cell.value for cell in sheet[1]] == ["ID", "カテゴリ1"]
+
+
+@pytest.mark.anyio
+async def test_excel_outputs_each_depth_in_separate_column():
+    repository = AsyncMock()
+    repository.list_all.return_value = [
+        category(1, "貸与/給付", None, 1),
+        category(2, "申請", 1, 1),
+        category(3, "学部", 2, 1),
+        category(4, "新規", 3, 1),
+        category(5, "春", 4, 1),
+    ]
+    content = await CategoryService(repository).export_excel()
+    sheet = load_workbook(BytesIO(content)).active
+    assert sheet.max_column == 6
+    assert list(sheet.values) == [
+        ("ID", "カテゴリ1", "カテゴリ2", "カテゴリ3", "カテゴリ4", "カテゴリ5"),
+        (1, "貸与/給付", None, None, None, None),
+        (2, "貸与/給付", "申請", None, None, None),
+        (3, "貸与/給付", "申請", "学部", None, None),
+        (4, "貸与/給付", "申請", "学部", "新規", None),
+        (5, "貸与/給付", "申請", "学部", "新規", "春"),
+    ]
+    for column in ("B", "C", "D", "E", "F"):
+        assert sheet.column_dimensions[column].width == 49.3
+        assert sheet[f"{column}6"].alignment.wrap_text
+        assert sheet[f"{column}6"].font.name == "游ゴシック"

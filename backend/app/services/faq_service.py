@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill
 from openpyxl.utils.exceptions import InvalidFileException
 
+from app.services.excel_format import apply_download_format
 from app.models.faq import Faq
 from app.repositories.faq import FaqRepository
 from app.schemas.faq import (
@@ -246,6 +246,7 @@ class FaqService:
                 "公開" if row.chat_enabled else "非公開", row.updated_at.astimezone(jst).strftime("%Y/%m/%d %H:%M"),
             ])
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()
 
@@ -260,15 +261,8 @@ class FaqService:
         worksheet = workbook.active
         worksheet.title = "FAQ一括登録更新"
         worksheet.append(headers)
-        worksheet.freeze_panes = "A2"
-        fill = PatternFill(fill_type="solid", fgColor="3D5AFE")
-        for cell in worksheet[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = fill
-        widths = [12, 42, 56, *([30] * FAQ_IMPORT_SIMILAR_COUNT), *([22] * 4), 16]
-        for index, width in enumerate(widths, start=1):
-            worksheet.column_dimensions[chr(64 + index) if index <= 26 else "A"].width = width
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()
 

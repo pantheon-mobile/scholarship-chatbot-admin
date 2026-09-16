@@ -4,6 +4,7 @@ from typing import List
 from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
+from app.services.excel_format import apply_download_format
 from app.models.classification import ClassificationType
 from app.repositories.classification import ClassificationRepository
 from app.schemas.classification import (
@@ -120,5 +121,6 @@ class ClassificationService:
                     value.value_name,
                 ])
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()

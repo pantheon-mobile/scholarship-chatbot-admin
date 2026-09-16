@@ -11,6 +11,7 @@ from openpyxl import Workbook, load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.data_source_mutation import DataSourceMutationError
+from app.services.excel_format import apply_download_format
 from app.core.db import get_db
 from app.repositories.data_source import DataSourceRepository
 from app.schemas.data_source import (
@@ -144,9 +145,8 @@ async def download_website_import_template():
     worksheet.title = "URLリスト"
     worksheet.append(["URL", "タイトル"])
     worksheet.freeze_panes = "A2"
-    worksheet.column_dimensions["A"].width = 64
-    worksheet.column_dimensions["B"].width = 40
     output = BytesIO()
+    apply_download_format(worksheet)
     workbook.save(output)
     return StreamingResponse(
         BytesIO(output.getvalue()),

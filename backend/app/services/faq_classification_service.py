@@ -3,6 +3,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
+from app.services.excel_format import apply_download_format
 from app.models.faq_classification import FaqClassificationType, FaqClassificationValue
 from app.repositories.faq_classification import FaqClassificationRepository
 from app.schemas.faq_classification import (
@@ -144,5 +145,6 @@ class FaqClassificationService:
             for value in classification_type.values:
                 worksheet.append([classification_type.fixed_name, classification_type.display_label, value.value_name])
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()

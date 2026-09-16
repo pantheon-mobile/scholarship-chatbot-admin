@@ -616,7 +616,7 @@ async def test_import_template_is_empty_xlsx_with_dynamic_labels_and_fixed_posit
     assert [cell.value for cell in sheet[1]] == [
         *FAQ_IMPORT_FIXED_HEADERS, "現在ラベル1", "現在ラベル2", "現在ラベル3", "現在ラベル4", "チャット利用",
     ]
-    assert sheet.max_row == 1 and sheet.freeze_panes == "A2"
+    assert sheet.max_row == 1 and sheet.freeze_panes is None
 
 
 @pytest.mark.anyio

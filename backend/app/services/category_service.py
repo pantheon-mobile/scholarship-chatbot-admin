@@ -4,6 +4,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
+from app.services.excel_format import apply_download_format
 from app.models.category import Category
 from app.core.category_limits import CATEGORY_NAME_MAX_LENGTH
 from app.repositories.category import CategoryRepository
@@ -297,5 +298,6 @@ class CategoryService:
         for category, path in flattened:
             worksheet.append([category.id, *path, *([""] * (max_depth - len(path)))])
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()

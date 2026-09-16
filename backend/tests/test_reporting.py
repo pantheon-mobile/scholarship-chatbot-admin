@@ -82,6 +82,7 @@ async def test_chat_history_export_matches_specified_filename_and_columns():
         "session-1", "F0000003", "職員", "interaction-1", 1, "質問", "回答",
         "生成AI", "Good", "参考になった",
     )
+    assert rows[1][10:] == ("2026/09/04 09:00:00", "2026/09/04 09:00:00")
     assert response.headers["content-disposition"].startswith('attachment; filename="chathistory')
 
 
@@ -120,6 +121,7 @@ async def test_usage_user_export_contains_cpf_identity():
     rows = decoded_xlsx(response)
     assert rows[0] == ("ログインID", "権限", "氏名", "最終アクセス日時")
     assert rows[1][:3] == ("F0000003", "職員", "理科大 職員")
+    assert rows[1][3] == "2026/09/04 09:00:00"
     assert response.headers["content-disposition"].startswith('attachment; filename="userlist')
 
 

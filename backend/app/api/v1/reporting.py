@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.excel_format import apply_download_format
 from app.api.v1.auth import require_authenticated_session, require_system_admin_session
 from app.core.db import get_db
 from app.models.auth import AuthSession
@@ -112,10 +112,11 @@ ANSWER_TYPE_LABELS = {"FAQ": "FAQ", "GENERATED_AI": "生成AI", "NO_ANSWER": "�
 RATING_LABELS = {"GOOD": "Good", "BAD": "Bad"}
 
 
-def display_datetime(value: datetime | None) -> str:
+def display_datetime(value: datetime | None, *, slash_date: bool = False) -> str:
     if value is None:
         return ""
-    return value.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")
+    date_format = "%Y/%m/%d %H:%M:%S" if slash_date else "%Y-%m-%d %H:%M:%S"
+    return value.astimezone(ZoneInfo("Asia/Tokyo")).strftime(date_format)
 
 
 def xlsx_response(filename: str, sheet_name: str, headers: list[str], rows: list[list[object]]) -> Response:
@@ -125,15 +126,7 @@ def xlsx_response(filename: str, sheet_name: str, headers: list[str], rows: list
     sheet.append(headers)
     for row in rows:
         sheet.append(row)
-    for cell in sheet[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="1F4E78")
-    for column in sheet.columns:
-        values = [str(cell.value or "") for cell in column]
-        width = min(max(max((len(value) for value in values), default=0) + 2, 12), 64)
-        sheet.column_dimensions[column[0].column_letter].width = width
-        for cell in column[1:]:
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    apply_download_format(sheet)
     sheet.freeze_panes = "A2"
     output = BytesIO()
     workbook.save(output)
@@ -197,7 +190,7 @@ async def chat_history_export(
             str(row["interaction_id"]), row["sequence_number"], row.get("question_text") or "", row.get("answer_text") or "",
             ANSWER_TYPE_LABELS.get(row.get("answer_type"), row.get("answer_type") or ""),
             RATING_LABELS.get(row.get("rating"), row.get("rating") or ""), row.get("comment") or "",
-            display_datetime(row.get("question_submitted_at")), display_datetime(row.get("answer_displayed_at")),
+            display_datetime(row.get("question_submitted_at"), slash_date=True), display_datetime(row.get("answer_displayed_at"), slash_date=True),
         ] for row in rows],
     )
 
@@ -222,7 +215,7 @@ async def usage_users_xlsx(
         [[
             row.get("subject") or f"利用者-{row['visitor_key'][:12]}",
             ROLE_LABELS.get(row.get("role"), row.get("role") or ""), row.get("display_name") or "",
-            display_datetime(row.get("last_seen_at")),
+            display_datetime(row.get("last_seen_at"), slash_date=True),
         ] for row in rows],
     )
 

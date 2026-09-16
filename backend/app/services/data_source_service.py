@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.services.excel_format import apply_download_format
 
 import logging
 
@@ -559,6 +560,7 @@ class DataSourceService:
                 priority_labels[row.priority], "表示" if row.reference_link_visible else "非表示", updated,
             ])
         output = BytesIO()
+        apply_download_format(worksheet)
         workbook.save(output)
         return output.getvalue()
 
