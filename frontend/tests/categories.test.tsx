@@ -187,6 +187,22 @@ describe("CB-213 categories", () => {
     expect(api.fetchCategories).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["create", "edit"])("%sで階層区切り文字を拒否しスラッシュを許可する", async (mode) => {
+    await renderPage();
+    if (mode === "create") fireEvent.click(screen.getByRole("button", { name: "カテゴリ追加" }));
+    else fireEvent.click(screen.getByText("申請").closest("tr")!.querySelectorAll("button")[2]);
+    const input = screen.getByLabelText("カテゴリ名");
+    const submit = screen.getByRole("button", { name: mode === "create" ? "カテゴリ登録" : "カテゴリ更新" }) as HTMLButtonElement;
+    expect(screen.getByText("「>」は入力しないで下さい。")).not.toBeNull();
+    fireEvent.change(input, { target: { value: "給付>貸与" } });
+    expect(submit.disabled).toBe(true);
+    fireEvent.click(submit);
+    expect(api.createCategory).not.toHaveBeenCalled();
+    expect(api.updateCategory).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "給付/貸与" } });
+    expect(submit.disabled).toBe(false);
+  });
+
   it.each(["create", "edit"])("%sで29・30文字を許可し31文字を拒否する", async (mode) => {
     await renderPage();
     if (mode === "create") {

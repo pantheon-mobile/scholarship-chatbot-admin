@@ -275,3 +275,55 @@ async def test_chat_history_detail_excludes_system_error_interactions(monkeypatc
     assert detail.title == "成功した質問"
     assert [message.content for message in detail.messages] == ["成功した質問", "成功した回答"]
     assert "失敗した質問" not in [message.content for message in detail.messages]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("answer", [
+    "登録情報から確認できませんでした。",
+    "**登録情報から確認できませんでした**。質問を具体的にしてください。",
+    "申し訳ありませんが、登録情報から確認できませんでした。",
+])
+async def test_no_answer_does_not_expose_retrieved_references(monkeypatch, answer):
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    monkeypatch.setenv("CHAT_MODEL_ARN", "test-model")
+    client = Mock()
+    client.retrieve.return_value = {"retrievalResults": []}
+    client.retrieve_and_generate.return_value = {
+        "output": {"text": answer}, "sessionId": "session",
+        "citations": [{"retrievedReferences": [{"metadata": {"source_title": "無関係な資料"}}]}],
+    }
+    result = await ChatService(client).answer("クエスチョン")
+    assert result.answer == answer
+    assert result.answer_type == "NO_ANSWER"
+    assert result.citations == []
+    assert result.bedrock_session_id == "session"
+
+
+def test_useful_answer_with_limited_missing_information_is_not_refusal():
+    assert not ChatService.is_no_answer("返還方式は2種類です。受付時間は登録情報から確認できませんでした。")
+
+
+@pytest.mark.anyio
+async def test_history_hides_old_refusal_citations_but_keeps_useful_answer_sources(monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    now = datetime.now(timezone.utc)
+    def interaction(number, answer):
+        return SimpleNamespace(
+            id=uuid4(), sequence_number=number, processing_status="COMPLETED", question_text="質問",
+            answer_text=answer, answer_displayed_at=now, question_submitted_at=now,
+            citations=[{"title": "資料", "uri": "https://example.com/guide"}],
+            feedback=None, answer_type="GENERATED_AI",
+        )
+    row = SimpleNamespace(id=uuid4(), title=None, interactions=[
+        interaction(1, "登録情報から確認できませんでした。"),
+        interaction(2, "返還方式は2種類です。"),
+    ])
+    result = Mock()
+    result.scalar_one_or_none.return_value = row
+    session = AsyncMock()
+    session.execute.return_value = result
+    detail = await get_chat_session_history(
+        row.id, current_user=SimpleNamespace(site="faculty", subject="staff-001"), session=session,
+    )
+    assert detail.messages[1].citations == []
+    assert detail.messages[3].citations[0].title == "資料"

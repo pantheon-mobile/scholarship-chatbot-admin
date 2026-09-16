@@ -415,3 +415,28 @@ async def test_api_name_length_with_real_service(method, length):
             repository.commit.assert_not_awaited()
     finally:
         app.dependency_overrides.clear()
+
+
+def test_category_names_allow_slash_but_reserve_hierarchy_separator():
+    from app.services.category_service import CategoryNameInvalidCharacterError
+    assert CategoryService.normalize_name("給付/貸与") == "給付/貸与"
+    with pytest.raises(CategoryNameInvalidCharacterError):
+        CategoryService.normalize_name("給付>貸与")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("method,path,payload", [
+    ("POST", "/api/v1/categories", {"name": "給付>貸与"}),
+    ("PUT", "/api/v1/categories/1", {"name": "給付>貸与", "version": 1}),
+])
+async def test_category_api_rejects_reserved_separator(method, path, payload):
+    repository = AsyncMock()
+    repository.list_all.return_value = TREE
+    app.dependency_overrides[get_service] = lambda: CategoryService(repository)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.request(method, path, json=payload)
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "CATEGORY_NAME_INVALID_CHARACTER"
+    finally:
+        app.dependency_overrides.pop(get_service, None)

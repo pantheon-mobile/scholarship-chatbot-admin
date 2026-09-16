@@ -86,6 +86,7 @@ class FaqRepository:
         sort_column = {"id": Faq.id, "updated_at": Faq.updated_at}[filters.sort]
         order_clause = sort_column.asc() if filters.order == "asc" else sort_column.desc()
         stmt = select(Faq).options(
+            selectinload(Faq.similar_questions),
             selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_type),
             selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_value),
         ).order_by(order_clause, Faq.id.asc())

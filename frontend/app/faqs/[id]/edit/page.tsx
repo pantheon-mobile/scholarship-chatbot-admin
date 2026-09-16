@@ -86,12 +86,12 @@ export default function FaqEditPage() {
   const currentErrors = useMemo(() => {
     const next: Record<string, string> = {};
     if (!values.question.trim()) next.question = "質問を入力してください。";
-    else if (values.question.trim().length > 500) next.question = "質問は500文字以内で入力してください。";
+    else if (values.question.trim().length > 1500) next.question = "質問は1500文字以内で入力してください。";
     if (!values.answer.trim()) next.answer = "回答を入力してください。";
-    else if (values.answer.trim().length > 1000) next.answer = "回答は1000文字以内で入力してください。";
+    else if (values.answer.trim().length > 4000) next.answer = "回答は4000文字以内で入力してください。";
     values.similarQuestions.forEach((value, index) => {
       if (!value.trim()) next[`similar-${index}`] = "類似質問を入力してください。";
-      else if (value.trim().length > 500) next[`similar-${index}`] = "類似質問は500文字以内で入力してください。";
+      else if (value.trim().length > 1500) next[`similar-${index}`] = "類似質問は1500文字以内で入力してください。";
     });
     return next;
   }, [values]);
@@ -174,17 +174,17 @@ export default function FaqEditPage() {
           <div className={styles.formRow}><span className={styles.rowLabel}>ID：</span><span className={styles.readonlyValue}>{row.id}</span></div>
           <div className={`${styles.formRow} ${styles.textareaRow}`}>
             <span className={styles.rowLabel}>質問（必須）：</span>
-            <CharacterCountTextarea aria-label="質問" wrapperClassName={styles.questionField} value={values.question} maxLength={500} disabled={busy} error={(touched.has("question") && currentErrors.question) || fieldErrors.question} onBlur={() => touch("question")} onChange={(event) => setValue("question", event.target.value)} />
+            <CharacterCountTextarea aria-label="質問" wrapperClassName={styles.questionField} value={values.question} maxLength={1500} disabled={busy} error={(touched.has("question") && currentErrors.question) || fieldErrors.question} onBlur={() => touch("question")} onChange={(event) => setValue("question", event.target.value)} />
           </div>
           <div className={`${styles.formRow} ${styles.textareaRow}`}>
             <span className={styles.rowLabel}>回答（必須）：</span>
-            <CharacterCountTextarea aria-label="回答" wrapperClassName={styles.answerField} textareaClassName={styles.answerTextarea} value={values.answer} maxLength={1000} disabled={busy} error={(touched.has("answer") && currentErrors.answer) || fieldErrors.answer} onBlur={() => touch("answer")} onChange={(event) => setValue("answer", event.target.value)} />
+            <CharacterCountTextarea aria-label="回答" wrapperClassName={styles.answerField} textareaClassName={styles.answerTextarea} value={values.answer} maxLength={4000} disabled={busy} error={(touched.has("answer") && currentErrors.answer) || fieldErrors.answer} onBlur={() => touch("answer")} onChange={(event) => setValue("answer", event.target.value)} />
           </div>
           <div className={`${styles.formRow} ${styles.similarRow}`}>
             <span className={styles.rowLabel}>類似質問：</span>
             <div className={styles.similarFields}>
               {values.similarQuestions.map((value, index) => <div className={styles.similarItem} key={index}>
-                <CharacterCountTextarea aria-label={`類似質問${index + 1}`} wrapperClassName={styles.similarField} textareaClassName={styles.similarTextarea} value={value} maxLength={500} disabled={busy} error={(touched.has(`similar-${index}`) && currentErrors[`similar-${index}`]) || fieldErrors[`similar-${index}`]} onBlur={() => touch(`similar-${index}`)} onChange={(event) => updateSimilarQuestion(index, event.target.value)} />
+                <CharacterCountTextarea aria-label={`類似質問${index + 1}`} wrapperClassName={styles.similarField} textareaClassName={styles.similarTextarea} value={value} maxLength={1500} disabled={busy} error={(touched.has(`similar-${index}`) && currentErrors[`similar-${index}`]) || fieldErrors[`similar-${index}`]} onBlur={() => touch(`similar-${index}`)} onChange={(event) => updateSimilarQuestion(index, event.target.value)} />
                 <Button variant="text" focusTone="danger" icon={<AdminIcon name="close" size={18} />} disabled={busy} onClick={() => removeSimilarQuestion(index)}>削除</Button>
               </div>)}
               <Button className={styles.addSimilar} variant="add" icon={<AdminIcon name="plus" size={19} />} disabled={busy} onClick={addSimilarQuestion}>類似質問を追加</Button>

@@ -15,6 +15,7 @@ from app.services.category_service import (
     CategoryCycleError,
     CategoryNameRequiredError,
     CategoryNameTooLongError,
+    CategoryNameInvalidCharacterError,
     CategoryService,
     CategoryVersionConflictError,
     CrossParentReorderError,
@@ -43,6 +44,8 @@ async def list_categories(service: CategoryService = Depends(get_service)):
 def raise_write_error(exc: Exception) -> None:
     if isinstance(exc, CategoryNameRequiredError):
         raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_REQUIRED", "カテゴリが入力されていません"))
+    if isinstance(exc, CategoryNameInvalidCharacterError):
+        raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_INVALID_CHARACTER", "カテゴリ名に「>」は入力しないで下さい。"))
     if isinstance(exc, CategoryNameTooLongError):
         raise HTTPException(status_code=422, detail=error("CATEGORY_NAME_TOO_LONG", f"カテゴリは{CATEGORY_NAME_MAX_LENGTH}文字以内で入力してください。"))
     if isinstance(exc, ParentCategoryNotFoundError):
@@ -62,7 +65,7 @@ def raise_write_error(exc: Exception) -> None:
 async def create_category(payload: CategoryCreateRequest, service: CategoryService = Depends(get_service)):
     try:
         return await service.create(payload)
-    except (CategoryNameRequiredError, CategoryNameTooLongError, ParentCategoryNotFoundError, DuplicateCategoryNameError) as exc:
+    except (CategoryNameRequiredError, CategoryNameTooLongError, CategoryNameInvalidCharacterError, ParentCategoryNotFoundError, DuplicateCategoryNameError) as exc:
         raise_write_error(exc)
 
 
@@ -110,6 +113,7 @@ async def update_category(category_id: int, payload: CategoryUpdateRequest, serv
     except (
         CategoryNameRequiredError,
         CategoryNameTooLongError,
+        CategoryNameInvalidCharacterError,
         ParentCategoryNotFoundError,
         DuplicateCategoryNameError,
         CategoryCycleError,

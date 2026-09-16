@@ -11,8 +11,8 @@ class Faq(Base):
     __table_args__ = (Index("ix_faqs_updated_at", "updated_at"), Index("ix_faqs_chat_enabled", "chat_enabled"))
 
     id: Mapped[int] = Column(BigInteger, primary_key=True)
-    question: Mapped[str] = Column(String(500), nullable=False)
-    answer: Mapped[str] = Column(String(1000), nullable=False)
+    question: Mapped[str] = Column(String(1500), nullable=False)
+    answer: Mapped[str] = Column(String(4000), nullable=False)
     chat_enabled: Mapped[bool] = Column(Boolean, nullable=False)
     version: Mapped[int] = Column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -33,7 +33,7 @@ class FaqSimilarQuestion(Base):
 
     id: Mapped[int] = Column(BigInteger, primary_key=True)
     faq_id: Mapped[int] = Column(ForeignKey("faqs.id", ondelete="CASCADE"), nullable=False)
-    question: Mapped[str] = Column(String(500), nullable=False)
+    question: Mapped[str] = Column(String(1500), nullable=False)
     display_order: Mapped[int] = Column(Integer, nullable=False)
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

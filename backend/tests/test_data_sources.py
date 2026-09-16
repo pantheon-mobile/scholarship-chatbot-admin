@@ -118,8 +118,8 @@ async def test_category_path_and_legacy_fallback_use_one_category_query():
     repository.list.return_value = ([formal, legacy], 2, 1, 2048)
     repository.list_categories.return_value = categories
     result = await DataSourceService(repository).list(DataSourceFilters())
-    assert result.items[0].category.path == "奨学金/給付/学部"
-    assert result.items[0].category_name == "奨学金/給付/学部"
+    assert result.items[0].category.path == "奨学金>給付>学部"
+    assert result.items[0].category_name == "奨学金>給付>学部"
     assert result.items[1].category is None
     assert result.items[1].category_name == "旧カテゴリ"
     repository.list_categories.assert_awaited_once()
@@ -292,7 +292,7 @@ async def test_file_attribute_update_resolves_types_and_returns_new_version():
     result = await DataSourceService(repository).update_file_attributes(1, payload)
     assert result.version == 2
     assert result.status == "AVAILABLE"
-    assert result.category_name == "奨学金/給付"
+    assert result.category_name == "奨学金>給付"
     assert result.file.file_name == "sample.pdf"
     repository.update_file_attributes.assert_awaited_once_with(1, payload, "更新タイトル", [(1, 1)])
     repository.category_exists.assert_awaited_once_with(12)
@@ -391,7 +391,7 @@ async def test_excel_uses_japanese_display_values_and_jst():
     assert values[0][7:10] == ("対象者", "奨学金区分", "所属")
     assert values[1][1] == "ファイル"
     assert values[1][5] == "利用可"
-    assert values[1][6] == "奨学金/給付/学部"
+    assert values[1][6] == "奨学金>給付>学部"
     assert values[2][6] == "旧カテゴリ"
     assert values[3][6] is None
     assert values[1][12:15] == ("有効", "高", "表示")
@@ -455,3 +455,30 @@ async def test_url_list_template_has_specified_filename_and_columns():
     worksheet = load_workbook(BytesIO(response.content)).active
     assert worksheet.title == "URLリスト"
     assert list(worksheet.values) == [("URL", "タイトル")]
+
+
+@pytest.mark.anyio
+async def test_export_import_round_trip_preserves_slash_in_category_names():
+    repository = AsyncMock()
+    row = make_row(category_id=11)
+    row.classification_links = []
+    repository.list.return_value = ([row], 1, 1, 1024)
+    repository.get_for_update_many.return_value = [row]
+    repository.list_categories.return_value = [
+        SimpleNamespace(id=10, name="奨学金", parent_id=None),
+        SimpleNamespace(id=11, name="給付/貸与", parent_id=10),
+        SimpleNamespace(id=12, name="給付", parent_id=10),
+        SimpleNamespace(id=13, name="貸与", parent_id=12),
+    ]
+    repository.list_import_classifications.return_value = []
+    service = DataSourceService(repository)
+    data = await service.export_excel(DataSourceFilters())
+    workbook = load_workbook(BytesIO(data))
+    assert workbook.active.cell(2, 7).value == "奨学金>給付/貸与"
+    workbook.active.cell(2, 3).value = "カテゴリを維持した更新"
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    await service.import_excel(UploadFile(filename="list.xlsx", file=output))
+    updates = repository.apply_import_updates.await_args.args[0]
+    assert updates[0]["category_id"] == 11

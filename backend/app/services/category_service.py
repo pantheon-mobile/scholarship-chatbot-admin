@@ -38,6 +38,10 @@ class CategoryNameRequiredError(Exception):
     pass
 
 
+class CategoryNameInvalidCharacterError(Exception):
+    pass
+
+
 class CategoryNameTooLongError(Exception):
     pass
 
@@ -99,12 +103,16 @@ class CategoryService:
             raise CategoryNameRequiredError()
         if len(normalized) > CATEGORY_NAME_MAX_LENGTH:
             raise CategoryNameTooLongError()
+        if ">" in normalized:
+            raise CategoryNameInvalidCharacterError()
         return normalized
 
     async def validate_name_available(self, name: str, parent_id: int | None, *, exclude_id: int | None = None) -> str:
         normalized = self.normalize_name(name)
         if await self.repository.name_exists(parent_id, normalized, exclude_id=exclude_id):
             raise DuplicateCategoryNameError()
+        if ">" in normalized:
+            raise CategoryNameInvalidCharacterError()
         return normalized
 
     async def create(self, payload: CategoryCreateRequest) -> CategoryResponse:

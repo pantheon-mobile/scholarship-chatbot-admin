@@ -15,14 +15,16 @@
 .faqTable th { height: 54px !important; font-size: 13px !important; font-weight: 700 !important; }
 .checkColumn { width: 42px; text-align: center !important; }
 .idColumn { width: 58px; text-align: center !important; }
-.questionColumn { width: 230px; }
-.answerColumn { width: 280px; }
+.questionColumn { width: auto; }
+.answerColumn { width: auto; }
 .classificationColumn { width: 88px; text-align: center !important; }
 .chatColumn { width: 88px; text-align: center !important; }
 .dateColumn { width: 110px; text-align: center !important; }
-.actionsColumn { width: 134px; }
+.actionsColumn { width: 102px; }
 .longText { width: 100%; max-height: 76px; overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
-.rowActions { display: flex; justify-content: flex-end; gap: 4px; }
+.rowActions { display: grid; grid-template-columns: 30px 48px; justify-content: center; align-items: center; gap: 4px; }
+.rowActions > :first-child { grid-row: 1 / 3; }
+.rowActions > :nth-child(2), .rowActions > :nth-child(3) { grid-column: 2; }
 .rowActions button { min-width: 48px !important; min-height: 30px !important; padding: 0 6px !important; font-size: 13px !important; }
 .rowActions .iconAction { width: 30px !important; min-width: 30px !important; padding: 0 !important; }
 .empty { height: 100px !important; color: #68717a; text-align: center !important; }

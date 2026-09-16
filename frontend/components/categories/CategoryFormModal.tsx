@@ -78,18 +78,24 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
   const options = useMemo(() => hierarchyOptions(categories, excluded), [categories, excluded]);
   const normalizedName = name.trim();
   const nameLength = Array.from(normalizedName).length;
+  const invalidCharacter = normalizedName.includes(">");
+  const characterError = "カテゴリ名に「>」は入力しないで下さい。";
   const tooLong = nameLength > CATEGORY_NAME_MAX_LENGTH;
   const lengthError = `カテゴリは${CATEGORY_NAME_MAX_LENGTH}文字以内で入力してください。`;
   const dirty = mode === "create"
     ? normalizedName.length > 0 || parentId !== null
     : normalizedName !== initialName || parentId !== initialParentId;
-  const nameError = localError || (tooLong ? lengthError : undefined) || (["CATEGORY_NAME_REQUIRED", "CATEGORY_NAME_TOO_LONG", "CATEGORY_NAME_DUPLICATE"].includes(errorCode ?? "") ? error : undefined);
+  const nameError = localError || (invalidCharacter ? characterError : undefined) || (tooLong ? lengthError : undefined) || (["CATEGORY_NAME_INVALID_CHARACTER", "CATEGORY_NAME_REQUIRED", "CATEGORY_NAME_TOO_LONG", "CATEGORY_NAME_DUPLICATE"].includes(errorCode ?? "") ? error : undefined);
   const parentError = errorCode === "PARENT_CATEGORY_NOT_FOUND" || errorCode === "CATEGORY_CYCLE_NOT_ALLOWED" ? error : undefined;
   const modalError = nameError || parentError ? undefined : error;
 
   const submit = () => {
     if (!normalizedName) {
       setLocalError("カテゴリが入力されていません");
+      return;
+    }
+    if (invalidCharacter) {
+      setLocalError(characterError);
       return;
     }
     if (tooLong) {
@@ -105,7 +111,7 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
     title={mode === "create" ? "カテゴリ新規追加" : "カテゴリ編集"}
     confirmLabel={busy ? (mode === "create" ? "登録中..." : "更新中...") : mode === "create" ? "カテゴリ登録" : "カテゴリ更新"}
     busy={busy}
-    confirmDisabled={!normalizedName || tooLong || (mode === "edit" && !dirty)}
+    confirmDisabled={!normalizedName || tooLong || invalidCharacter || (mode === "edit" && !dirty)}
     error={modalError}
     onConfirm={submit}
     onClose={onClose}
@@ -122,6 +128,7 @@ export function CategoryFormModal({ open, mode, categories, category, busy = fal
         autoComplete="off"
         onChange={(event) => { setName(event.target.value); setLocalError(""); }}
       />
+      <p>「&gt;」は入力しないで下さい。</p>
       <SelectField id={`${mode}-parent-category`} label="親カテゴリ" value={parentId ?? ""} error={parentError} onChange={(event) => setParentId(event.target.value ? Number(event.target.value) : null)}>
         <option value="">親カテゴリを選択（第一階層）</option>
         {options.map(({ category: option, depth }) => <option key={option.id} value={option.id}>{`${"　".repeat(depth)}${option.name}`}</option>)}

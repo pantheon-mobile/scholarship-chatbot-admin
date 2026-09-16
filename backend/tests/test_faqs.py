@@ -366,9 +366,9 @@ async def test_create_one_similar_question_and_one_classification():
 @pytest.mark.anyio
 @pytest.mark.parametrize("field,value,code", [
     ("question", "", "FAQ_QUESTION_REQUIRED"), ("question", "   ", "FAQ_QUESTION_REQUIRED"),
-    ("question", "x" * 501, "FAQ_QUESTION_TOO_LONG"),
+    ("question", "x" * 1501, "FAQ_QUESTION_TOO_LONG"),
     ("answer", "", "FAQ_ANSWER_REQUIRED"), ("answer", "   ", "FAQ_ANSWER_REQUIRED"),
-    ("answer", "x" * 1001, "FAQ_ANSWER_TOO_LONG"),
+    ("answer", "x" * 4001, "FAQ_ANSWER_TOO_LONG"),
 ])
 async def test_question_and_answer_validation(field, value, code):
     repository = create_repository()
@@ -380,7 +380,7 @@ async def test_question_and_answer_validation(field, value, code):
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("question,answer", [("x", "y"), ("x" * 500, "y" * 1000)])
+@pytest.mark.parametrize("question,answer", [("x", "y"), ("x" * 1500, "y" * 4000)])
 async def test_question_and_answer_boundaries_are_allowed(question, answer):
     repository = create_repository()
     await FaqService(repository).create(create_payload(question=question, answer=answer))
@@ -391,7 +391,7 @@ async def test_question_and_answer_boundaries_are_allowed(question, answer):
 @pytest.mark.anyio
 @pytest.mark.parametrize("value,code", [
     ("", "FAQ_SIMILAR_QUESTION_REQUIRED"), ("   ", "FAQ_SIMILAR_QUESTION_REQUIRED"),
-    ("x" * 501, "FAQ_SIMILAR_QUESTION_TOO_LONG"),
+    ("x" * 1501, "FAQ_SIMILAR_QUESTION_TOO_LONG"),
 ])
 async def test_similar_question_validation(value, code):
     repository = create_repository()
@@ -402,9 +402,9 @@ async def test_similar_question_validation(value, code):
 
 
 @pytest.mark.anyio
-async def test_similar_question_500_chars_and_duplicates_are_allowed():
+async def test_similar_question_1500_chars_and_duplicates_are_allowed():
     repository = create_repository()
-    value = "x" * 500
+    value = "x" * 1500
     await FaqService(repository).create(create_payload(similar_questions=[value, value]))
     assert repository.create.await_args.kwargs["similar_questions"] == [value, value]
 
@@ -522,10 +522,10 @@ async def test_update_not_found_and_version_conflict_before_writing():
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("field,value,code", [
-    ("question", " ", "FAQ_QUESTION_REQUIRED"), ("question", "x" * 501, "FAQ_QUESTION_TOO_LONG"),
-    ("answer", " ", "FAQ_ANSWER_REQUIRED"), ("answer", "x" * 1001, "FAQ_ANSWER_TOO_LONG"),
+    ("question", " ", "FAQ_QUESTION_REQUIRED"), ("question", "x" * 1501, "FAQ_QUESTION_TOO_LONG"),
+    ("answer", " ", "FAQ_ANSWER_REQUIRED"), ("answer", "x" * 4001, "FAQ_ANSWER_TOO_LONG"),
     ("similar_questions", ["正常", " "], "FAQ_SIMILAR_QUESTION_REQUIRED"),
-    ("similar_questions", ["x" * 501], "FAQ_SIMILAR_QUESTION_TOO_LONG"),
+    ("similar_questions", ["x" * 1501], "FAQ_SIMILAR_QUESTION_TOO_LONG"),
 ])
 async def test_update_reuses_registration_validation(field, value, code):
     repository = create_repository(make_faq())
@@ -538,14 +538,14 @@ async def test_update_reuses_registration_validation(field, value, code):
 
 @pytest.mark.anyio
 async def test_update_accepts_question_answer_and_similar_boundaries():
-    updated = make_faq(question="q" * 500, answer="a" * 1000, version=2)
-    updated.similar_questions = [SimpleNamespace(id=1, question="s" * 500, display_order=1)]
+    updated = make_faq(question="q" * 1500, answer="a" * 4000, version=2)
+    updated.similar_questions = [SimpleNamespace(id=1, question="s" * 1500, display_order=1)]
     repository = create_repository()
     repository.get_detail.side_effect = [make_faq(version=1), updated]
     await FaqService(repository).update(1, update_payload(
-        question="q" * 500, answer="a" * 1000, similar_questions=["s" * 500],
+        question="q" * 1500, answer="a" * 4000, similar_questions=["s" * 1500],
     ))
-    assert repository.update.await_args.kwargs["similar_questions"] == ["s" * 500]
+    assert repository.update.await_args.kwargs["similar_questions"] == ["s" * 1500]
 
 
 @pytest.mark.anyio
@@ -716,7 +716,7 @@ async def test_import_collects_multiple_row_errors_with_excel_rows_columns_and_n
     repository.list_import_classifications.return_value = make_import_types()
     repository.get_for_update_many.return_value = []
     rows = [
-        import_row(faq_id="abc", question=" ", answer="a" * 1001, similar=["s" * 501], classifications=["不存在"], chat="true"),
+        import_row(faq_id="abc", question=" ", answer="a" * 4001, similar=["s" * 1501], classifications=["不存在"], chat="true"),
         import_row(faq_id=999, question="正常", answer="正常", chat=""),
     ]
     with pytest.raises(FaqError) as error:

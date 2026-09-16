@@ -107,6 +107,13 @@ class ChatService:
             citations=[],
         )
 
+    @staticmethod
+    def is_no_answer(answer: str) -> bool:
+        # Match the refusal at the beginning, not a caveat inside a useful answer.
+        text = re.sub(r"[\s*#「」]", "", unicodedata.normalize("NFKC", answer))
+        text = re.sub(r"^(申し訳ありませんが[、,]?|申し訳ございませんが[、,]?)", "", text)
+        return text.startswith("登録情報から確認できませんでした")
+
     async def answer(
         self, question: str, bedrock_session_id: str | None = None
     ) -> ChatMessageResponse:
@@ -128,9 +135,9 @@ class ChatService:
             raise ChatGenerationError("Bedrock returned an empty answer")
         return ChatMessageResponse(
             answer=answer,
-            answer_type="GENERATED_AI",
+            answer_type="NO_ANSWER" if self.is_no_answer(answer) else "GENERATED_AI",
             bedrock_session_id=response.get("sessionId"),
-            citations=self._citations(response),
+            citations=[] if self.is_no_answer(answer) else self._citations(response),
         )
 
     def _retrieve_and_generate(self, question: str, bedrock_session_id: str | None):

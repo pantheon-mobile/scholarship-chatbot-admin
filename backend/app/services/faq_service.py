@@ -113,15 +113,15 @@ class FaqService:
     def normalize_input_text(cls, payload: FaqCreateRequest) -> tuple[str, str, list[str]]:
         question = cls.normalize_required(
             payload.question, required_code="FAQ_QUESTION_REQUIRED", required_message="質問を入力してください。",
-            max_length=500, long_code="FAQ_QUESTION_TOO_LONG", long_message="質問は500文字以内で入力してください。",
+            max_length=1500, long_code="FAQ_QUESTION_TOO_LONG", long_message="質問は1500文字以内で入力してください。",
         )
         answer = cls.normalize_required(
             payload.answer, required_code="FAQ_ANSWER_REQUIRED", required_message="回答を入力してください。",
-            max_length=1000, long_code="FAQ_ANSWER_TOO_LONG", long_message="回答は1000文字以内で入力してください。",
+            max_length=4000, long_code="FAQ_ANSWER_TOO_LONG", long_message="回答は4000文字以内で入力してください。",
         )
         similar_questions = [cls.normalize_required(
             value, required_code="FAQ_SIMILAR_QUESTION_REQUIRED", required_message="類似質問を入力してください。",
-            max_length=500, long_code="FAQ_SIMILAR_QUESTION_TOO_LONG", long_message="類似質問は500文字以内で入力してください。",
+            max_length=1500, long_code="FAQ_SIMILAR_QUESTION_TOO_LONG", long_message="類似質問は1500文字以内で入力してください。",
         ) for value in payload.similar_questions]
         return question, answer, similar_questions
 
@@ -368,8 +368,8 @@ class FaqService:
             question = self._text(cells[1].value) if 1 not in formula_columns else ""
             answer = self._text(cells[2].value) if 2 not in formula_columns else ""
             for value, column, required_code, required_message, limit, long_code, long_message in [
-                (question, "質問", "FAQ_QUESTION_REQUIRED", "質問を入力してください。", 500, "FAQ_QUESTION_TOO_LONG", "質問は500文字以内で入力してください。"),
-                (answer, "回答", "FAQ_ANSWER_REQUIRED", "回答を入力してください。", 1000, "FAQ_ANSWER_TOO_LONG", "回答は1000文字以内で入力してください。"),
+                (question, "質問", "FAQ_QUESTION_REQUIRED", "質問を入力してください。", 1500, "FAQ_QUESTION_TOO_LONG", "質問は1500文字以内で入力してください。"),
+                (answer, "回答", "FAQ_ANSWER_REQUIRED", "回答を入力してください。", 4000, "FAQ_ANSWER_TOO_LONG", "回答は4000文字以内で入力してください。"),
             ]:
                 if not value and headers.index(column) not in formula_columns:
                     errors.append(self._error(row_number, column, required_code, required_message))
@@ -384,8 +384,8 @@ class FaqService:
                 value = self._text(cells[index].value)
                 if not value:
                     continue
-                if len(value) > 500:
-                    errors.append(self._error(row_number, headers[index], "FAQ_SIMILAR_QUESTION_TOO_LONG", "類似質問は500文字以内で入力してください。"))
+                if len(value) > 1500:
+                    errors.append(self._error(row_number, headers[index], "FAQ_SIMILAR_QUESTION_TOO_LONG", "類似質問は1500文字以内で入力してください。"))
                 else:
                     similar_questions.append(value)
 

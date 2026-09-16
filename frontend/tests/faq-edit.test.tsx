@@ -99,14 +99,14 @@ describe("CB-210 FAQ edit", () => {
 
   it("質問・回答・類似質問の文字数境界と空行を検証する", async () => {
     await renderLoaded();
-    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(501) } });
+    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(1501) } });
     fireEvent.blur(screen.getByLabelText("質問"));
-    expect(screen.getByText("質問は500文字以内で入力してください。")).not.toBeNull();
-    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(500) } });
-    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(1001) } });
+    expect(screen.getByText("質問は1500文字以内で入力してください。")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(1500) } });
+    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(4001) } });
     fireEvent.blur(screen.getByLabelText("回答"));
-    expect(screen.getByText("回答は1000文字以内で入力してください。")).not.toBeNull();
-    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(1000) } });
+    expect(screen.getByText("回答は4000文字以内で入力してください。")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(4000) } });
     fireEvent.change(screen.getByLabelText("類似質問1"), { target: { value: "" } });
     fireEvent.blur(screen.getByLabelText("類似質問1"));
     expect(screen.getByText("類似質問を入力してください。")).not.toBeNull();

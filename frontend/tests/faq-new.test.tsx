@@ -39,8 +39,8 @@ describe("CB-209 FAQ registration", () => {
   it("ID、質問・回答、カウンター、公開初期値、現行Header/Sidebarを表示する", async () => {
     await renderPage();
     expect(screen.getByText("－")).not.toBeNull();
-    expect(screen.getByText("0 / 500")).not.toBeNull();
-    expect(screen.getByText("0 / 1000")).not.toBeNull();
+    expect(screen.getByText("0 / 1500")).not.toBeNull();
+    expect(screen.getByText("0 / 4000")).not.toBeNull();
     expect(screen.queryByLabelText("類似質問1")).toBeNull();
     expect(screen.getByText("公開")).not.toBeNull();
     expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
@@ -49,22 +49,22 @@ describe("CB-209 FAQ registration", () => {
     expect(screen.getByText("ＦＡＱ管理")).not.toBeNull();
   });
 
-  it("500／1000文字境界を許可し、超過時はエラーと登録disabledにする", async () => {
+  it("1500／4000文字境界を許可し、超過時はエラーと登録disabledにする", async () => {
     await renderPage();
-    fillRequired("q".repeat(500), "a".repeat(1000));
-    expect(screen.getByText("500 / 500")).not.toBeNull();
-    expect(screen.getByText("1000 / 1000")).not.toBeNull();
+    fillRequired("q".repeat(1500), "a".repeat(4000));
+    expect(screen.getByText("1500 / 1500")).not.toBeNull();
+    expect(screen.getByText("4000 / 4000")).not.toBeNull();
     expect(screen.getByRole("button", { name: "登録する" }).hasAttribute("disabled")).toBe(false);
-    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(501) } });
+    fireEvent.change(screen.getByLabelText("質問"), { target: { value: "q".repeat(1501) } });
     fireEvent.blur(screen.getByLabelText("質問"));
-    expect(screen.getByText("501 / 500")).not.toBeNull();
-    expect(screen.getByText("質問は500文字以内で入力してください。")).not.toBeNull();
+    expect(screen.getByText("1501 / 1500")).not.toBeNull();
+    expect(screen.getByText("質問は1500文字以内で入力してください。")).not.toBeNull();
     expect(screen.getByRole("button", { name: "登録する" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("質問"), { target: { value: "質問" } });
-    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(1001) } });
+    fireEvent.change(screen.getByLabelText("回答"), { target: { value: "a".repeat(4001) } });
     fireEvent.blur(screen.getByLabelText("回答"));
-    expect(screen.getByText("1001 / 1000")).not.toBeNull();
-    expect(screen.getByText("回答は1000文字以内で入力してください。")).not.toBeNull();
+    expect(screen.getByText("4001 / 4000")).not.toBeNull();
+    expect(screen.getByText("回答は4000文字以内で入力してください。")).not.toBeNull();
   });
 
   it("類似質問を複数追加・個別削除し、文字数と空行validationを表示する", async () => {
@@ -76,13 +76,13 @@ describe("CB-209 FAQ registration", () => {
     fireEvent.blur(screen.getByLabelText("類似質問1"));
     expect(screen.getByText("類似質問を入力してください。")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("類似質問1"), { target: { value: "類似" } });
-    expect(screen.getAllByText("2 / 500").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2 / 1500").length).toBeGreaterThan(0);
     const firstRow = screen.getByLabelText("類似質問1").closest("div")!;
     fireEvent.click(within(firstRow).getByRole("button", { name: "削除" }));
     expect(screen.getAllByLabelText(/類似質問/)).toHaveLength(1);
-    fireEvent.change(screen.getByLabelText("類似質問1"), { target: { value: "x".repeat(501) } });
+    fireEvent.change(screen.getByLabelText("類似質問1"), { target: { value: "x".repeat(1501) } });
     fireEvent.blur(screen.getByLabelText("類似質問1"));
-    expect(screen.getByText("類似質問は500文字以内で入力してください。")).not.toBeNull();
+    expect(screen.getByText("類似質問は1500文字以内で入力してください。")).not.toBeNull();
   });
 
   it("動的な4区分と値0件を表示し、Toggleを変更できる", async () => {
@@ -129,11 +129,11 @@ describe("CB-209 FAQ registration", () => {
   });
 
   it("API validationを該当項目へ表示し、登録失敗時は画面に残る", async () => {
-    api.createFaq.mockRejectedValueOnce(new FaqApiError("質問は500文字以内で入力してください。", 422, "FAQ_QUESTION_TOO_LONG"));
+    api.createFaq.mockRejectedValueOnce(new FaqApiError("質問は1500文字以内で入力してください。", 422, "FAQ_QUESTION_TOO_LONG"));
     await renderPage();
     fillRequired();
     fireEvent.click(screen.getByRole("button", { name: "登録する" }));
-    expect(await screen.findByText("質問は500文字以内で入力してください。")).not.toBeNull();
+    expect(await screen.findByText("質問は1500文字以内で入力してください。")).not.toBeNull();
     expect(push).not.toHaveBeenCalledWith("/faqs");
   });
 

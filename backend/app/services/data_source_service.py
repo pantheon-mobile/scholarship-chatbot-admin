@@ -120,7 +120,7 @@ class DataSourceService:
             if category_id in visiting or category.parent_id is None or category.parent_id not in by_id:
                 path = category.name
             else:
-                path = f"{resolve(category.parent_id, visiting | {category_id})}/{category.name}"
+                path = f"{resolve(category.parent_id, visiting | {category_id})}>{category.name}"
             paths[category_id] = path
             return path
 
