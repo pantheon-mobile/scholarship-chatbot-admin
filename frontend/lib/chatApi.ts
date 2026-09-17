@@ -7,8 +7,8 @@ async function detail(response: Response) {
   catch { return "回答を取得できませんでした。"; }
 }
 
-export async function sendChatMessage(question: string, bedrockSessionId?: string): Promise<ChatAnswer> {
-  const response = await fetch(`${apiBase}/api/v1/chat/messages`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, bedrock_session_id: bedrockSessionId || null }) });
+export async function sendChatMessage(question: string, chatSessionId: string): Promise<ChatAnswer> {
+  const response = await fetch(`${apiBase}/api/v1/chat/messages`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, chat_session_id: chatSessionId }) });
   if (!response.ok) throw new Error(await detail(response));
   return response.json();
 }

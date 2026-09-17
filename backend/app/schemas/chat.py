@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 
 class ChatMessageRequest(BaseModel):
     question: str = Field(min_length=1, max_length=5000)
+    # Legacy field accepted for older clients; never trusted as conversation ownership.
     bedrock_session_id: str | None = Field(default=None, max_length=2048)
+    chat_session_id: UUID | None = None
 
 
 class ChatCitation(BaseModel):
@@ -21,6 +23,7 @@ class ChatCitation(BaseModel):
 class ChatMessageResponse(BaseModel):
     answer: str
     answer_type: str
+    context_reference: str | None = None
     faq_id: int | None = None
     bedrock_session_id: str | None = None
     citations: list[ChatCitation]
@@ -66,6 +69,7 @@ class ChatHistoryDetail(BaseModel):
     id: UUID
     title: str
     messages: list[ChatHistoryMessage]
+    next_sequence_number: int = 1
 
 
 class ChatHistoryTitleUpdate(BaseModel):

@@ -47,7 +47,7 @@ describe("CB-101 チャットUI", () => {
 
     fireEvent.compositionEnd(input);
     fireEvent.keyDown(input, { key: "Enter", keyCode: 13, isComposing: false });
-    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("給付奨学金", undefined));
+    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("給付奨学金", expect.any(String)));
   });
 
   it("左メニュー、履歴、日時を表示し、Good理由をポップアップからDB APIへ送る", async () => {
@@ -190,4 +190,49 @@ it("3件目以降もチャット欄だけをスクロールし、評価保存で
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(scrollTo).not.toHaveBeenCalled();
   }
+});
+
+it("FAQを挟んでも同じチャットIDを送信し、新しいチャットでは切り替える", async () => {
+  api.sendChatMessage.mockResolvedValueOnce({ answer: "FAQの説明", answer_type: "FAQ", citations: [] })
+    .mockResolvedValue({ answer: "続きの説明", answer_type: "GENERATED_AI", citations: [] });
+  render(<ChatPage />);
+  async function ask(text: string, count: number) {
+    fireEvent.change(screen.getByLabelText("質問"), { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() => expect(api.completeTrackedInteraction).toHaveBeenCalledTimes(count));
+    await waitFor(() => expect((screen.getByRole("button", { name: /新しいチャット/ }) as HTMLButtonElement).disabled).toBe(false));
+  }
+  await ask("第一種奨学金の返還方式", 1);
+  const firstId = api.sendChatMessage.mock.calls[0][1];
+  await ask("後者の条件は？", 2);
+  expect(api.sendChatMessage.mock.calls[1]).toEqual(["後者の条件は？", firstId]);
+  fireEvent.click(screen.getByRole("button", { name: /新しいチャット/ }));
+  await ask("昨日の件", 3);
+  expect(api.sendChatMessage.mock.calls[2][1]).not.toBe(firstId);
+});
+
+it("履歴の続きを送る際に元のチャットIDと失敗分を含む次の連番を使用する", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  api.fetchChatHistoryDetail.mockResolvedValue({ id, title: "過去の質問", next_sequence_number: 4, messages: [
+    { id: "q", role: "user", content: "第一種の返還方式", sent_at: "2026-09-17T00:00:00Z", citations: [] },
+    { id: "a", role: "assistant", content: "定額と所得連動です", sent_at: "2026-09-17T00:00:01Z", citations: [], answer_type: "FAQ" },
+  ] });
+  render(<ChatPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "過去の質問" }));
+  await screen.findByText("定額と所得連動です");
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "後者の条件は？" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("後者の条件は？", id));
+  expect(api.startTrackedInteraction).toHaveBeenCalledWith(id, expect.any(String), 4, expect.any(String), "後者の条件は？");
+  expect(api.startTrackedChat).not.toHaveBeenCalled();
+});
+
+it("別チャット参照の切り替えUIはなく、参照した場合はチャット名を表示する", async () => {
+  api.sendChatMessage.mockResolvedValue({ answer: "現在の資料の回答", answer_type: "GENERATED_AI", citations: [], context_reference: "第一種の相談" });
+  render(<ChatPage />);
+  expect(screen.queryByRole("checkbox", { name: "別のチャットの履歴も参照" })).toBeNull();
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "昨日の件" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("昨日の件", expect.any(String)));
+  expect(await screen.findByText("過去のチャット「第一種の相談」を参照しています。")).toBeTruthy();
 });

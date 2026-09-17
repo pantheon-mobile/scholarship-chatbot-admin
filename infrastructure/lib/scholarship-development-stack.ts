@@ -72,6 +72,7 @@ export interface ScholarshipEnvironmentConfig {
   readonly chatFrameColor?: string;
   readonly chatBotIconUrl?: string;
   readonly chatHistoryEnabled?: boolean;
+  readonly chatCrossSessionMemoryEnabled?: boolean;
   readonly chatMaintenanceEnabled?: boolean;
   readonly chatMaintenanceMessage?: string;
   readonly chatGoodFeedbackMessage?: string;
@@ -410,6 +411,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         CHAT_FRAME_COLOR: config.chatFrameColor ?? "#171a1d",
         CHAT_BOT_ICON_URL: config.chatBotIconUrl ?? "",
         CHAT_HISTORY_ENABLED: value(config.chatHistoryEnabled, true),
+        CHAT_CROSS_SESSION_MEMORY_ENABLED: value(config.chatCrossSessionMemoryEnabled, true),
         CHAT_MAINTENANCE_ENABLED: value(config.chatMaintenanceEnabled, false),
         CHAT_MAINTENANCE_MESSAGE: config.chatMaintenanceMessage ?? "現在メンテナンス中です。時間をおいて再度お試しください。",
         CHAT_GOOD_FEEDBACK_MESSAGE: config.chatGoodFeedbackMessage ?? "ご評価ありがとうございます。よろしければ理由をお聞かせください。",

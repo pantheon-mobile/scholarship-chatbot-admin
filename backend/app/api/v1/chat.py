@@ -25,6 +25,7 @@ from app.schemas.chat import (
 from app.repositories.analytics import AnalyticsRepository
 from app.services.analytics_service import AnalyticsService
 from app.services.chat_service import ChatConfigurationError, ChatGenerationError, ChatService
+from app.services.chat_context_service import ChatContextService, ContextSessionNotFound
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -159,7 +160,8 @@ async def get_chat_session_history(
             ))
     first_question = next((item.question_text for item in interactions if item.question_text), None)
     title = row.title or ((first_question[:40] + ("…" if len(first_question) > 40 else "")) if first_question else "新しいチャット")
-    return ChatHistoryDetail(id=row.id, title=title, messages=messages)
+    return ChatHistoryDetail(id=row.id, title=title, messages=messages,
+                             next_sequence_number=max((item.sequence_number for item in row.interactions), default=0) + 1)
 
 
 async def _owned_chat_session(session_id: UUID, current_user: AuthSession, session: AsyncSession) -> ChatSession:
@@ -216,17 +218,29 @@ async def send_message(
     if _flag("CHAT_MAINTENANCE_ENABLED"):
         raise HTTPException(status_code=503, detail=os.getenv("CHAT_MAINTENANCE_MESSAGE", "現在メンテナンス中です。"))
     try:
+        context = await ChatContextService(session, _visitor_key(_current_user)).resolve(
+            payload.question, payload.chat_session_id,
+            _flag("CHAT_CROSS_SESSION_MEMORY_ENABLED", "true") and _flag("CHAT_HISTORY_ENABLED", "true"),
+        )
+        if context.clarification:
+            return ChatMessageResponse(answer=context.clarification, answer_type="GENERATED_AI", citations=[])
         faqs = list((await session.execute(
             select(Faq)
             .where(Faq.chat_enabled.is_(True))
             .options(selectinload(Faq.similar_questions))
         )).scalars().unique().all())
-        faq_answer = service.answer_from_faq(payload.question, faqs)
+        faq_answer = service.answer_from_faq(context.question, faqs)
         if faq_answer is not None:
+            faq_answer.context_reference = context.reference
             return faq_answer
-        result = await service.answer(payload.question, payload.bedrock_session_id)
+        # Context is reconstructed from owned DB history, for FAQ and AI turns alike.
+        # A fresh Bedrock session prevents stale/deleted/unowned session context.
+        result = await service.answer(context.question)
+        result.context_reference = context.reference
         result.citations = await resolve_chat_citations(session, result.citations)
         return result
+    except ContextSessionNotFound:
+        raise HTTPException(status_code=404, detail="チャット履歴が見つかりません。") from None
     except ChatConfigurationError:
         raise HTTPException(status_code=503, detail="チャット機能の設定が完了していません。") from None
     except ChatGenerationError as error:

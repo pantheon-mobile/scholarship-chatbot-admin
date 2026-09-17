@@ -34,6 +34,7 @@
   "chatFrameColor": "#171a1d",
   "chatBotIconUrl": "",
   "chatHistoryEnabled": true,
+  "chatCrossSessionMemoryEnabled": true,
   "chatMaintenanceEnabled": false,
   "chatMaintenanceMessage": "現在メンテナンス中です。時間をおいて再度お試しください。",
   "chatGoodFeedbackMessage": "ご評価ありがとうございます。よろしければ理由をお聞かせください。",
