@@ -7,6 +7,7 @@
   "hostedZoneId": "",
   "hostedZoneName": "",
   "enableDevelopmentCpfMock": true,
+  "developmentCpfPasswordRequired": true,
   "corsAllowedOrigins": "https://scholarship-chatbot-dev.pantheon-mobile.com",
   "cpfDevelopmentJwtTtlSeconds": 300,
   "cpfJwtIssuer": "cpf",

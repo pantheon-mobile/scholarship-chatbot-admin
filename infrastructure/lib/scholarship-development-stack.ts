@@ -28,6 +28,7 @@ export interface ScholarshipEnvironmentConfig {
   readonly hostedZoneId?: string;
   readonly hostedZoneName?: string;
   readonly enableDevelopmentCpfMock?: boolean;
+  readonly developmentCpfPasswordRequired?: boolean;
   readonly nightlyIngestionHourJst?: number;
   readonly nightlyIngestionMinuteJst?: number;
   readonly deletionProtection?: boolean;
@@ -308,6 +309,10 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       removalPolicy: disposableEnvironment ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.SNAPSHOT,
     });
     const analyticsSecret = new secretsmanager.Secret(this, "AnalyticsSecret", { secretName: `${prefix}/analytics-identity-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
+    const cpfLoginPassword = config.developmentCpfPasswordRequired ? new secretsmanager.Secret(this, "CpfLoginPassword", {
+      secretName: `${prefix}/cpf-login-password`,
+      generateSecretString: { passwordLength: 32, excludePunctuation: true },
+    }) : undefined;
     const cpfDevelopmentSecret = new secretsmanager.Secret(this, "CpfDevelopmentSecret", { secretName: `${prefix}/cpf-development-jwt-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
     const cpfPublicKeysSecret = new secretsmanager.Secret(this, "CpfPublicKeysSecret", {
       secretName: `${prefix}/cpf-public-keys-by-kid`,
@@ -368,6 +373,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"],
       environment: {
         APP_ENV: config.environmentName,
+        CPF_DEVELOPMENT_PASSWORD_REQUIRED: String(config.developmentCpfPasswordRequired ?? false),
         ENABLE_DEVELOPMENT_CPF_MOCK: String(config.enableDevelopmentCpfMock ?? false),
         ENABLE_DESTRUCTIVE_PURGE: String(["development", "validation", "stg01-demo"].includes(config.environmentName)),
         AUTH_COOKIE_SECURE: String(hasTls),
@@ -417,6 +423,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       secrets: {
         DB_PASSWORD: ecs.Secret.fromSecretsManager(database.secret!, "password"),
         ANALYTICS_IDENTITY_SECRET: ecs.Secret.fromSecretsManager(analyticsSecret),
+        ...(cpfLoginPassword ? { CPF_DEVELOPMENT_PASSWORD: ecs.Secret.fromSecretsManager(cpfLoginPassword) } : {}),
         CPF_DEVELOPMENT_JWT_SECRET: ecs.Secret.fromSecretsManager(cpfDevelopmentSecret),
         CPF_PUBLIC_KEYS_BY_KID: ecs.Secret.fromSecretsManager(cpfPublicKeysSecret),
       },
@@ -544,6 +551,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     });
 
     const applicationHost = config.domainName || loadBalancer.loadBalancerDnsName;
+    if (cpfLoginPassword) new cdk.CfnOutput(this, "CpfLoginPasswordSecretName", { value: cpfLoginPassword.secretName });
     new cdk.CfnOutput(this, "ApplicationUrl", { value: `${hasTls ? "https" : "http"}://${applicationHost}` });
     new cdk.CfnOutput(this, "LoadBalancerDnsName", {
       value: loadBalancer.loadBalancerDnsName,

@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class CpfTokenExchangeRequest(BaseModel):
@@ -13,6 +13,7 @@ class DevelopmentCpfTokenRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=500)
     display_name: str = Field(min_length=1, max_length=500)
     role: Literal["admin", "staff"]
+    password: Annotated[str, StringConstraints(strip_whitespace=False, max_length=1024)] = ""
 
 
 class DevelopmentCpfTokenResponse(BaseModel):

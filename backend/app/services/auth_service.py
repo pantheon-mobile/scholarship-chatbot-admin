@@ -37,6 +37,10 @@ def development_mock_enabled() -> bool:
     return os.getenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false").lower() == "true"
 
 
+def development_password_required() -> bool:
+    return os.getenv("CPF_DEVELOPMENT_PASSWORD_REQUIRED", "false").lower() == "true"
+
+
 def development_jwt_secret() -> str:
     secret = os.getenv("CPF_DEVELOPMENT_JWT_SECRET", "")
     if len(secret) < 32:
@@ -44,9 +48,15 @@ def development_jwt_secret() -> str:
     return secret
 
 
-def issue_development_cpf_token(*, subject: str, display_name: str, role: str) -> str:
+def issue_development_cpf_token(*, subject: str, display_name: str, role: str, password: str = "") -> str:
     if not development_mock_enabled():
         raise AuthConfigurationError("development CPF mock is disabled")
+    if development_password_required():
+        expected = os.getenv("CPF_DEVELOPMENT_PASSWORD", "")
+        if not expected:
+            raise AuthConfigurationError("development password is not configured")
+        if not secrets.compare_digest(password.encode("utf-8"), expected.encode("utf-8")):
+            raise CpfAuthenticationError("invalid development password")
     now = int(time.time())
     ttl = max(1, min(int(os.getenv("CPF_DEVELOPMENT_JWT_TTL_SECONDS", "300")), 300))
     return jwt.encode(

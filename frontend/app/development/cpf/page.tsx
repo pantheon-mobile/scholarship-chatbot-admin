@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginWithDevelopmentCpf } from "@/lib/authApi";
+import { fetchDevelopmentCpfConfig, loginWithDevelopmentCpf } from "@/lib/authApi";
 import styles from "./page.module.css";
 
 type Role = "admin" | "staff";
@@ -12,12 +12,15 @@ export default function DevelopmentCpfPage() {
   const [role, setRole] = useState<Role>("admin");
   const [displayName, setDisplayName] = useState("");
   const [subject, setSubject] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordRequired, setPasswordRequired] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => { void fetchDevelopmentCpfConfig().then((config) => setPasswordRequired(config.password_required)).catch((reason) => setError(reason.message)); }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!displayName.trim() || !subject.trim() || busy) return;
+    if (!displayName.trim() || !subject.trim() || busy || passwordRequired === null || (passwordRequired && !password)) return;
     setBusy(true);
     setError("");
     try {
@@ -25,6 +28,7 @@ export default function DevelopmentCpfPage() {
         role,
         display_name: displayName.trim(),
         subject: subject.trim(),
+        ...(passwordRequired ? { password } : {}),
       });
       router.replace("/");
     } catch (reason) {
@@ -54,8 +58,9 @@ export default function DevelopmentCpfPage() {
             <span>利用者ID</span>
             <input value={subject} maxLength={500} autoComplete="username" placeholder="例：staff-001" onChange={(event) => setSubject(event.target.value)} />
           </label>
+          {passwordRequired && <label className={styles.field}><span>共通パスワード</span><input type="password" autoComplete="current-password" maxLength={1024} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
           {error && <p className={styles.error} role="alert">{error}</p>}
-          <button type="submit" className={styles.submit} disabled={busy || !displayName.trim() || !subject.trim()}>
+          <button type="submit" className={styles.submit} disabled={busy || !displayName.trim() || !subject.trim() || passwordRequired === null || (passwordRequired && !password)}>
             {busy ? "ログイン中..." : "チャットボット管理画面へ遷移"}
           </button>
         </form>

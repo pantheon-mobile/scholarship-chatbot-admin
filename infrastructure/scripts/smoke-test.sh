@@ -5,7 +5,8 @@ STACK_NAME="${1:?Usage: smoke-test.sh STACK_NAME [REPORT_FILE]}"
 REPORT_FILE="${2:-smoke-test-report.md}"
 REGION="${AWS_REGION:-ap-northeast-1}"
 COOKIE_JAR="$(mktemp)"
-trap 'rm -f "$COOKIE_JAR"' EXIT
+LOGIN_PAYLOAD="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR" "$LOGIN_PAYLOAD"' EXIT
 
 output() {
   aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK_NAME" \
@@ -35,9 +36,17 @@ check "Frontend ECS service stable" aws ecs wait services-stable --region "$REGI
 check "Backend ECS service stable" aws ecs wait services-stable --region "$REGION" --cluster "$CLUSTER_NAME" --services "$BACKEND_SERVICE" || overall=1
 check "Integrated Knowledge Base available" test "$(aws bedrock-agent get-knowledge-base --region "$REGION" --knowledge-base-id "$KB_ID" --query 'knowledgeBase.status' --output text)" = "ACTIVE" || overall=1
 
+LOGIN_PASSWORD_SECRET="$(output CpfLoginPasswordSecretName)"
+if [[ -n "$LOGIN_PASSWORD_SECRET" && "$LOGIN_PASSWORD_SECRET" != "None" ]]; then
+  aws secretsmanager get-secret-value --region "$REGION" --secret-id "$LOGIN_PASSWORD_SECRET" --query SecretString --output text | \
+    python3 -c 'import json,sys; print(json.dumps({"subject":"rehearsal-admin","display_name":"再現テスト管理者","role":"admin","password":sys.stdin.read().rstrip("\n")}))' > "$LOGIN_PAYLOAD"
+else
+  printf '%s' '{"subject":"rehearsal-admin","display_name":"再現テスト管理者","role":"admin"}' > "$LOGIN_PAYLOAD"
+fi
+
 TOKEN="$(curl --fail --silent --show-error -X POST "$APPLICATION_URL/api/v1/auth/development/token" \
   -H 'Content-Type: application/json' \
-  -d '{"subject":"rehearsal-admin","display_name":"再現テスト管理者","role":"admin"}' | \
+  --data-binary @"$LOGIN_PAYLOAD" | \
   python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')" || overall=1
 if [[ -n "${TOKEN:-}" ]]; then
   check "Development CPF login" curl --fail --silent --show-error -c "$COOKIE_JAR" -X POST \

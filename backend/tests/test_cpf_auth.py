@@ -195,3 +195,48 @@ def test_development_cpf_is_disabled_unless_explicitly_enabled(monkeypatch):
 
     with pytest.raises(AuthConfigurationError):
         issue_development_cpf_token(subject="admin-001", display_name="管理者", role="admin")
+
+
+@pytest.mark.parametrize("password", ["", "wrong", " shared-password ", "shared-password"])
+def test_development_password_is_required_when_enabled(monkeypatch, password):
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD_REQUIRED", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD", "shared-password")
+    monkeypatch.setenv("CPF_DEVELOPMENT_JWT_SECRET", "test-development-secret-at-least-32-characters")
+    if password == "shared-password":
+        assert issue_development_cpf_token(subject="tester", display_name="検証者", role="admin", password=password)
+    else:
+        with pytest.raises(CpfAuthenticationError):
+            issue_development_cpf_token(subject="tester", display_name="検証者", role="admin", password=password)
+
+
+def test_development_required_password_missing_fails_closed(monkeypatch):
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD_REQUIRED", "true")
+    monkeypatch.delenv("CPF_DEVELOPMENT_PASSWORD", raising=False)
+    with pytest.raises(AuthConfigurationError):
+        issue_development_cpf_token(subject="tester", display_name="検証者", role="admin")
+
+
+@pytest.mark.anyio
+async def test_development_token_api_enforces_password_and_disabled_mode(monkeypatch):
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD_REQUIRED", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD", " shared-password ")
+    monkeypatch.setenv("CPF_DEVELOPMENT_JWT_SECRET", "test-development-secret-at-least-32-characters")
+    payload = {"subject": "tester", "display_name": "検証者", "role": "admin"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
+        config = await client.get("/api/v1/auth/development/config")
+        assert config.json() == {"password_required": True}
+        for password in (None, "wrong", "shared-password"):
+            response = await client.post("/api/v1/auth/development/token", json={**payload, **({"password": password} if password is not None else {})})
+            assert response.status_code == 401
+            assert "token" not in response.json()
+        response = await client.post("/api/v1/auth/development/token", json={**payload, "password": " shared-password "})
+        assert response.status_code == 200
+        assert "password" not in jwt.decode(response.json()["token"], options={"verify_signature": False})
+        monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false")
+        assert (await client.get("/api/v1/auth/development/config")).status_code == 404
+        assert (await client.post("/api/v1/auth/development/token", json={**payload, "password": " shared-password "})).status_code == 404

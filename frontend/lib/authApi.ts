@@ -77,3 +77,9 @@ export async function logout(): Promise<void> {
     credentials: "include",
   });
 }
+
+export async function fetchDevelopmentCpfConfig(): Promise<{ password_required: boolean }> {
+  const response = await fetch(`${apiBase}/api/v1/auth/development/config`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await parseError(response));
+  return response.json();
+}

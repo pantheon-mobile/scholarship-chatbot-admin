@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
 };
 
 export type DevelopmentCpfLogin = {
+  password?: string;
   subject: string;
   display_name: string;
   role: "admin" | "staff";

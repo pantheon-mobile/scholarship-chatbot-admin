@@ -19,6 +19,8 @@ from app.services.auth_service import (
     CpfAuthenticationError,
     SessionNotFoundError,
     issue_development_cpf_token,
+    development_mock_enabled,
+    development_password_required,
 )
 
 
@@ -107,6 +109,13 @@ async def exchange_cpf_token(
     return user
 
 
+@router.get("/development/config")
+async def development_login_config():
+    if not development_mock_enabled():
+        raise HTTPException(status_code=404, detail="開発用CPFは利用できません。")
+    return {"password_required": development_password_required()}
+
+
 @router.post("/development/token", response_model=DevelopmentCpfTokenResponse)
 async def create_development_cpf_token(payload: DevelopmentCpfTokenRequest):
     try:
@@ -114,9 +123,12 @@ async def create_development_cpf_token(payload: DevelopmentCpfTokenRequest):
             subject=payload.subject,
             display_name=payload.display_name,
             role=payload.role,
+            password=payload.password,
         )
     except AuthConfigurationError:
         raise HTTPException(status_code=404, detail="開発用CPFは利用できません。") from None
+    except CpfAuthenticationError:
+        raise HTTPException(status_code=401, detail="パスワードが正しくありません。") from None
     return DevelopmentCpfTokenResponse(token=token)
 
 
