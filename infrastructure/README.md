@@ -162,3 +162,22 @@ GitHubのRepository Secretへ次を設定します。
 - `AWS_CUSTOMER_VALIDATION_ROLE_ARN`: `arn:aws:iam::796575284584:role/scholarship-chatbot-github-actions-deploy-role`
 
 OIDCセッションは客先IAMロールの最大値に合わせて7,200秒とします。GitHub Environmentは使用しないため、OIDCの`sub`は`repo:technical-innovation/bpaas-aichatbot:ref:refs/heads/main`のままです。
+
+## 客先検証データの基準状態保存・復元
+
+FAQ・データソース・履歴・ユーザー情報を含む全DBと、専用S3バケットの現行データを同時点で保存する運用ツールを用意しています。
+
+[保存・復元の手順書](../docs/validation-baseline-backup-restore.md)に従って、`scripts/save-validation-baseline.sh` / `scripts/restore-validation-baseline.sh` を使用してください。アカウント・スタックを客先検証環境に限定し、停止状態確認、チェックサム検証、復元直前の退避を必須にしています。スクリプトの追加だけではAWS上のバックアップは取得されません。
+
+テスト（AWSアクセスなし）：
+
+```bash
+../.venv/bin/python -m pytest tests -q
+```
+
+ローカルPostgreSQLでの往復試験（専用の一時DBのみ作成・削除）：
+
+```bash
+BASELINE_TEST_POSTGRES_CONTAINER=scholarship-chatbot-admin-db-1 \
+  ../.venv/bin/python -m pytest tests -q
+```
