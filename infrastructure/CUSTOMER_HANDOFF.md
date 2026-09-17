@@ -66,7 +66,7 @@ cd infrastructure
 
 4. スクリプトがSecret更新、Backend ECS再起動、安定稼働待機まで実行します。
 5. CPF接続準備が完了するまでは疑似ログインを有効のまま使用します。
-6. CPFから`https://ai-chatbot-stg01-demo.gakupita.com/sso/cpf#token=<JWT>`へ遷移し、ダッシュボードが表示されることを確認します。
+6. CPFから`https://ai-chatbot-stg01-demo.gakupita.com/sso/cpf#token=<JWT>`へ遷移し、チャットサイトが表示されることを確認します。
 7. 期限切れ、署名不正、同一`jti`再利用が拒否されることを確認します。
 
 ## 6. 受入確認

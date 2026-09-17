@@ -13,8 +13,6 @@ type HeaderProps = {
   variant?: "default" | "sidebar-menu";
   onChatSite?: () => void;
   onLogout?: () => void;
-  onBulkPurge?: () => void;
-  showBulkPurge?: boolean;
 };
 
 export function Header({
@@ -25,8 +23,6 @@ export function Header({
   variant = "default",
   onChatSite,
   onLogout,
-  onBulkPurge,
-  showBulkPurge = false,
 }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -42,7 +38,6 @@ export function Header({
           <button type="button" className={styles.userMenuButton} aria-haspopup="menu" aria-expanded={userMenuOpen} onClick={() => setUserMenuOpen((current) => !current)}>{userName} ▾</button>
           {userMenuOpen && <div className={styles.headerUserMenu} role="menu">
             <span>ID：{userId || "-"}</span>
-            {showBulkPurge && <button type="button" className={styles.userMenuDanger} role="menuitem" onClick={onBulkPurge}>一括消去</button>}
             <button type="button" role="menuitem" onClick={() => setUserMenuOpen(false)}>閉じる</button>
             <button type="button" role="menuitem" onClick={onLogout}>ログアウト</button>
           </div>}

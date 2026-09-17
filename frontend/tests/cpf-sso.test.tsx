@@ -24,6 +24,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CPF SSO受信", () => {
+  it("CPF認証成功後はチャットサイトを表示する", async () => {
+    exchangeCpfToken.mockResolvedValue({});
+    render(<CpfSsoPage />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/chat"));
+    expect(exchangeCpfToken).toHaveBeenCalledWith("signed-jwt");
+    expect(window.location.hash).toBe("");
+  });
+
   it("認証失敗時にBackendが指定したCPF戻り先を表示する", async () => {
     exchangeCpfToken.mockRejectedValue(
       new CpfExchangeError("CPFからもう一度アクセスしてください。", "https://cpf-stg.example/faculty/"),

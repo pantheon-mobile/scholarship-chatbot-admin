@@ -26,7 +26,7 @@ export default function CpfSsoPage() {
     }
 
     exchangeCpfToken(token)
-      .then(() => router.replace("/"))
+      .then(() => router.replace("/chat"))
       .catch((reason: unknown) => {
         setError(
           reason instanceof Error

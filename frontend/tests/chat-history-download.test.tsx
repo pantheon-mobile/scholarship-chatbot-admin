@@ -9,10 +9,6 @@ const chatApi = vi.hoisted(() => ({
   fetchChatConfig: vi.fn(),
   recordAdminAccess: vi.fn(),
 }));
-const maintenanceApi = vi.hoisted(() => ({
-  fetchMaintenanceCapabilities: vi.fn(),
-  purgeAllData: vi.fn(),
-}));
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -21,7 +17,6 @@ vi.mock("../components/auth/AuthProvider", () => ({
 }));
 vi.mock("../lib/reportingApi", () => reporting);
 vi.mock("../lib/chatApi", () => chatApi);
-vi.mock("../lib/maintenanceApi", () => maintenanceApi);
 
 import ChatHistoryPage from "../app/chat-history/page";
 
@@ -32,8 +27,6 @@ beforeEach(() => {
     header_icon_url: null,
   });
   chatApi.recordAdminAccess.mockReset().mockResolvedValue(undefined);
-  maintenanceApi.fetchMaintenanceCapabilities.mockReset().mockResolvedValue({ bulk_purge_enabled: false });
-  maintenanceApi.purgeAllData.mockReset().mockResolvedValue(undefined);
   router.push.mockReset();
 });
 
@@ -58,8 +51,8 @@ describe("CB-216 チャット履歴ダウンロード", () => {
     auth.user.role = "admin";
     render(<ChatHistoryPage />);
 
+    await waitFor(() => expect(chatApi.fetchChatConfig).toHaveBeenCalled());
     expect(screen.getByText("権限：")).toBeTruthy();
     expect(screen.getByText("ログインID：")).toBeTruthy();
-    await waitFor(() => expect(maintenanceApi.fetchMaintenanceCapabilities).toHaveBeenCalled());
   });
 });
