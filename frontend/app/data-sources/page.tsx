@@ -11,7 +11,7 @@ import { CategorySelectField } from "@/components/categories/CategorySelectField
 import { fetchCategories } from "@/lib/categoriesApi";
 import { fetchDataSourceTypes } from "@/lib/api";
 import {
-  bulkDeleteDataSources, deleteDataSource, exportDataSources, fetchDataSources,
+  bulkDeleteDataSources, deleteDataSource, downloadDataSourceFile, exportDataSources, fetchDataSources,
   importDataSources, recrawlWebsite, runIngestionNow, updateAnswerSource, updateReferenceLink,
 } from "@/lib/dataSourcesApi";
 import { ClassificationType } from "@/types/dataSourceTypes";
@@ -162,6 +162,23 @@ export default function DataSourcesPage() {
     }
   };
 
+  const downloadFile = async (row: DataSource) => {
+    setError(null);
+    try {
+      const blob = await downloadDataSourceFile(row.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = row.file?.file_name ?? row.title;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ファイルのダウンロードに失敗しました。");
+    }
+  };
+
   const download = async () => {
     setBusy(true);
     try {
@@ -287,7 +304,7 @@ export default function DataSourcesPage() {
                 <TableCell className={styles.answerColumn}><ToggleSwitch checked={row.answer_source_enabled} checkedLabel="有効" uncheckedLabel="無効" onChange={(value) => updateToggle(row, "answer", value)} /><div className={styles.priority}>優先度: {priorityLabels[row.priority]}</div></TableCell>
                 <TableCell className={styles.referenceColumn}><ToggleSwitch checked={row.reference_link_visible} checkedLabel="表示" uncheckedLabel="非表示" onChange={(value) => updateToggle(row, "reference", value)} /></TableCell>
                 <TableCell className={styles.dateColumn}>{new Date(row.updated_at).toLocaleString("ja-JP", { year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit" })}</TableCell>
-                <TableCell className={styles.actionsColumn}><div className={styles.rowActions}>{row.source_type === "WEB" ? <Button className={styles.iconAction} variant="text" aria-label={recrawlingId === row.id ? "再クロール予約中" : "再クロール"} title={recrawlingId === row.id ? "予約中" : "再クロール"} icon={<AdminIcon name="refresh" size={17} />} disabled={recrawlingId === row.id || row.status === "TRAINING"} onClick={() => recrawl(row)} /> : <Button className={`${styles.iconAction} ${styles.disabledAction}`} variant="text" aria-label="取得" title="実ファイルダウンロードは未実装です" icon={<AdminIcon name="download" size={17} />} disabled />}<Button className={styles.rowAction} variant="text" onClick={() => router.push(`/data-sources/${row.id}/${row.source_type === "FILE" ? "file" : "website"}/edit`)}>編集</Button><Button className={styles.rowAction} variant="text" focusTone="danger" onClick={() => setDeleteRows([row])}>削除</Button></div></TableCell>
+                <TableCell className={styles.actionsColumn}><div className={styles.rowActions}>{row.source_type === "WEB" ? <Button className={styles.iconAction} variant="text" aria-label={recrawlingId === row.id ? "再クロール予約中" : "再クロール"} title={recrawlingId === row.id ? "予約中" : "再クロール"} icon={<AdminIcon name="refresh" size={17} />} disabled={recrawlingId === row.id || row.status === "TRAINING"} onClick={() => recrawl(row)} /> : <Button className={styles.iconAction} variant="text" aria-label="取得" title="ファイルをダウンロード" icon={<AdminIcon name="download" size={17} />} onClick={() => void downloadFile(row)} />}<Button className={styles.rowAction} variant="text" onClick={() => router.push(`/data-sources/${row.id}/${row.source_type === "FILE" ? "file" : "website"}/edit`)}>編集</Button><Button className={styles.rowAction} variant="text" focusTone="danger" onClick={() => setDeleteRows([row])}>削除</Button></div></TableCell>
               </TableRow>;
             })}</tbody>
           </Table></TableFrame>

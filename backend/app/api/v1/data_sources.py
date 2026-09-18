@@ -1,3 +1,8 @@
+import asyncio
+from urllib.parse import quote
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.models.data_source import DataSource
 import logging
 from datetime import datetime
 from io import BytesIO
@@ -362,3 +367,33 @@ async def bulk_delete_data_sources(payload: BulkDeleteRequest, service: DataSour
         raise HTTPException(status_code=409, detail="削除前の情報と異なります。再度画面を更新してください。") from None
     except DataSourceCleanupError:
         raise HTTPException(status_code=502, detail={"code": "DATA_SOURCE_CLEANUP_FAILED", "message": "S3またはKnowledge Baseからの削除に失敗しました。データソースは削除されていません。"}) from None
+
+
+@router.get("/data-sources/{data_source_id}/download")
+async def download_data_source_file(
+    data_source_id: int,
+    session: AsyncSession = Depends(get_db),
+    storage: StorageAdapter = Depends(get_storage),
+):
+    # This router requires system-admin authorization in app.main.
+    row = (await session.execute(
+        select(DataSource).where(DataSource.id == data_source_id)
+        .options(selectinload(DataSource.file))
+    )).scalar_one_or_none()
+    if row is None or row.source_type != "FILE" or row.file is None or not row.file.storage_key:
+        raise HTTPException(status_code=404, detail="元ファイルが見つかりません。")
+    try:
+        exists = await asyncio.to_thread(storage.exists, row.file.storage_key)
+    except (ValueError, FileNotFoundError):
+        exists = False
+    if not exists:
+        raise HTTPException(status_code=404, detail="元ファイルが見つかりません。")
+    return StreamingResponse(
+        storage.iter_read(row.file.storage_key),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": "attachment; filename*=UTF-8''" + quote(row.file.file_name, safe=""),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

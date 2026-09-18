@@ -7,7 +7,7 @@ const push = vi.fn();
 const api = vi.hoisted(() => ({
   fetchDataSources: vi.fn(), updateAnswerSource: vi.fn(), updateReferenceLink: vi.fn(),
   deleteDataSource: vi.fn(), bulkDeleteDataSources: vi.fn(), exportDataSources: vi.fn(),
-  importDataSources: vi.fn(),
+  importDataSources: vi.fn(), downloadDataSourceFile: vi.fn(),
   recrawlWebsite: vi.fn(),
   runIngestionNow: vi.fn(),
   fetchDataSourceTypes: vi.fn(),
@@ -228,4 +228,19 @@ describe("CB-202 data sources", () => {
     await waitFor(() => expect(api.recrawlWebsite).toHaveBeenCalledWith(2));
     expect(await screen.findByText(/再クロールを予約しました/)).not.toBeNull();
   });
+});
+
+it("downloads the original file from the row action", async () => {
+  api.downloadDataSourceFile.mockResolvedValue(new Blob(["original"]));
+  render(<DataSourcesPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "取得" }));
+  await waitFor(() => expect(api.downloadDataSourceFile).toHaveBeenCalledWith(1));
+  await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled());
+});
+
+it("shows the original file download error", async () => {
+  api.downloadDataSourceFile.mockRejectedValue(new Error("元ファイルが見つかりません。"));
+  render(<DataSourcesPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "取得" }));
+  expect(await screen.findByText("元ファイルが見つかりません。")).toBeTruthy();
 });

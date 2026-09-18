@@ -154,3 +154,34 @@ def test_public_citations_remain_compatible_with_history_completion_schema():
         "citations": public_citations,
     })
     assert payload.citations[0]["uri"] == "/api/v1/chat/sources/7/download"
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status", ["AVAILABLE", "PREPARING", "TRAINING", "ERROR"])
+async def test_admin_original_download_independent_of_chat_flags(download_setup, status):
+    app.dependency_overrides[get_db] = lambda: db_for(source(
+        status=status, reference_link_visible=False, answer_source_enabled=False))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/data-sources/7/download")
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.7 original bytes"
+    assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''" + quote("返還案内.pdf", safe="")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("role,expected", [("staff", 403), (None, 401)])
+async def test_admin_original_download_requires_admin(download_setup, role, expected):
+    if role:
+        app.dependency_overrides[require_authenticated_session] = lambda: SimpleNamespace(role=role, subject="staff", site="faculty")
+    else:
+        app.dependency_overrides.pop(require_authenticated_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/data-sources/7/download")
+    assert response.status_code == expected
+
+
+@pytest.mark.anyio
+async def test_admin_original_missing_returns_404(download_setup, tmp_path):
+    (tmp_path / "original.pdf").unlink()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/data-sources/7/download")
+    assert response.status_code == 404

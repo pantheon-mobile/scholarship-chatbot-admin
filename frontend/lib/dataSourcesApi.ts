@@ -161,3 +161,9 @@ export async function downloadWebsiteImportTemplate(): Promise<Blob> {
   if (!response.ok) return parseError(response, "URLリストフォーマットのダウンロードに失敗しました。");
   return response.blob();
 }
+
+export async function downloadDataSourceFile(id: number): Promise<Blob> {
+  const response = await authenticatedFetch(`${apiBase}/api/v1/data-sources/${id}/download`, { cache: "no-store" });
+  if (!response.ok) return parseError(response, "ファイルのダウンロードに失敗しました。");
+  return response.blob();
+}
