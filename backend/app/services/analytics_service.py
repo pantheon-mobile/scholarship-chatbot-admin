@@ -115,9 +115,9 @@ class AnalyticsService:
                 return existing
             raise AnalyticsError("IDEMPOTENCY_CONFLICT", "チャットセッション記録が競合しました。") from error
 
-    async def start_interaction(self, session_id, payload: InteractionCreateRequest) -> ChatInteraction:
+    async def start_interaction(self, session_id, payload: InteractionCreateRequest, *, visitor_key: str) -> ChatInteraction:
         now = datetime.now(timezone.utc)
-        session = await self.repository.get_chat_session(session_id)
+        session = await self.repository.get_owned_chat_session(session_id, visitor_key)
         if session is None:
             raise AnalyticsError("CHAT_SESSION_NOT_FOUND", "指定されたチャットセッションが見つかりません。")
         if payload.question_submitted_at < session.started_at:
@@ -153,9 +153,9 @@ class AnalyticsService:
                 return existing
             raise AnalyticsError("INTERACTION_SEQUENCE_CONFLICT", "同じチャット内の質問順序が重複しています。") from error
 
-    async def complete_interaction(self, interaction_id, payload: InteractionCompletionRequest) -> ChatInteraction:
+    async def complete_interaction(self, interaction_id, payload: InteractionCompletionRequest, *, visitor_key: str) -> ChatInteraction:
         try:
-            row = await self.repository.get_interaction(interaction_id, for_update=True)
+            row = await self.repository.get_owned_interaction(interaction_id, visitor_key, for_update=True)
             if row is None:
                 raise AnalyticsError("INTERACTION_NOT_FOUND", "指定された応答が見つかりません。")
             if row.processing_status != "PROCESSING":
@@ -187,9 +187,9 @@ class AnalyticsService:
             await self.repository.rollback()
             raise
 
-    async def upsert_feedback(self, interaction_id, payload: FeedbackUpsertRequest) -> ChatFeedback:
+    async def upsert_feedback(self, interaction_id, payload: FeedbackUpsertRequest, *, visitor_key: str) -> ChatFeedback:
         try:
-            interaction = await self.repository.get_interaction(interaction_id, for_update=True)
+            interaction = await self.repository.get_owned_interaction(interaction_id, visitor_key, for_update=True)
             if interaction is None:
                 raise AnalyticsError("INTERACTION_NOT_FOUND", "指定された応答が見つかりません。")
             if interaction.processing_status != "COMPLETED" or interaction.answer_type not in ("FAQ", "GENERATED_AI"):

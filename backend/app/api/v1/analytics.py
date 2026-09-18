@@ -47,6 +47,9 @@ async def record_access(
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
+    payload = payload.model_copy(update={"identity": payload.identity.model_copy(update={
+        "identity_kind": "AUTHENTICATED", "identifier": f"{current.site}:{current.subject}",
+    })})
     request.state.audit_surface = payload.surface
     try:
         return await service.record_access(
@@ -65,6 +68,9 @@ async def start_chat_session(
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
+    payload = payload.model_copy(update={"identity": payload.identity.model_copy(update={
+        "identity_kind": "AUTHENTICATED", "identifier": f"{current.site}:{current.subject}",
+    })})
     try:
         return await service.start_chat_session(
             payload, subject=current.subject, display_name=current.display_name,
@@ -78,10 +84,14 @@ async def start_chat_session(
 async def start_interaction(
     session_id: UUID,
     payload: InteractionCreateRequest,
+    current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
     try:
-        return await service.start_interaction(session_id, payload)
+        return await service.start_interaction(
+            session_id, payload,
+            visitor_key=service.visitor_key("AUTHENTICATED", f"{current.site}:{current.subject}"),
+        )
     except AnalyticsError as error:
         raise api_error(error) from None
 
@@ -90,10 +100,14 @@ async def start_interaction(
 async def complete_interaction(
     interaction_id: UUID,
     payload: InteractionCompletionRequest,
+    current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
     try:
-        return await service.complete_interaction(interaction_id, payload)
+        return await service.complete_interaction(
+            interaction_id, payload,
+            visitor_key=service.visitor_key("AUTHENTICATED", f"{current.site}:{current.subject}"),
+        )
     except AnalyticsError as error:
         raise api_error(error) from None
 
@@ -102,9 +116,13 @@ async def complete_interaction(
 async def upsert_feedback(
     interaction_id: UUID,
     payload: FeedbackUpsertRequest,
+    current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
     try:
-        return await service.upsert_feedback(interaction_id, payload)
+        return await service.upsert_feedback(
+            interaction_id, payload,
+            visitor_key=service.visitor_key("AUTHENTICATED", f"{current.site}:{current.subject}"),
+        )
     except AnalyticsError as error:
         raise api_error(error) from None

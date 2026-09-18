@@ -108,19 +108,20 @@ async def test_chat_session_and_interaction_start_follow_session_boundary():
     session_id = uuid4()
     session = SimpleNamespace(id=session_id, visitor_id=visitor.id, started_at=NOW, ended_at=None)
     repo.get_or_create_visitor.return_value = visitor
-    repo.get_chat_session.side_effect = [None, session]
+    repo.get_chat_session.return_value = None
     repo.create_chat_session.return_value = session
     service = AnalyticsService(repo, identity_secret="secret")
     await service.start_chat_session(ChatSessionCreateRequest(id=session_id, identity=identity(), started_at=NOW))
 
     interaction_id = uuid4()
     interaction = SimpleNamespace(id=interaction_id)
-    repo.get_chat_session.return_value = session
+    repo.get_owned_chat_session.return_value = session
     repo.get_interaction.return_value = None
     repo.create_interaction.return_value = interaction
     result = await service.start_interaction(
         session_id,
         InteractionCreateRequest(id=interaction_id, sequence_number=1, question_submitted_at=NOW + timedelta(seconds=1), question_text="質問"),
+        visitor_key="owner",
     )
     assert result is interaction
     repo.create_interaction.assert_awaited_once()
@@ -130,16 +131,16 @@ async def test_chat_session_and_interaction_start_follow_session_boundary():
 async def test_interaction_missing_session_and_duplicate_sequence_errors():
     repo = repository()
     service = AnalyticsService(repo, identity_secret="secret")
-    repo.get_chat_session.return_value = None
+    repo.get_owned_chat_session.return_value = None
     with pytest.raises(AnalyticsError) as missing:
-        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"))
+        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"), visitor_key="owner")
     assert missing.value.code == "CHAT_SESSION_NOT_FOUND"
 
-    repo.get_chat_session.return_value = SimpleNamespace(started_at=NOW)
+    repo.get_owned_chat_session.return_value = SimpleNamespace(started_at=NOW)
     repo.get_interaction.return_value = None
     repo.create_interaction.side_effect = IntegrityError("insert", {}, Exception("unique"))
     with pytest.raises(AnalyticsError) as conflict:
-        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"))
+        await service.start_interaction(uuid4(), InteractionCreateRequest(id=uuid4(), sequence_number=1, question_submitted_at=NOW, question_text="質問"), visitor_key="owner")
     assert conflict.value.code == "INTERACTION_SEQUENCE_CONFLICT"
 
 
@@ -151,13 +152,13 @@ async def test_completion_supports_all_answer_types(answer_type, faq_id):
         processing_status="PROCESSING", answer_type=None, answer_displayed_at=None, faq_id=None,
         question_submitted_at=NOW, updated_at=NOW, answer_text=None, citations=None,
     )
-    repo.get_interaction.return_value = row
+    repo.get_owned_interaction.return_value = row
     repo.faq_exists.return_value = True
     payload = InteractionCompletionRequest(
         processing_status="COMPLETED", answer_type=answer_type,
         answer_displayed_at=NOW + timedelta(seconds=2), faq_id=faq_id, answer_text="回答",
     )
-    result = await AnalyticsService(repo, "secret").complete_interaction(uuid4(), payload)
+    result = await AnalyticsService(repo, "secret").complete_interaction(uuid4(), payload, visitor_key="owner")
     assert result.processing_status == "COMPLETED" and result.answer_type == answer_type
     if answer_type == "FAQ":
         repo.faq_exists.assert_awaited_once_with(1)
@@ -170,11 +171,11 @@ async def test_failed_completion_has_no_answer_and_is_idempotent():
         processing_status="PROCESSING", answer_type=None, answer_displayed_at=None, faq_id=None,
         question_submitted_at=NOW, updated_at=NOW, answer_text=None, citations=None,
     )
-    repo.get_interaction.return_value = row
+    repo.get_owned_interaction.return_value = row
     service = AnalyticsService(repo, "secret")
     payload = InteractionCompletionRequest(processing_status="FAILED")
-    await service.complete_interaction(uuid4(), payload)
-    await service.complete_interaction(uuid4(), payload)
+    await service.complete_interaction(uuid4(), payload, visitor_key="owner")
+    await service.complete_interaction(uuid4(), payload, visitor_key="owner")
     assert row.processing_status == "FAILED" and row.answer_type is None and row.answer_displayed_at is None
 
 
@@ -184,17 +185,17 @@ async def test_feedback_upsert_allows_good_to_bad_and_rejects_no_answer():
     interaction_id = uuid4()
     interaction = SimpleNamespace(processing_status="COMPLETED", answer_type="FAQ")
     feedback = SimpleNamespace(interaction_id=interaction_id, rating="GOOD", comment=None, updated_at=NOW)
-    repo.get_interaction.return_value = interaction
+    repo.get_owned_interaction.return_value = interaction
     repo.get_feedback.side_effect = [None, feedback]
     repo.create_feedback.return_value = feedback
     service = AnalyticsService(repo, "secret")
-    await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="GOOD", comment="良い"))
-    updated = await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD", comment="改善希望"))
+    await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="GOOD", comment="良い"), visitor_key="owner")
+    updated = await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD", comment="改善希望"), visitor_key="owner")
     assert updated.rating == "BAD" and updated.comment == "改善希望"
 
     interaction.answer_type = "NO_ANSWER"
     with pytest.raises(AnalyticsError) as error:
-        await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD"))
+        await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD"), visitor_key="owner")
     assert error.value.code == "FEEDBACK_NOT_ALLOWED"
 
 

@@ -53,6 +53,24 @@ class AnalyticsRepository:
     async def get_chat_session(self, session_id: UUID) -> ChatSession | None:
         return await self.session.get(ChatSession, session_id)
 
+    async def get_owned_chat_session(self, session_id: UUID, visitor_key: str) -> ChatSession | None:
+        statement = select(ChatSession).join(
+            AnalyticsVisitor, ChatSession.visitor_id == AnalyticsVisitor.id,
+        ).where(ChatSession.id == session_id, AnalyticsVisitor.visitor_key == visitor_key)
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
+    async def get_owned_interaction(
+        self, interaction_id: UUID, visitor_key: str, *, for_update: bool = False,
+    ) -> ChatInteraction | None:
+        statement = select(ChatInteraction).join(
+            ChatSession, ChatInteraction.chat_session_id == ChatSession.id,
+        ).join(
+            AnalyticsVisitor, ChatSession.visitor_id == AnalyticsVisitor.id,
+        ).where(ChatInteraction.id == interaction_id, AnalyticsVisitor.visitor_key == visitor_key)
+        if for_update:
+            statement = statement.with_for_update(of=ChatInteraction)
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
     async def create_chat_session(
         self, session_id: UUID, visitor_id: UUID, started_at: datetime, ended_at: datetime | None, recorded_at: datetime,
     ) -> ChatSession:
