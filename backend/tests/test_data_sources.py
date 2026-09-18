@@ -222,6 +222,7 @@ async def test_toggle_version_conflict():
 async def test_single_delete_uses_version():
     repository = AsyncMock()
     repository.get.return_value = make_row()
+    repository.get_for_deletion.return_value = [make_row()]
     repository.delete_one.return_value = True
     await DataSourceService(repository).delete(1, 1)
     repository.delete_one.assert_awaited_once_with(1, 1)
@@ -230,6 +231,9 @@ async def test_single_delete_uses_version():
 @pytest.mark.anyio
 async def test_bulk_delete_passes_all_targets_as_one_repository_operation():
     repository = AsyncMock()
+    second = make_row(version=3)
+    second.id = 2
+    repository.get_for_deletion.return_value = [make_row(), second]
     repository.bulk_delete.return_value = 2
     payload = BulkDeleteRequest(items=[DeleteTarget(id=1, version=1), DeleteTarget(id=2, version=3)])
     assert await DataSourceService(repository).bulk_delete(payload) == 2

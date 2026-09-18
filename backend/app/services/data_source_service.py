@@ -386,7 +386,10 @@ class DataSourceService:
         return await self.get(data_source_id)
 
     async def delete(self, data_source_id: int, version: int) -> None:
-        row = await self._get(data_source_id)
+        rows = await self.repository.get_for_deletion([data_source_id])
+        if not rows:
+            raise DataSourceNotFoundError()
+        row = rows[0]
         if row.version != version:
             raise DataSourceVersionConflictError()
         if self.cleanup_processor:
@@ -398,11 +401,13 @@ class DataSourceService:
             raise DataSourceVersionConflictError()
 
     async def bulk_delete(self, payload: BulkDeleteRequest) -> int:
+        rows = await self.repository.get_for_deletion([target.id for target in payload.items])
+        versions = {row.id: row.version for row in rows}
+        if any(target.id not in versions for target in payload.items):
+            raise DataSourceNotFoundError()
+        if any(versions[target.id] != target.version for target in payload.items):
+            raise DataSourceVersionConflictError()
         if self.cleanup_processor:
-            rows = [await self._get(target.id) for target in payload.items]
-            versions = {row.id: row.version for row in rows}
-            if any(versions.get(target.id) != target.version for target in payload.items):
-                raise DataSourceVersionConflictError()
             try:
                 await self.cleanup_processor.cleanup(rows)
             except Exception as exc:

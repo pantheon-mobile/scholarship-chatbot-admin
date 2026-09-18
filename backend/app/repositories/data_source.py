@@ -116,6 +116,22 @@ class DataSourceRepository:
         )
         return list((await self.session.execute(statement)).scalars().unique().all())
 
+    async def get_for_deletion(self, ids: list[int]) -> list[DataSource]:
+        # Hold the shared claim lock until cleanup and DB deletion commit.
+        rows = await self.get_for_update_many(ids)
+        running = set((await self.session.execute(select(IngestionJob.data_source_id).where(
+            IngestionJob.data_source_id.in_(ids), IngestionJob.status == "RUNNING",
+        ))).scalars().all())
+        blocked = [row for row in rows if row.status == "TRAINING" or row.id in running]
+        if blocked:
+            targets = [{"id": row.id, "title": row.title, "status": row.status} for row in blocked]
+            details = "、".join(f"ID:{row.id}「{row.title}」" for row in blocked)
+            raise DataSourceMutationError(
+                f"学習中のデータソースは削除できません：{details}。学習処理の完了後に再操作してください。",
+                code="DATA_SOURCE_DELETE_BLOCKED", targets=targets,
+            )
+        return rows
+
     async def apply_import_updates(self, updates: list[dict]) -> None:
         rows = await lock_sources(self.session, DataSource.id.in_([item["id"] for item in updates]))
         now = datetime.now(timezone.utc)

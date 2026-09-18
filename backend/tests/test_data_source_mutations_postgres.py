@@ -353,3 +353,66 @@ async def test_import_with_assigned_classification_loads_values_without_lazy_io(
     workbook.save(output)
     result = await service.import_excel(UploadFile(filename="sources.xlsx", file=BytesIO(output.getvalue())))
     assert result.updated_count == int(changed)
+
+
+@pytest.mark.parametrize("bulk", [False, True])
+@pytest.mark.parametrize("status", ["AVAILABLE", "PREPARING", "TRAINING", "ERROR"])
+async def test_deletion_checks_status_before_external_cleanup(db, bulk, status):
+    from unittest.mock import AsyncMock
+    from app.services.data_source_service import DataSourceService
+    from app.schemas.data_source import BulkDeleteRequest, DeleteTarget
+    row = await seed(db, status=status)
+    source_id, version = row.id, row.version
+    cleanup = AsyncMock()
+    service = DataSourceService(DataSourceRepository(db), cleanup)
+    async def remove():
+        if bulk:
+            return await service.bulk_delete(BulkDeleteRequest(items=[DeleteTarget(id=source_id, version=version)]))
+        return await service.delete(source_id, version)
+    if status == "TRAINING":
+        with pytest.raises(DataSourceMutationError, match="学習中"):
+            await remove()
+        cleanup.cleanup.assert_not_awaited()
+        assert await DataSourceRepository(db).get(source_id) is not None
+    else:
+        await remove()
+        cleanup.cleanup.assert_awaited_once()
+        assert await DataSourceRepository(db).get(source_id) is None
+
+
+async def test_mixed_bulk_delete_rejects_every_item_before_cleanup(db):
+    from unittest.mock import AsyncMock
+    from app.services.data_source_service import DataSourceService
+    from app.schemas.data_source import BulkDeleteRequest, DeleteTarget
+    ready = await seed(db, name="ready.pdf")
+    training = await seed(db, name="training.pdf", status="TRAINING")
+    cleanup = AsyncMock()
+    with pytest.raises(DataSourceMutationError):
+        await DataSourceService(DataSourceRepository(db), cleanup).bulk_delete(BulkDeleteRequest(
+            items=[DeleteTarget(id=r.id, version=r.version) for r in [ready, training]]))
+    cleanup.cleanup.assert_not_awaited()
+    assert await DataSourceRepository(db).get(ready.id) is not None
+    assert await DataSourceRepository(db).get(training.id) is not None
+
+
+async def test_running_job_blocks_delete_even_if_display_status_is_stale(db):
+    row = await seed(db, status="TRAINING")
+    row.status = "PREPARING"
+    await db.commit()
+    with pytest.raises(DataSourceMutationError):
+        await DataSourceRepository(db).get_for_deletion([row.id])
+
+async def test_deletion_holds_worker_claim_lock_during_cleanup(db):
+    from sqlalchemy import text
+    from app.services.data_source_service import DataSourceService
+    row = await seed(db, status="PREPARING")
+    class Cleanup:
+        async def cleanup(self, rows):
+            other_engine = create_async_engine(os.environ["TEST_DATABASE_URL"])
+            try:
+                async with other_engine.connect() as connection:
+                    acquired = await connection.scalar(text("SELECT pg_try_advisory_xact_lock(724031, 1)"))
+                    assert acquired is False
+            finally:
+                await other_engine.dispose()
+    await DataSourceService(DataSourceRepository(db), Cleanup()).delete(row.id, row.version)
