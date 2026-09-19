@@ -240,3 +240,23 @@ async def test_development_token_api_enforces_password_and_disabled_mode(monkeyp
         monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false")
         assert (await client.get("/api/v1/auth/development/config")).status_code == 404
         assert (await client.post("/api/v1/auth/development/token", json={**payload, "password": " shared-password "})).status_code == 404
+
+
+@pytest.mark.anyio
+async def test_previously_issued_mock_token_is_rejected_after_disable(monkeypatch):
+    from app.api.v1.auth import get_service
+    from app.services.auth_service import AuthService, issue_development_cpf_token
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    repo = AsyncMock()
+    app.dependency_overrides[get_service] = lambda: AuthService(repo)
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "true")
+    monkeypatch.setenv("CPF_DEVELOPMENT_PASSWORD_REQUIRED", "false")
+    monkeypatch.setenv("CPF_DEVELOPMENT_JWT_SECRET", "test-development-secret-at-least-32-characters")
+    token = issue_development_cpf_token(subject="tester", display_name="検証者", role="admin")
+    monkeypatch.setenv("ENABLE_DEVELOPMENT_CPF_MOCK", "false")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
+        response = await client.post("/api/v1/auth/development/cpf", json={"token": token})
+    assert response.status_code == 404
+    assert "set-cookie" not in response.headers
+    repo.create_session.assert_not_awaited()

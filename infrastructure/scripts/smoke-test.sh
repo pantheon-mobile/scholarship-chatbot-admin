@@ -30,12 +30,28 @@ http_ok() { curl --fail --silent --show-error --retry 12 --retry-all-errors --re
 json_status_ok() { curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 "$1" | grep -q '"status"[[:space:]]*:[[:space:]]*"ok"'; }
 
 overall=0
-check "Frontend page" http_ok "$APPLICATION_URL/development/cpf" || overall=1
+check "Frontend page" http_ok "$APPLICATION_URL/sso/cpf" || overall=1
 check "Backend health and database" json_status_ok "$APPLICATION_URL/api/v1/health" || overall=1
 check "Frontend ECS service stable" aws ecs wait services-stable --region "$REGION" --cluster "$CLUSTER_NAME" --services "$FRONTEND_SERVICE" || overall=1
 check "Backend ECS service stable" aws ecs wait services-stable --region "$REGION" --cluster "$CLUSTER_NAME" --services "$BACKEND_SERVICE" || overall=1
 check "Integrated Knowledge Base available" test "$(aws bedrock-agent get-knowledge-base --region "$REGION" --knowledge-base-id "$KB_ID" --query 'knowledgeBase.status' --output text)" = "ACTIVE" || overall=1
 
+MOCK_ENABLED="$(output DevelopmentCpfMockEnabled)"
+http_status() {
+  local expected="$1"
+  shift
+  local actual
+  actual="$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$@")" || return 1
+  [[ "$actual" == "$expected" ]]
+}
+if [[ "$MOCK_ENABLED" == "false" ]]; then
+  check "Development CPF page disabled" http_status 404 "$APPLICATION_URL/development/cpf" || overall=1
+  check "Development CPF config disabled" http_status 404 "$APPLICATION_URL/api/v1/auth/development/config" || overall=1
+  check "Development CPF token disabled" http_status 404 -X POST "$APPLICATION_URL/api/v1/auth/development/token" -H 'Content-Type: application/json' -d '{"subject":"disabled-check","display_name":"disabled-check","role":"admin"}' || overall=1
+  check "Development CPF exchange disabled" http_status 404 -X POST "$APPLICATION_URL/api/v1/auth/development/cpf" -H 'Content-Type: application/json' -d '{"token":"disabled-check"}' || overall=1
+  check "Unauthenticated admin access denied" http_status 401 "$APPLICATION_URL/api/v1/data-sources" || overall=1
+  checks+=("SKIP|Authenticated chat checks require formal CPF login; verify manually")
+elif [[ "$MOCK_ENABLED" == "true" ]]; then
 LOGIN_PASSWORD_SECRET="$(output CpfLoginPasswordSecretName)"
 if [[ -n "$LOGIN_PASSWORD_SECRET" && "$LOGIN_PASSWORD_SECRET" != "None" ]]; then
   aws secretsmanager get-secret-value --region "$REGION" --secret-id "$LOGIN_PASSWORD_SECRET" --query SecretString --output text | \
@@ -69,6 +85,11 @@ if [[ -n "${TOKEN:-}" ]]; then
     response=$(cat "$response_file") &&
     python3 -c '\''import json,sys; value=json.load(sys.stdin); assert isinstance(value.get("answer"),str) and value["answer"]'\'' <<<"$response"
   ' _ "$COOKIE_JAR" "$APPLICATION_URL" || overall=1
+fi
+
+else
+  checks+=("FAIL|DevelopmentCpfMockEnabled output must be true or false")
+  overall=1
 fi
 
 if [[ -n "${SMOKE_TEST_WEBSITE_URL:-}" && -n "${TOKEN:-}" ]]; then

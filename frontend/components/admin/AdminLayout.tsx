@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { AdminMenuKey, Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import styles from "./admin.module.css";
+import { fetchDevelopmentCpfConfig } from "@/lib/authApi";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchChatConfig, recordAdminAccess } from "@/lib/chatApi";
 
@@ -61,7 +62,10 @@ export function AdminLayout({
         variant={chromeVariant}
         onChatSite={() => onNavigate("/chat")}
         onLogout={() => {
-          void auth.logout().then(() => onNavigate("/development/cpf"));
+          void auth.logout().then(async () => {
+            const path = await fetchDevelopmentCpfConfig().then(() => "/development/cpf").catch(() => "/");
+            onNavigate(path);
+          });
         }}
       />
       <Sidebar

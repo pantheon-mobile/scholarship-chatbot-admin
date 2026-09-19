@@ -6,7 +6,7 @@
   "domainName": "ai-chatbot-stg01-demo.gakupita.com",
   "hostedZoneId": "",
   "hostedZoneName": "",
-  "enableDevelopmentCpfMock": true,
+  "enableDevelopmentCpfMock": false,
   "corsAllowedOrigins": "https://ai-chatbot-stg01-demo.gakupita.com",
   "cpfDevelopmentJwtTtlSeconds": 300,
   "cpfJwtIssuer": "cpf",

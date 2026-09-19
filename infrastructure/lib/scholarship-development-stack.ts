@@ -443,6 +443,8 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       runtimePlatform: fargateRuntimePlatform,
     });
     const frontendContainer = frontendTask.addContainer("frontend", { image: frontendImage, logging: ecs.LogDrivers.awsLogs({ streamPrefix: "frontend", logRetention: logs.RetentionDays.ONE_MONTH }) });
+    frontendContainer.addEnvironment("ENABLE_DEVELOPMENT_CPF_MOCK", String(config.enableDevelopmentCpfMock ?? false));
+    new cdk.CfnOutput(this, "DevelopmentCpfMockEnabled", { value: String(config.enableDevelopmentCpfMock ?? false) });
     frontendContainer.addPortMappings({ containerPort: 3000 });
     const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, capacityProviderStrategies: serviceCapacityProviderStrategies, taskDefinition: frontendTask, desiredCount: 1, circuitBreaker: { rollback: true }, minHealthyPercent: 100, securityGroups: [taskSecurityGroup], vpcSubnets: applicationSubnetSelection });
 

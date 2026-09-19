@@ -5,6 +5,8 @@ import { AdminLayout } from "../components/admin/AdminLayout";
 import styles from "../components/admin/admin.module.css";
 import { Sidebar } from "../components/admin/Sidebar";
 
+const { mockCpfConfig } = vi.hoisted(() => ({ mockCpfConfig: vi.fn().mockResolvedValue({ password_required: true }) }));
+vi.mock("../lib/authApi", () => ({ fetchDevelopmentCpfConfig: mockCpfConfig }));
 afterEach(cleanup);
 
 describe("AdminLayout", () => {
@@ -122,4 +124,13 @@ describe("AdminLayout", () => {
     expect(container.querySelector('circle[cx="12"][cy="12"][r="9"]')).not.toBeNull();
     expect(container.querySelector('circle[cx="11"][cy="16.5"][r="1.25"]')).not.toBeNull();
   });
+});
+
+it("does not navigate to the mock login when it is disabled", async () => {
+  mockCpfConfig.mockRejectedValueOnce(new Error("disabled"));
+  const onNavigate = vi.fn();
+  render(<AdminLayout activeMenu="dashboard" onNavigate={onNavigate}>本文</AdminLayout>);
+  fireEvent.click(screen.getByRole("button", { name: "東京太郎 ▾" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "ログアウト" }));
+  await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/"));
 });

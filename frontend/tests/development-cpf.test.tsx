@@ -10,7 +10,7 @@ const { replace, loginWithDevelopmentCpf, fetchDevelopmentCpfConfig } = vi.hoist
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 vi.mock("../lib/authApi", () => ({ loginWithDevelopmentCpf, fetchDevelopmentCpfConfig }));
 
-import DevelopmentCpfPage from "../app/development/cpf/page";
+import DevelopmentCpfPage from "../app/development/cpf/DevelopmentCpfForm";
 
 beforeEach(() => {
   replace.mockReset();

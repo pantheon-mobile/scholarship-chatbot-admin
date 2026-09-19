@@ -15,7 +15,7 @@
   "_comment_hostedZoneName": "上記Hosted Zoneのドメイン名です。hostedZoneIdとセットで指定します。",
   "hostedZoneName": "",
   "_comment_enableDevelopmentCpfMock": "CPF疑似ログイン画面を有効にする設定です。実CPFを使用する本番環境ではfalseにします。",
-  "enableDevelopmentCpfMock": true,
+  "enableDevelopmentCpfMock": false,
   "_comment_runtimeSettings": "以下はECSへ渡す認証・チャットUI・RAG・取り込み処理の設定です。ローカル.envと同じ内容を環境別に指定できます。",
   "corsAllowedOrigins": "https://scholarship-chatbot-validation.example.ac.jp",
   "cpfDevelopmentJwtTtlSeconds": 300,
