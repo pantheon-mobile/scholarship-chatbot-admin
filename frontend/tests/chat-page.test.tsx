@@ -236,3 +236,17 @@ it("別チャット参照の切り替えUIはなく、参照した場合はチ�
   await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("昨日の件", expect.any(String)));
   expect(await screen.findByText("過去のチャット「第一種の相談」を参照しています。")).toBeTruthy();
 });
+
+it.each([['Good', 'GOOD'], ['Bad', 'BAD']])('回答NGでも%s評価とコメントを送信できる', async (label, rating) => {
+  api.sendChatMessage.mockResolvedValue({ answer: '登録情報から確認できませんでした。', answer_type: 'NO_ANSWER', citations: [] });
+  render(<ChatPage />);
+  fireEvent.change(screen.getByLabelText('質問'), { target: { value: '申請期限は？' } });
+  fireEvent.click(screen.getByRole('button', { name: '送信' }));
+  await screen.findByText('登録情報から確認できませんでした。');
+  fireEvent.click(screen.getByRole('button', { name: label }));
+  fireEvent.change(screen.getByLabelText('コメント（任意）'), { target: { value: '回答できない質問ではないはずです' } });
+  fireEvent.click(screen.getByRole('button', { name: '送信する' }));
+  await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), rating, '回答できない質問ではないはずです'));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('true');
+});

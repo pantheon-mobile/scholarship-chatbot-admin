@@ -180,10 +180,11 @@ async def test_failed_completion_has_no_answer_and_is_idempotent():
 
 
 @pytest.mark.anyio
-async def test_feedback_upsert_allows_good_to_bad_and_rejects_no_answer():
+@pytest.mark.parametrize("answer_type", ["FAQ", "GENERATED_AI", "NO_ANSWER"])
+async def test_feedback_upsert_allows_good_to_bad_for_all_displayed_answers(answer_type):
     repo = repository()
     interaction_id = uuid4()
-    interaction = SimpleNamespace(processing_status="COMPLETED", answer_type="FAQ")
+    interaction = SimpleNamespace(processing_status="COMPLETED", answer_type=answer_type)
     feedback = SimpleNamespace(interaction_id=interaction_id, rating="GOOD", comment=None, updated_at=NOW)
     repo.get_owned_interaction.return_value = interaction
     repo.get_feedback.side_effect = [None, feedback]
@@ -193,7 +194,7 @@ async def test_feedback_upsert_allows_good_to_bad_and_rejects_no_answer():
     updated = await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD", comment="改善希望"), visitor_key="owner")
     assert updated.rating == "BAD" and updated.comment == "改善希望"
 
-    interaction.answer_type = "NO_ANSWER"
+    interaction.processing_status = "FAILED"
     with pytest.raises(AnalyticsError) as error:
         await service.upsert_feedback(interaction_id, FeedbackUpsertRequest(rating="BAD"), visitor_key="owner")
     assert error.value.code == "FEEDBACK_NOT_ALLOWED"
@@ -209,3 +210,14 @@ def test_model_constraints_fks_and_indexes_match_migration_contract():
     assert next(iter(ChatFeedback.__table__.c.interaction_id.foreign_keys)).ondelete == "CASCADE"
     assert next(iter(ChatInteraction.__table__.c.faq_id.foreign_keys)).ondelete == "SET NULL"
     assert AnalyticsVisitor.__table__.c.visitor_key.unique is None  # named table-level UNIQUE is used
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status,answer_type", [("PROCESSING", "NO_ANSWER"), ("FAILED", "NO_ANSWER"), ("COMPLETED", None)])
+async def test_feedback_rejects_unfinished_or_missing_answers(status, answer_type):
+    repo = repository()
+    repo.get_owned_interaction.return_value = SimpleNamespace(processing_status=status, answer_type=answer_type)
+    with pytest.raises(AnalyticsError) as error:
+        await AnalyticsService(repo, "secret").upsert_feedback(uuid4(), FeedbackUpsertRequest(rating="BAD"), visitor_key="owner")
+    assert error.value.code == "FEEDBACK_NOT_ALLOWED"
+    repo.create_feedback.assert_not_awaited()

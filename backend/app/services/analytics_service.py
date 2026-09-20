@@ -192,8 +192,8 @@ class AnalyticsService:
             interaction = await self.repository.get_owned_interaction(interaction_id, visitor_key, for_update=True)
             if interaction is None:
                 raise AnalyticsError("INTERACTION_NOT_FOUND", "指定された応答が見つかりません。")
-            if interaction.processing_status != "COMPLETED" or interaction.answer_type not in ("FAQ", "GENERATED_AI"):
-                raise AnalyticsError("FEEDBACK_NOT_ALLOWED", "有効回答以外には評価を登録できません。")
+            if interaction.processing_status != "COMPLETED" or interaction.answer_type not in ("FAQ", "GENERATED_AI", "NO_ANSWER"):
+                raise AnalyticsError("FEEDBACK_NOT_ALLOWED", "表示が完了した回答にのみ評価を登録できます。")
             now = datetime.now(timezone.utc)
             row = await self.repository.get_feedback(interaction_id, for_update=True)
             if row is None:

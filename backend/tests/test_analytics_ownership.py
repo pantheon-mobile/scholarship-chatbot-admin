@@ -35,12 +35,13 @@ async def analytics_db():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("answer_type", ["GENERATED_AI", "NO_ANSWER"])
 @pytest.mark.parametrize("identity_kind", ["AUTHENTICATED", "ANONYMOUS"])
 @pytest.mark.parametrize("other_subject,other_site,other_role", [
     ("other-user", "faculty", "staff"), ("other-admin", "faculty", "admin"),
     ("owner", "student", "admin"),
 ])
-async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind):
+async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type):
     db = analytics_db
     service = AnalyticsService(AnalyticsRepository(db), identity_secret="ownership-test-secret")
     owner = SimpleNamespace(subject="owner", site="faculty", role="staff", display_name="所有者")
@@ -56,7 +57,7 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
     access_payload = {"id": str(access_id), "identity": forged, "accessed_at": now.isoformat()}
     question = {"id": str(interaction_id), "sequence_number": 1,
                 "question_submitted_at": now.isoformat(), "question_text": "申請期限は？"}
-    completed = {"processing_status": "COMPLETED", "answer_type": "GENERATED_AI",
+    completed = {"processing_status": "COMPLETED", "answer_type": answer_type,
                  "answer_displayed_at": (now + timedelta(seconds=1)).isoformat(), "answer_text": "案内をご確認ください。"}
     base = "/api/v1/analytics"
     try:
