@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AdminIcon, Modal } from "@/components/admin";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { questionErrorMessage } from "@/lib/chatErrors";
 import { completeTrackedInteraction, deleteChatHistory, fetchChatConfig, fetchChatHistory, fetchChatHistoryDetail, recordChatAccess, sendChatMessage, startTrackedChat, startTrackedInteraction, submitFeedback, updateChatHistoryTitle } from "@/lib/chatApi";
 import { ChatHistorySummary, ChatMessage, ChatUiConfig } from "@/types/chat";
 import { MarkdownAnswer } from "./MarkdownAnswer";
@@ -59,7 +60,7 @@ export default function ChatPage() {
       const result = await sendChatMessage(normalized, chatSessionId.current); const answeredAt = now();
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: result.answer, sentAt: answeredAt, citations: result.citations, interactionId, answerType: result.answer_type, contextReference: result.context_reference }]);
       await completeTrackedInteraction(interactionId, result.answer_type, answeredAt, result.answer, result.citations, result.faq_id); await reloadHistory();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "回答を取得できませんでした。"); await completeTrackedInteraction(interactionId, null).catch(() => undefined); }
+    } catch (reason) { setError(questionErrorMessage(reason)); await completeTrackedInteraction(interactionId, null).catch(() => undefined); }
     finally { setBusy(false); }
   }
   function openFeedback(messageId: string, interactionId: string, rating: "GOOD" | "BAD") { setFeedback({ messageId, interactionId, rating }); setFeedbackOption(""); setFeedbackComment(""); setFeedbackError(""); }

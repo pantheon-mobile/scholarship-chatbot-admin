@@ -250,3 +250,28 @@ it.each([['Good', 'GOOD'], ['Bad', 'BAD']])('回答NGでも%s評価とコメン�
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('true');
 });
+
+
+it.each(["Failed to fetch", "NetworkError when attempting to fetch resource.", "Load failed"])("通信失敗 %s の案内後に同じ画面で再送信できる", async (message) => {
+  api.sendChatMessage.mockRejectedValueOnce(new TypeError(message));
+  render(<ChatPage />);
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  const notice = "接続エラーにより、回答を取得できませんでした。インターネット接続を確認し、時間をおいてもう一度質問を送信してください。解消しない場合は、システム管理者にお問い合わせください。";
+  await screen.findByText(notice);
+  await waitFor(() => expect((screen.getByLabelText("質問") as HTMLTextAreaElement).disabled).toBe(false));
+  expect(api.sendChatMessage).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  await screen.findByText("回答です");
+  expect(api.sendChatMessage).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText(notice)).toBeNull();
+});
+
+it("APIが返した具体的なエラーを接続エラーに置き換えない", async () => {
+  api.sendChatMessage.mockRejectedValueOnce(new Error("現在メンテナンス中です。"));
+  render(<ChatPage />);
+  fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  expect(await screen.findByText("現在メンテナンス中です。")).toBeTruthy();
+});
