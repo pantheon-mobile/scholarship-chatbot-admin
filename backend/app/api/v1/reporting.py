@@ -108,7 +108,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> ReportingService:
 
 ROLE_LABELS = {"staff": "職員", "admin": "システム管理者", "student": "学生"}
 SURFACE_LABELS = {"CHAT": "チャット", "ADMIN": "管理サイト"}
-ANSWER_TYPE_LABELS = {"FAQ": "FAQ", "GENERATED_AI": "生成AI", "NO_ANSWER": "回答なし"}
+ANSWER_TYPE_LABELS = {"FAQ": "FAQ", "GENERATED_AI": "生成AI", "NO_ANSWER": "回答NG"}
 RATING_LABELS = {"GOOD": "Good", "BAD": "Bad"}
 
 
