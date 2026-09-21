@@ -67,7 +67,7 @@ describe("CB-101 チャットUI", () => {
     fireEvent.change(screen.getByLabelText("理由（任意）"), { target: { value: "分かりやすい" } });
     fireEvent.change(screen.getByLabelText("コメント（任意）"), { target: { value: "助かりました" } });
     fireEvent.click(screen.getByRole("button", { name: "送信する" }));
-    await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), "GOOD", "分かりやすい：助かりました"));
+    await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), "GOOD", "助かりました", "分かりやすい"));
     await waitFor(() => expect(screen.getByRole("button", { name: "Good" }).getAttribute("aria-pressed")).toBe("true"));
     expect(screen.getByRole("button", { name: "Bad" }).getAttribute("aria-pressed")).toBe("false");
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -246,7 +246,7 @@ it.each([['Good', 'GOOD'], ['Bad', 'BAD']])('回答NGでも%s評価とコメン�
   fireEvent.click(screen.getByRole('button', { name: label }));
   fireEvent.change(screen.getByLabelText('コメント（任意）'), { target: { value: '回答できない質問ではないはずです' } });
   fireEvent.click(screen.getByRole('button', { name: '送信する' }));
-  await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), rating, '回答できない質問ではないはずです'));
+  await waitFor(() => expect(api.submitFeedback).toHaveBeenCalledWith(expect.any(String), rating, '回答できない質問ではないはずです', ''));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('true');
 });
@@ -274,4 +274,53 @@ it("APIが返した具体的なエラーを接続エラーに置き換えない"
   fireEvent.change(screen.getByLabelText("質問"), { target: { value: "申請期限は？" } });
   fireEvent.click(screen.getByRole("button", { name: "送信" }));
   expect(await screen.findByText("現在メンテナンス中です。")).toBeTruthy();
+});
+
+async function openSavedFeedbackChat(rating: "GOOD" | "BAD" = "GOOD") {
+  api.fetchChatHistoryDetail.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111", title: "過去の質問", messages: [
+    { id: "saved-answer", role: "assistant", content: "保存済み回答", sent_at: "2026-09-03T00:01:00Z", interaction_id: "saved-interaction", rating, feedback_reason: "保存時の理由", feedback_comment: "保存したコメント", answer_type: "NO_ANSWER", citations: [] },
+  ] });
+  render(<ChatPage />);
+  fireEvent.click(await screen.findByText("過去の質問"));
+  await screen.findByText("保存済み回答");
+}
+const valueOf = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+const clickButton = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
+const editFeedback = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+it.each(["Good", "Bad"] as const)("履歴から%sを復元し、逆評価のキャンセルで消さない", async (label) => {
+  await openSavedFeedbackChat(label === "Good" ? "GOOD" : "BAD");
+  clickButton(label);
+  expect(valueOf("理由（任意）")).toBe("保存時の理由");
+  expect(valueOf("コメント（任意）")).toBe("保存したコメント");
+  expect(screen.getByRole("option", { name: "保存時の理由" })).toBeTruthy();
+  editFeedback("コメント（任意）", "未送信"); clickButton("キャンセル");
+  clickButton(label === "Good" ? "Bad" : "Good");
+  expect(valueOf("理由（任意）")).toBe(""); expect(valueOf("コメント（任意）")).toBe("");
+  clickButton("キャンセル"); clickButton(label);
+  expect(valueOf("コメント（任意）")).toBe("保存したコメント");
+  expect(api.submitFeedback).not.toHaveBeenCalled();
+});
+
+it("失敗時の入力保持、再送信、GoodからBadからGoodへの置換", async () => {
+  await openSavedFeedbackChat(); clickButton("Bad");
+  editFeedback("理由（任意）", "回答が違う"); editFeedback("コメント（任意）", "修正してください");
+  api.submitFeedback.mockRejectedValueOnce(new Error("保存失敗")); clickButton("送信する");
+  await screen.findByText("保存失敗");
+  expect(valueOf("コメント（任意）")).toBe("修正してください");
+  expect(screen.getByRole("button", { name: "Good" }).getAttribute("aria-pressed")).toBe("true");
+  clickButton("送信する"); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  clickButton("Bad"); expect(valueOf("理由（任意）")).toBe("回答が違う"); expect(valueOf("コメント（任意）")).toBe("修正してください");
+  clickButton("キャンセル"); clickButton("Good");
+  expect(valueOf("理由（任意）")).toBe(""); expect(valueOf("コメント（任意）")).toBe("");
+  clickButton("送信する"); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  clickButton("Good"); expect(valueOf("コメント（任意）")).toBe("");
+});
+
+it("同じ評価で空欄送信すると保存内容を消去する", async () => {
+  await openSavedFeedbackChat(); clickButton("Good");
+  editFeedback("理由（任意）", ""); editFeedback("コメント（任意）", ""); clickButton("送信する");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(api.submitFeedback).toHaveBeenCalledWith("saved-interaction", "GOOD", "", "");
+  clickButton("Good"); expect(valueOf("理由（任意）")).toBe(""); expect(valueOf("コメント（任意）")).toBe("");
 });

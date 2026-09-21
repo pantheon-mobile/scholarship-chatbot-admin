@@ -221,3 +221,21 @@ async def test_feedback_rejects_unfinished_or_missing_answers(status, answer_typ
         await AnalyticsService(repo, "secret").upsert_feedback(uuid4(), FeedbackUpsertRequest(rating="BAD"), visitor_key="owner")
     assert error.value.code == "FEEDBACK_NOT_ALLOWED"
     repo.create_feedback.assert_not_awaited()
+
+@pytest.mark.anyio
+async def test_feedback_keeps_separate_fields_and_replaces_all_on_empty_submission():
+    repo = repository()
+    repo.get_owned_interaction.return_value = SimpleNamespace(processing_status="COMPLETED", answer_type="NO_ANSWER")
+    row = SimpleNamespace(rating="GOOD", comment=None, reason=None, comment_text=None)
+    repo.get_feedback.return_value = row
+    service = AnalyticsService(repo, "secret")
+    await service.upsert_feedback(uuid4(), FeedbackUpsertRequest(rating="BAD", reason="旧選択肢", comment="説明：詳細"), visitor_key="owner")
+    assert (row.rating, row.reason, row.comment_text, row.comment) == ("BAD", "旧選択肢", "説明：詳細", "旧選択肢：説明：詳細")
+    await service.upsert_feedback(uuid4(), FeedbackUpsertRequest(rating="GOOD", reason="", comment=""), visitor_key="owner")
+    assert (row.rating, row.reason, row.comment_text, row.comment) == ("GOOD", None, None, None)
+
+
+def test_feedback_combined_length_remains_1000():
+    with pytest.raises(ValueError):
+        FeedbackUpsertRequest(rating="GOOD", reason="a", comment="b" * 999)
+    assert FeedbackUpsertRequest(rating="GOOD", reason="a", comment="b" * 998)

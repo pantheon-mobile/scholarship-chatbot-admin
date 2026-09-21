@@ -195,13 +195,16 @@ class AnalyticsService:
             if interaction.processing_status != "COMPLETED" or interaction.answer_type not in ("FAQ", "GENERATED_AI", "NO_ANSWER"):
                 raise AnalyticsError("FEEDBACK_NOT_ALLOWED", "表示が完了した回答にのみ評価を登録できます。")
             now = datetime.now(timezone.utc)
+            combined_comment = "：".join(value for value in (payload.reason, payload.comment) if value) or None
             row = await self.repository.get_feedback(interaction_id, for_update=True)
             if row is None:
-                row = await self.repository.create_feedback(interaction_id, payload.rating, payload.comment, now)
+                row = await self.repository.create_feedback(interaction_id, payload.rating, combined_comment, now)
             else:
                 row.rating = payload.rating
-                row.comment = payload.comment
+                row.comment = combined_comment
                 row.updated_at = now
+            row.reason = payload.reason
+            row.comment_text = payload.comment
             await self.repository.commit()
             return row
         except AnalyticsError:

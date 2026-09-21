@@ -152,7 +152,15 @@ class FeedbackUpsertRequest(BaseModel):
     rating: Rating
     comment: str | None = Field(default=None, max_length=1000)
 
-    @field_validator("comment")
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def check_combined_length(self):
+        if len("：".join(value for value in (self.reason, self.comment) if value)) > 1000:
+            raise ValueError("理由とコメントは合わせて1000文字以内で入力してください。")
+        return self
+
+    @field_validator("comment", "reason")
     @classmethod
     def normalize_comment(cls, value: str | None) -> str | None:
         normalized = value.strip() if value is not None else ""
@@ -165,5 +173,7 @@ class FeedbackResponse(BaseModel):
     interaction_id: UUID
     rating: Rating
     comment: str | None
+    reason: str | None = None
+    comment_text: str | None = None
     created_at: datetime
     updated_at: datetime

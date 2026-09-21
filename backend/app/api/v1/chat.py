@@ -156,6 +156,8 @@ async def get_chat_session_history(
                 id=f"{item.id}-answer", role="assistant", content=item.answer_text,
                 sent_at=item.answer_displayed_at, citations=[] if item.answer_type == "NO_ANSWER" or ChatService.is_no_answer(item.answer_text or "") else item.citations or [],
                 interaction_id=item.id, rating=item.feedback.rating if item.feedback else None,
+                feedback_reason=item.feedback.reason if item.feedback else None,
+                feedback_comment=(item.feedback.comment_text if item.feedback.reason is not None or item.feedback.comment_text is not None else item.feedback.comment) if item.feedback else None,
                 answer_type=item.answer_type,
             ))
     first_question = next((item.question_text for item in interactions if item.question_text), None)

@@ -62,6 +62,8 @@ class ChatHistoryMessage(BaseModel):
     citations: list[ChatCitation] = Field(default_factory=list)
     interaction_id: UUID | None = None
     rating: Literal["GOOD", "BAD"] | None = None
+    feedback_reason: str | None = None
+    feedback_comment: str | None = None
     answer_type: Literal["FAQ", "GENERATED_AI", "NO_ANSWER"] | None = None
 
 

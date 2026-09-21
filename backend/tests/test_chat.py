@@ -329,3 +329,21 @@ async def test_history_hides_old_refusal_citations_but_keeps_useful_answer_sourc
     assert detail.messages[1].citations == []
     assert detail.messages[3].citations[0].title == "資料"
     assert detail.messages[5].citations == []
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("reason,text,combined,expected", [
+    ("削除済み選択肢", "自由入力：区切りあり", "削除済み選択肢：自由入力：区切りあり", "自由入力：区切りあり"),
+    (None, None, "旧理由：既存コメント", "旧理由：既存コメント"),
+    (None, None, None, None),
+    ("理由のみ", None, "理由のみ", None),
+])
+async def test_history_restores_feedback_without_guessing_legacy_split(monkeypatch, reason, text, combined, expected):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
+    now = datetime.now(timezone.utc)
+    item = SimpleNamespace(id=uuid4(), sequence_number=1, processing_status="COMPLETED", question_text="質問", answer_text="回答", answer_displayed_at=now, question_submitted_at=now, citations=[], answer_type="NO_ANSWER", feedback=SimpleNamespace(rating="BAD", reason=reason, comment_text=text, comment=combined))
+    row = SimpleNamespace(id=uuid4(), title=None, interactions=[item])
+    result = Mock(); result.scalar_one_or_none.return_value = row
+    session = AsyncMock(); session.execute.return_value = result
+    detail = await get_chat_session_history(row.id, current_user=SimpleNamespace(site="faculty", subject="staff-001"), session=session)
+    assert detail.messages[-1].feedback_reason == reason
+    assert detail.messages[-1].feedback_comment == expected

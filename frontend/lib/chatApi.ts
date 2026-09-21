@@ -24,7 +24,7 @@ export const recordAdminAccess = (id: string, identifier: string, at: string) =>
 export const startTrackedChat = (id: string, identifier: string, at: string) => analytics("chat-sessions", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, started_at: at });
 export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string, question: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at, question_text: question });
 export const completeTrackedInteraction = (id: string, answerType: string | null, at?: string, answer?: string, citations?: unknown[], faqId?: number | null) => analytics(`interactions/${id}/completion`, "PATCH", answerType ? { processing_status: "COMPLETED", answer_type: answerType, answer_displayed_at: at, answer_text: answer, citations: citations ?? [], faq_id: faqId ?? null } : { processing_status: "FAILED" });
-export const submitFeedback = (id: string, rating: "GOOD" | "BAD", comment?: string) => analytics(`interactions/${id}/feedback`, "PUT", { rating, comment: comment || null });
+export const submitFeedback = (id: string, rating: "GOOD" | "BAD", comment?: string, reason?: string) => analytics(`interactions/${id}/feedback`, "PUT", { rating, comment: comment || null, reason: reason || null });
 
 async function chatGet<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBase}/api/v1/chat/${path}`, { credentials: "include" });

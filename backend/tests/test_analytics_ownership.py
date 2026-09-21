@@ -41,7 +41,8 @@ async def analytics_db():
     ("other-user", "faculty", "staff"), ("other-admin", "faculty", "admin"),
     ("owner", "student", "admin"),
 ])
-async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type):
+async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type, monkeypatch):
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "ownership-test-secret")
     db = analytics_db
     service = AnalyticsService(AnalyticsRepository(db), identity_secret="ownership-test-secret")
     owner = SimpleNamespace(subject="owner", site="faculty", role="staff", display_name="所有者")
@@ -92,13 +93,18 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
             for _ in range(2):
                 assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json=completed)).status_code == 200
             for rating in ["GOOD", "BAD"]:
-                result = await client.put(f"{base}/interactions/{interaction_id}/feedback", json={"rating": rating, "comment": "評価"})
+                result = await client.put(f"{base}/interactions/{interaction_id}/feedback", json={"rating": rating, "comment": "評価", "reason": "保存時の理由"})
                 assert result.status_code == 200 and result.json()["rating"] == rating
+            from app.api.v1.chat import get_chat_session_history
+            await db.refresh(await db.get(ChatFeedback, interaction_id))
+            history = await get_chat_session_history(session_id, current_user=owner, session=db)
+            assert history.messages[-1].feedback_reason == "保存時の理由"
+            assert history.messages[-1].feedback_comment == "評価"
             current = other
             assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json=completed)).status_code == 404
             assert (await client.put(f"{base}/interactions/{interaction_id}/feedback", json={"rating": "GOOD"})).status_code == 404
             feedback = await db.get(ChatFeedback, interaction_id)
-            assert feedback.rating == "BAD" and feedback.comment == "評価"
+            assert feedback.rating == "BAD" and feedback.comment == "保存時の理由：評価"
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(original_overrides)

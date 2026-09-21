@@ -104,6 +104,8 @@ class ChatFeedback(Base):
     interaction_id: Mapped[UUID] = Column(ForeignKey("chat_interactions.id", ondelete="CASCADE"), primary_key=True)
     rating: Mapped[str] = Column(String(10), nullable=False)
     comment: Mapped[str | None] = Column(String(1000), nullable=True)
+    reason: Mapped[str | None] = Column(String(1000), nullable=True)
+    comment_text: Mapped[str | None] = Column(String(1000), nullable=True)
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     interaction = relationship("ChatInteraction", back_populates="feedback")
