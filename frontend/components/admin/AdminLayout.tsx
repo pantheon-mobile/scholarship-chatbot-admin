@@ -1,12 +1,12 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { AdminMenuKey, Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import styles from "./admin.module.css";
 import { fetchDevelopmentCpfConfig } from "@/lib/authApi";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { fetchChatConfig, recordAdminAccess } from "@/lib/chatApi";
+import { fetchChatConfig } from "@/lib/chatApi";
 
 type AdminLayoutProps = {
   children: ReactNode;
@@ -28,21 +28,11 @@ export function AdminLayout({
   chromeVariant = "sidebar-menu",
 }: AdminLayoutProps) {
   const auth = useAuth();
-  const recordedIdentifier = useRef<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [siteName, setSiteName] = useState("東京理科大学奨学金問合せチャット　管理サイト");
   const [headerIconUrl, setHeaderIconUrl] = useState<string | null>(null);
   const collapsible = chromeVariant === "sidebar-menu";
 
-  useEffect(() => {
-    if (!auth.user) return;
-    const identifier = `${auth.user.site}:${auth.user.subject}`;
-    if (recordedIdentifier.current === identifier) return;
-    recordedIdentifier.current = identifier;
-    void recordAdminAccess(crypto.randomUUID(), identifier, new Date().toISOString()).catch(() => {
-      recordedIdentifier.current = null;
-    });
-  }, [auth.user]);
 
   useEffect(() => {
     if (!auth.user) return;

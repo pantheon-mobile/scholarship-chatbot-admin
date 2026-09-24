@@ -22,7 +22,7 @@ def analytics_service():
 
 
 @pytest.mark.anyio
-async def test_access_api_contract_and_plaintext_body_rejection(analytics_service):
+async def test_access_api_contract_and_plaintext_body_rejection(analytics_service, signed_access):
     event_id, visitor_id = uuid4(), uuid4()
     now = datetime(2026, 8, 19, tzinfo=timezone.utc)
     analytics_service.record_access.return_value = SimpleNamespace(
@@ -34,14 +34,14 @@ async def test_access_api_contract_and_plaintext_body_rejection(analytics_servic
         "accessed_at": now.isoformat(),
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/analytics/accesses", json=payload)
-        rejected = await client.post("/api/v1/analytics/accesses", json={**payload, "question": "保存禁止"})
+        response = await client.post("/api/v1/analytics/accesses", **signed_access(payload))
+        rejected = await client.post("/api/v1/analytics/accesses", **signed_access({**payload, "question": "保存禁止"}))
     assert response.status_code == 201 and response.json()["id"] == str(event_id)
     assert rejected.status_code == 422
 
 
 @pytest.mark.anyio
-async def test_analytics_domain_error_codes(analytics_service):
+async def test_analytics_domain_error_codes(analytics_service, signed_access):
     analytics_service.record_access.side_effect = AnalyticsError("IDEMPOTENCY_CONFLICT", "競合")
     payload = {
         "id": str(uuid4()),
@@ -49,7 +49,7 @@ async def test_analytics_domain_error_codes(analytics_service):
         "accessed_at": datetime(2026, 8, 19, tzinfo=timezone.utc).isoformat(),
     }
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/analytics/accesses", json=payload)
+        response = await client.post("/api/v1/analytics/accesses", **signed_access(payload))
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "IDEMPOTENCY_CONFLICT"
 
@@ -69,3 +69,25 @@ async def test_dashboard_invalid_date_range_api_contract():
         "code": "INVALID_DATE_RANGE", "message": "開始日は終了日以前を指定してください。",
     }
     service.get.assert_awaited_once_with(date(2026, 8, 20), date(2026, 8, 19))
+
+
+@pytest.mark.anyio
+async def test_access_requires_server_signature_and_derives_surface(analytics_service, signed_access):
+    now = datetime.now(timezone.utc)
+    payload = {'id': str(uuid4()), 'identity': {'identity_kind': 'AUTHENTICATED', 'identifier': 'forged'}, 'accessed_at': now.isoformat(), 'surface': 'ADMIN'}
+    analytics_service.record_access.return_value = SimpleNamespace(id=uuid4(), visitor_id=uuid4(), accessed_at=now, recorded_at=now)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        assert (await client.post('/api/v1/analytics/accesses', json=payload)).status_code == 403
+        valid = signed_access(payload, '/chat')
+        assert (await client.post('/api/v1/analytics/accesses', **valid)).status_code == 201
+        assert analytics_service.record_access.call_args.args[0].surface == 'CHAT'
+        assert analytics_service.record_access.call_args.args[0].identity.identifier == 'faculty:test-admin'
+        altered = signed_access(payload, '/chat')
+        altered['headers']['X-Access-Page'] = '/usage'
+        assert (await client.post('/api/v1/analytics/accesses', **altered)).status_code == 403
+        altered = signed_access(payload, '/chat')
+        altered['headers']['Cookie'] = 'scholarship_session=another-session'
+        assert (await client.post('/api/v1/analytics/accesses', **altered)).status_code == 403
+        altered = signed_access(payload, '/chat')
+        altered['content'] = altered['content'].replace(b'forged', b'changed')
+        assert (await client.post('/api/v1/analytics/accesses', **altered)).status_code == 403

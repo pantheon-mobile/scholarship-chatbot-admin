@@ -9,6 +9,9 @@ services:
       - backend
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - ACCESS_LOG_API_URL=http://backend:8000/api/v1/analytics/accesses
+      - ACCESS_LOG_ORIGIN=http://localhost:3000
+      - ACCESS_LOG_SIGNING_SECRET=${ACCESS_LOG_SIGNING_SECRET:?Set ACCESS_LOG_SIGNING_SECRET in .env}
       - ENABLE_DEVELOPMENT_CPF_MOCK=${ENABLE_DEVELOPMENT_CPF_MOCK:-true}
     volumes:
       - ./frontend:/app
@@ -28,6 +31,7 @@ services:
       - DB_HOST=db
       - DB_PASSWORD=${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD in .env}
       - BACKEND_PORT=8000
+      - ACCESS_LOG_SIGNING_SECRET=${ACCESS_LOG_SIGNING_SECRET:?Set ACCESS_LOG_SIGNING_SECRET in .env}
       - UPLOAD_DIR=/app/storage/uploads
       - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
       - AWS_REGION=${AWS_REGION:-ap-northeast-1}

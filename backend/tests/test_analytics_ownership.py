@@ -42,7 +42,7 @@ async def analytics_db():
     ("other-user", "faculty", "staff"), ("other-admin", "faculty", "admin"),
     ("owner", "student", "admin"),
 ])
-async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type, monkeypatch):
+async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type, monkeypatch, signed_access):
     monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "ownership-test-secret")
     db = analytics_db
     service = AnalyticsService(AnalyticsRepository(db), identity_secret="ownership-test-secret")
@@ -74,7 +74,7 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
     base = "/api/v1/analytics"
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            access = await client.post(f"{base}/accesses", json=access_payload)
+            access = await client.post(f"{base}/accesses", **signed_access(access_payload))
             started = await client.post(f"{base}/chat-sessions", json=session_payload)
             assert access.status_code == started.status_code == 201
             assert access.json()["visitor_id"] == started.json()["visitor_id"]
@@ -95,7 +95,7 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
                 assert denied.status_code == 404 and denied.json()["detail"]["code"] == "INTERACTION_NOT_FOUND"
             # A forged identity cannot claim/replay an existing session or access event.
             assert (await client.post(f"{base}/chat-sessions", json=session_payload)).status_code == 409
-            assert (await client.post(f"{base}/accesses", json=access_payload)).status_code == 409
+            assert (await client.post(f"{base}/accesses", **signed_access(access_payload))).status_code == 409
             row = await db.get(ChatInteraction, interaction_id)
             assert row.processing_status == "PROCESSING" and row.answer_text is None
             assert await db.scalar(select(func.count()).select_from(ChatFeedback)) == 0

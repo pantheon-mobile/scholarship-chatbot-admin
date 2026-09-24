@@ -48,6 +48,8 @@ class AccessCreateRequest(BaseModel):
     identity: VisitorIdentity
     accessed_at: datetime
     surface: Literal["CHAT", "ADMIN"] = "CHAT"
+    forwarded_for: str | None = None
+    user_agent: str | None = None
 
     _timezone = field_validator("accessed_at")(require_timezone)
 

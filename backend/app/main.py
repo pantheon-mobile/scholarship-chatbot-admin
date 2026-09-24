@@ -79,8 +79,8 @@ async def record_admin_operation(request: Request, call_next):
                     operator_role=current.role,
                     operator_site=current.site,
                     surface=getattr(request.state, "audit_surface", None) or ("CHAT" if request.url.path.startswith("/api/v1/chat/") else "ADMIN"),
-                    ip_address=client_ip(request),
-                    user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
+                    ip_address=getattr(request.state, "audit_ip_address", client_ip(request)),
+                    user_agent=getattr(request.state, "audit_user_agent", (request.headers.get("user-agent") or "")[:1000] or None),
                     http_method=request.method,
                     request_path=request.url.path,
                     operation_name=getattr(request.state, "audit_operation_name", None) or operation_description(

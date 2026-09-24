@@ -1,4 +1,5 @@
 from app.services.client_ip import client_ip
+from app.services.server_access import verify_page_request
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -48,16 +49,20 @@ async def record_access(
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
+    surface = await verify_page_request(request, request.cookies.get("scholarship_session"))
+    payload = payload.model_copy(update={"surface": surface})
     payload = payload.model_copy(update={"identity": payload.identity.model_copy(update={
         "identity_kind": "AUTHENTICATED", "identifier": f"{current.site}:{current.subject}",
     })})
     request.state.audit_surface = payload.surface
+    request.state.audit_ip_address = client_ip(request, forwarded_for=payload.forwarded_for or "")
+    request.state.audit_user_agent = (payload.user_agent or "")[:1000] or None
     try:
         return await service.record_access(
             payload, subject=current.subject, display_name=current.display_name,
             role=current.role, site=current.site,
-            ip_address=client_ip(request),
-            user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
+            ip_address=request.state.audit_ip_address,
+            user_agent=request.state.audit_user_agent,
         )
     except AnalyticsError as error:
         raise api_error(error) from None

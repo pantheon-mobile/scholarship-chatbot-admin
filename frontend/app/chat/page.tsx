@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { AdminIcon, Modal } from "@/components/admin";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { questionErrorMessage } from "@/lib/chatErrors";
-import { completeTrackedInteraction, deleteChatHistory, fetchChatConfig, fetchChatHistory, fetchChatHistoryDetail, recordChatAccess, sendChatMessage, startTrackedChat, startTrackedInteraction, submitFeedback, updateChatHistoryTitle } from "@/lib/chatApi";
+import { completeTrackedInteraction, deleteChatHistory, fetchChatConfig, fetchChatHistory, fetchChatHistoryDetail, sendChatMessage, startTrackedChat, startTrackedInteraction, submitFeedback, updateChatHistoryTitle } from "@/lib/chatApi";
 import { ChatHistorySummary, ChatMessage, ChatUiConfig } from "@/types/chat";
 import { MarkdownAnswer } from "./MarkdownAnswer";
 import styles from "./page.module.css";
@@ -43,7 +43,7 @@ export default function ChatPage() {
   const options = useMemo(() => feedback?.rating === "GOOD" ? config.good_options : config.bad_options, [config, feedback]);
 
   const reloadHistory = useCallback(async (search = "") => { if (config.history_enabled) try { setHistoryBusy(true); setHistories(await fetchChatHistory(search)); } catch { /* チャット自体は継続 */ } finally { setHistoryBusy(false); } }, [config.history_enabled]);
-  useEffect(() => { if (!identifier) return; void recordChatAccess(crypto.randomUUID(), identifier, now()).catch(() => undefined); void fetchChatConfig().then(setConfig).catch(() => undefined); }, [identifier]);
+  useEffect(() => { if (!identifier) return; void fetchChatConfig().then(setConfig).catch(() => undefined); }, [identifier]);
   useEffect(() => { if (identifier) void reloadHistory(); }, [identifier, reloadHistory]);
   useEffect(() => { if (!identifier || !historyPanelOpen) return; const timer = window.setTimeout(() => void reloadHistory(historySearch), 250); return () => window.clearTimeout(timer); }, [historySearch, historyPanelOpen, identifier, reloadHistory]);
   const lastMessageId = messages.at(-1)?.id;

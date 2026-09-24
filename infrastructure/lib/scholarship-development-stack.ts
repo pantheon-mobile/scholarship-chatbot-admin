@@ -309,6 +309,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       deletionProtection: config.deletionProtection ?? true,
       removalPolicy: disposableEnvironment ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.SNAPSHOT,
     });
+    const accessLogSecret = new secretsmanager.Secret(this, "AccessLogSigningSecret", { secretName: `${prefix}/access-log-signing-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
     const analyticsSecret = new secretsmanager.Secret(this, "AnalyticsSecret", { secretName: `${prefix}/analytics-identity-secret`, generateSecretString: { passwordLength: 64, excludePunctuation: true } });
     const cpfLoginPassword = config.developmentCpfPasswordRequired ? new secretsmanager.Secret(this, "CpfLoginPassword", {
       secretName: `${prefix}/cpf-login-password`,
@@ -337,6 +338,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       platform: ecrAssets.Platform.LINUX_AMD64,
     });
     const hasTls = usesExistingAlb || Boolean(config.certificateArn);
+    if (!config.domainName) {
+      throw new Error("domainName is required for authenticated server-side access logging.");
+    }
     if (!hasTls) {
       throw new Error("AWS environments require an HTTPS listener or certificateArn.");
     }
@@ -428,6 +432,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       secrets: {
         DB_PASSWORD: ecs.Secret.fromSecretsManager(database.secret!, "password"),
         ANALYTICS_IDENTITY_SECRET: ecs.Secret.fromSecretsManager(analyticsSecret),
+        ACCESS_LOG_SIGNING_SECRET: ecs.Secret.fromSecretsManager(accessLogSecret),
         ...(cpfLoginPassword ? { CPF_DEVELOPMENT_PASSWORD: ecs.Secret.fromSecretsManager(cpfLoginPassword) } : {}),
         CPF_DEVELOPMENT_JWT_SECRET: ecs.Secret.fromSecretsManager(cpfDevelopmentSecret),
         CPF_PUBLIC_KEYS_BY_KID: ecs.Secret.fromSecretsManager(cpfPublicKeysSecret),
@@ -447,6 +452,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       runtimePlatform: fargateRuntimePlatform,
     });
     const frontendContainer = frontendTask.addContainer("frontend", { image: frontendImage, logging: ecs.LogDrivers.awsLogs({ streamPrefix: "frontend", logRetention: logs.RetentionDays.ONE_MONTH }) });
+    frontendContainer.addSecret("ACCESS_LOG_SIGNING_SECRET", ecs.Secret.fromSecretsManager(accessLogSecret));
+    frontendContainer.addEnvironment("ACCESS_LOG_API_URL", `https://${config.domainName}/api/v1/analytics/accesses`);
+    frontendContainer.addEnvironment("ACCESS_LOG_ORIGIN", `https://${config.domainName}`);
     frontendContainer.addEnvironment("ENABLE_DEVELOPMENT_CPF_MOCK", String(config.enableDevelopmentCpfMock ?? false));
     new cdk.CfnOutput(this, "DevelopmentCpfMockEnabled", { value: String(config.enableDevelopmentCpfMock ?? false) });
     frontendContainer.addPortMappings({ containerPort: 3000 });

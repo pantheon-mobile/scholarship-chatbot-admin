@@ -8,6 +8,7 @@ COPY package.json package-lock.json ./
 COPY tsconfig.json ./
 COPY eslint.config.mjs ./
 COPY next-env.d.ts ./
+COPY proxy.ts ./
 COPY vitest.config.mts ./
 COPY app ./app
 COPY components ./components
@@ -25,6 +26,7 @@ COPY --from=builder /app/package-lock.json ./
 COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/eslint.config.mjs ./
 COPY --from=builder /app/next-env.d.ts ./
+COPY --from=builder /app/proxy.ts ./
 COPY --from=builder /app/vitest.config.mts ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next

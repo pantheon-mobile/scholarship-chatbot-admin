@@ -1,4 +1,7 @@
 """Bounded, development-only F-003/F-004 regression checks. No credentials logged."""
+import csv
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import io
 import json
 import subprocess
@@ -42,13 +45,31 @@ def main():
         response = session.request(method, HOST + '/api/v1' + path, timeout=90, **kwargs)
         response.raise_for_status()
         return response
+    subject = "upload-security-" + uuid.uuid4().hex
     token = request('POST', '/auth/development/token', json={
-        'subject': 'upload-security-verification', 'display_name': '受信制限検証', 'role': 'admin', 'password': secret,
+        'subject': subject, 'display_name': '受信制限検証', 'role': 'admin', 'password': secret,
     }).json()['token']
     del secret
     request('POST', '/auth/development/cpf', json={'token': token})
     del token
     check('Development login/session', request('GET', '/auth/session').status_code == 200)
+    # Fetch HTML pages: access events must come from the frontend server.
+    for path in ['/chat', '/']:
+        session.get(HOST + path, timeout=30).raise_for_status()
+    today = datetime.now(ZoneInfo('Asia/Tokyo')).date().isoformat()
+    access_rows = []
+    for _ in range(10):
+        response = request('GET', '/usage/access-logs.csv', params={'from': today, 'to': today, 'user_ids': subject})
+        access_rows = list(csv.reader(io.StringIO(response.content.decode('utf-8-sig'))))[1:]
+        if {row[3] for row in access_rows} == {'チャット', '管理サイト'}:
+            break
+        time.sleep(1)
+    check('Server records both chat and admin page requests', {row[3] for row in access_rows} == {'チャット', '管理サイト'})
+    forged_access = session.post(HOST + '/api/v1/analytics/accesses', json={
+        'id': str(uuid.uuid4()), 'identity': {'identity_kind': 'AUTHENTICATED', 'identifier': subject},
+        'accessed_at': datetime.now(timezone.utc).isoformat(), 'surface': 'ADMIN',
+    }, timeout=30)
+    check('Unsigned access record rejected', forged_access.status_code == 403)
     marker = 'security-check-' + uuid.uuid4().hex
     try:
         # Never expose test content as an answer source.
@@ -66,11 +87,10 @@ def main():
         book.active.append(values)
         imported = request('POST', '/faqs/import', files={'file': ('faq.xlsx', workbook_bytes(book))}).json()
         check('FAQ Excel import', imported['created_count'] == 1)
-        from datetime import datetime, timezone
         at = datetime.now(timezone.utc).isoformat()
         chat_id, interaction_id = str(uuid.uuid4()), str(uuid.uuid4())
         question = '登録資料に情報がない場合の動作確認です'
-        request('POST', '/analytics/chat-sessions', json={'id': chat_id, 'identity': {'identity_kind': 'AUTHENTICATED', 'identifier': 'upload-security-verification'}, 'started_at': at})
+        request('POST', '/analytics/chat-sessions', json={'id': chat_id, 'identity': {'identity_kind': 'AUTHENTICATED', 'identifier': subject}, 'started_at': at})
         request('POST', f'/analytics/chat-sessions/{chat_id}/interactions', json={'id': interaction_id, 'sequence_number': 1, 'question_submitted_at': at, 'question_text': question})
         answer = request('POST', '/chat/messages', json={'question': question, 'chat_session_id': chat_id, 'interaction_id': interaction_id}).json()
         check('Chat response', isinstance(answer.get('answer'), str) and bool(answer['answer']))
