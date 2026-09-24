@@ -37,6 +37,7 @@ def main():
     check('Development host guard', outputs['ApplicationUrl'].rstrip('/') == HOST)
     secret = json.loads(aws('secretsmanager', 'get-secret-value', '--secret-id', outputs['CpfLoginPasswordSecretName']))['SecretString']
     session = requests.Session()
+    session.headers["Origin"] = HOST
     def request(method, path, **kwargs):
         response = session.request(method, HOST + '/api/v1' + path, timeout=90, **kwargs)
         response.raise_for_status()
@@ -65,8 +66,30 @@ def main():
         book.active.append(values)
         imported = request('POST', '/faqs/import', files={'file': ('faq.xlsx', workbook_bytes(book))}).json()
         check('FAQ Excel import', imported['created_count'] == 1)
-        answer = request('POST', '/chat/messages', json={'question': '登録資料に情報がない場合の動作確認です'}).json()
+        from datetime import datetime, timezone
+        at = datetime.now(timezone.utc).isoformat()
+        chat_id, interaction_id = str(uuid.uuid4()), str(uuid.uuid4())
+        question = '登録資料に情報がない場合の動作確認です'
+        request('POST', '/analytics/chat-sessions', json={'id': chat_id, 'identity': {'identity_kind': 'AUTHENTICATED', 'identifier': 'upload-security-verification'}, 'started_at': at})
+        request('POST', f'/analytics/chat-sessions/{chat_id}/interactions', json={'id': interaction_id, 'sequence_number': 1, 'question_submitted_at': at, 'question_text': question})
+        answer = request('POST', '/chat/messages', json={'question': question, 'chat_session_id': chat_id, 'interaction_id': interaction_id}).json()
         check('Chat response', isinstance(answer.get('answer'), str) and bool(answer['answer']))
+        history = request('GET', f'/chat/sessions/{chat_id}').json()
+        check('Server-saved answer without completion callback', history['messages'][-1]['content'] == answer['answer'])
+        forged = session.patch(HOST + f'/api/v1/analytics/interactions/{interaction_id}/completion', json={
+            'processing_status': 'COMPLETED', 'answer_type': answer['answer_type'],
+            'answer_displayed_at': at, 'answer_text': 'forged response', 'citations': [], 'faq_id': answer.get('faq_id'),
+        }, timeout=30)
+        check('Browser cannot forge answer history', forged.status_code == 409)
+        rejected = session.patch(HOST + f'/api/v1/analytics/interactions/{interaction_id}/completion', json={
+            'processing_status': 'COMPLETED', 'answer_type': 'GENERATED_AI',
+            'answer_displayed_at': at, 'answer_text': answer['answer'],
+            'citations': [{'title': 'probe', 'uri': 'javascript:void(0)'}],
+        }, timeout=30)
+        check('Unsafe citation rejected', rejected.status_code == 422)
+        csrf = session.post(HOST + '/api/v1/analytics/accesses', headers={'Origin': 'https://untrusted.example'}, json={}, timeout=30)
+        check('Cross-origin write rejected', csrf.status_code == 403)
+        request('DELETE', f'/chat/sessions/{chat_id}')
         # Approximately 11 MiB is sent sequentially; no resource exhaustion test.
         def oversized():
             yield b'--security-probe\r\nContent-Disposition: form-data; name="file"; filename="probe.xlsx"\r\n\r\n'

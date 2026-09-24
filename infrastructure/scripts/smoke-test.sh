@@ -68,23 +68,11 @@ if [[ -n "${TOKEN:-}" ]]; then
   check "Development CPF login" curl --fail --silent --show-error -c "$COOKIE_JAR" -X POST \
     "$APPLICATION_URL/api/v1/auth/development/cpf" -H 'Content-Type: application/json' \
     -d "{\"token\":\"$TOKEN\"}" -o /dev/null || overall=1
-  check "Authenticated session" curl --fail --silent --show-error -b "$COOKIE_JAR" \
+  check "Authenticated session" curl --fail --silent --show-error -b "$COOKIE_JAR" -H "Origin: $APPLICATION_URL" \
     "$APPLICATION_URL/api/v1/auth/session" -o /dev/null || overall=1
-  check "Chat UI configuration" curl --fail --silent --show-error -b "$COOKIE_JAR" \
+  check "Chat UI configuration" curl --fail --silent --show-error -b "$COOKIE_JAR" -H "Origin: $APPLICATION_URL" \
     "$APPLICATION_URL/api/v1/chat/config" -o /dev/null || overall=1
-  check "Chat response pipeline" bash -c '
-    response_file=$(mktemp)
-    trap '\''rm -f "$response_file"'\'' EXIT
-    if ! curl --fail-with-body --silent --show-error -b "$1" -X POST "$2/api/v1/chat/messages" \
-      -H "Content-Type: application/json" -d "{\"question\":\"登録資料に情報がない場合の動作確認です\"}" \
-      -o "$response_file"; then
-      echo "Chat response API body:" >&2
-      cat "$response_file" >&2
-      exit 1
-    fi
-    response=$(cat "$response_file") &&
-    python3 -c '\''import json,sys; value=json.load(sys.stdin); assert isinstance(value.get("answer"),str) and value["answer"]'\'' <<<"$response"
-  ' _ "$COOKIE_JAR" "$APPLICATION_URL" || overall=1
+  check "Chat response pipeline" python3 "$(dirname "$0")/verify-chat-response.py" "$COOKIE_JAR" "$APPLICATION_URL" || overall=1
 fi
 
 else
@@ -93,18 +81,18 @@ else
 fi
 
 if [[ -n "${SMOKE_TEST_WEBSITE_URL:-}" && -n "${TOKEN:-}" ]]; then
-  WEBSITE_RESPONSE="$(curl --fail --silent --show-error -b "$COOKIE_JAR" \
+  WEBSITE_RESPONSE="$(curl --fail --silent --show-error -b "$COOKIE_JAR" -H "Origin: $APPLICATION_URL" \
     -X POST "$APPLICATION_URL/api/v1/data-sources/websites" -H 'Content-Type: application/json' \
     -d "{\"url\":\"$SMOKE_TEST_WEBSITE_URL\",\"title\":\"再現テスト\",\"priority\":\"MEDIUM\",\"answer_source_enabled\":true,\"reference_link_visible\":true}" \
   )" || overall=1
   WEBSITE_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"${WEBSITE_RESPONSE:-{}}" 2>/dev/null || true)"
   if [[ -n "$WEBSITE_ID" ]]; then checks+=("PASS|Register website data source"); else checks+=("FAIL|Register website data source"); overall=1; fi
-  check "Start ingestion worker" curl --fail --silent --show-error -b "$COOKIE_JAR" \
+  check "Start ingestion worker" curl --fail --silent --show-error -b "$COOKIE_JAR" -H "Origin: $APPLICATION_URL" \
     -X POST "$APPLICATION_URL/api/v1/data-sources/ingestion/run-now" -o /dev/null || overall=1
   if [[ -n "$WEBSITE_ID" ]]; then
     ingestion_status=""
     for _ in {1..90}; do
-      ingestion_status="$(curl --fail --silent --show-error -b "$COOKIE_JAR" \
+      ingestion_status="$(curl --fail --silent --show-error -b "$COOKIE_JAR" -H "Origin: $APPLICATION_URL" \
         "$APPLICATION_URL/api/v1/data-sources/$WEBSITE_ID" | \
         python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])' 2>/dev/null || true)"
       [[ "$ingestion_status" == "AVAILABLE" || "$ingestion_status" == "ERROR" ]] && break

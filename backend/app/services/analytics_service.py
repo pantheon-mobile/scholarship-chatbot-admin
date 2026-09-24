@@ -52,14 +52,14 @@ class AnalyticsService:
             existing = await self.repository.get_access(payload.id)
             if existing is not None:
                 if (
-                    existing.visitor_id != visitor_id or existing.accessed_at != payload.accessed_at
+                    existing.visitor_id != visitor_id
                     or existing.surface != payload.surface
                 ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じイベントIDに異なるアクセス内容が指定されています。")
                 await self.repository.commit()
                 return existing
             row = await self.repository.create_access(
-                payload.id, visitor_id, payload.accessed_at, now, payload.surface, ip_address, user_agent,
+                payload.id, visitor_id, now, now, payload.surface, ip_address, user_agent,
             )
             await self.repository.commit()
             return row
@@ -69,7 +69,7 @@ class AnalyticsService:
         except IntegrityError as error:
             await self.repository.rollback()
             existing = await self.repository.get_access(payload.id)
-            if visitor_id is not None and existing is not None and existing.visitor_id == visitor_id and existing.accessed_at == payload.accessed_at:
+            if visitor_id is not None and existing is not None and existing.visitor_id == visitor_id and existing.surface == payload.surface:
                 return existing
             raise AnalyticsError("IDEMPOTENCY_CONFLICT", "アクセス記録が競合しました。") from error
 
@@ -90,14 +90,12 @@ class AnalyticsService:
             if existing is not None:
                 if (
                     existing.visitor_id != visitor_id
-                    or existing.started_at != payload.started_at
-                    or existing.ended_at != payload.ended_at
                 ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じセッションIDに異なる内容が指定されています。")
                 await self.repository.commit()
                 return existing
             row = await self.repository.create_chat_session(
-                payload.id, visitor_id, payload.started_at, payload.ended_at, now,
+                payload.id, visitor_id, now, None, now,
             )
             await self.repository.commit()
             return row
@@ -109,8 +107,6 @@ class AnalyticsService:
             existing = await self.repository.get_chat_session(payload.id)
             if visitor_id is not None and existing is not None and (
                 existing.visitor_id == visitor_id
-                and existing.started_at == payload.started_at
-                and existing.ended_at == payload.ended_at
             ):
                 return existing
             raise AnalyticsError("IDEMPOTENCY_CONFLICT", "チャットセッション記録が競合しました。") from error
@@ -120,21 +116,18 @@ class AnalyticsService:
         session = await self.repository.get_owned_chat_session(session_id, visitor_key)
         if session is None:
             raise AnalyticsError("CHAT_SESSION_NOT_FOUND", "指定されたチャットセッションが見つかりません。")
-        if payload.question_submitted_at < session.started_at:
-            raise AnalyticsError("INVALID_INTERACTION_TIME", "質問送信日時はチャット開始日時以降を指定してください。")
         try:
             existing = await self.repository.get_interaction(payload.id)
             if existing is not None:
                 if (
                     existing.chat_session_id != session_id
                     or existing.sequence_number != payload.sequence_number
-                    or existing.question_submitted_at != payload.question_submitted_at
                     or existing.question_text != payload.question_text
                 ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じ応答IDに異なる内容が指定されています。")
                 return existing
             row = await self.repository.create_interaction(
-                payload.id, session_id, payload.sequence_number, payload.question_submitted_at, payload.question_text, now,
+                payload.id, session_id, payload.sequence_number, now, payload.question_text, now,
             )
             await self.repository.commit()
             return row
@@ -147,7 +140,6 @@ class AnalyticsService:
             if existing is not None and (
                 existing.chat_session_id == session_id
                 and existing.sequence_number == payload.sequence_number
-                and existing.question_submitted_at == payload.question_submitted_at
                 and existing.question_text == payload.question_text
             ):
                 return existing

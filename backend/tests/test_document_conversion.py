@@ -118,7 +118,7 @@ def test_web_crawl_preserves_structure_normalizes_urls_and_continues_errors(monk
 
     monkeypatch.setenv("WEB_CRAWL_RESPECT_ROBOTS", "false")
     monkeypatch.setenv("WEB_CRAWL_INTERVAL_SECONDS", "0")
-    monkeypatch.setattr("app.services.document_conversion.requests.Session", FakeSession)
+    monkeypatch.setattr("app.services.document_conversion.public_session", FakeSession)
     report = {}
 
     documents = crawl_website("https://www.jasso.go.jp/guide/", report)

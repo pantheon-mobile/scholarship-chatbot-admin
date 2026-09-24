@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import os
+from starlette.concurrency import run_in_threadpool
 from pathlib import PurePath
 import time
 from typing import Protocol
@@ -94,7 +95,7 @@ class LocalDataSourceCleanupProcessor:
     async def cleanup(self, data_sources: list[DataSource]) -> None:
         for data_source in data_sources:
             if data_source.file and data_source.file.storage_key:
-                self.storage.delete(data_source.file.storage_key)
+                await run_in_threadpool(self.storage.delete, data_source.file.storage_key)
 
 
 class AwsIngestionProcessor:
@@ -295,16 +296,16 @@ class AwsIngestionProcessor:
 
         # Validate every KB/DS setting before changing S3.
         for removal_prefix in removal_prefixes:
-            self._clear_prefix(removal_prefix)
+            await run_in_threadpool(self._clear_prefix, removal_prefix)
 
         # Bedrock removes vectors whose S3 source disappeared during this sync.
         for knowledge_base_id, data_source_id in sorted(sync_targets):
-            self._synchronize(knowledge_base_id, data_source_id)
+            await run_in_threadpool(self._synchronize, knowledge_base_id, data_source_id)
 
         # Keep originals until every affected KB has synchronized successfully so
         # an operator can retry/recover when AWS synchronization fails.
         for storage_key in original_keys:
-            self.source_storage.delete(storage_key)
+            await run_in_threadpool(self.source_storage.delete, storage_key)
 
     def _clear_prefix(self, prefix: str) -> None:
         paginator = self.s3.get_paginator("list_objects_v2")

@@ -260,3 +260,17 @@ async def test_previously_issued_mock_token_is_rejected_after_disable(monkeypatc
     assert response.status_code == 404
     assert "set-cookie" not in response.headers
     repo.create_session.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_used_jti_retained_through_token_acceptance_leeway(key_pair, monkeypatch):
+    from datetime import datetime, timezone
+    private_key, public_key = key_pair
+    monkeypatch.setenv('CPF_JWT_LEEWAY_SECONDS', '30')
+    expiry = int(time.time()) - 5
+    repository = AsyncMock()
+    repository.create_session_once.return_value = True
+    service = AuthService(repository, [public_key])
+    await service.exchange_cpf_token(make_token(private_key, exp=expiry, iat=expiry-100))
+    retained_until = repository.create_session_once.await_args.kwargs['jwt_expire_at']
+    assert retained_until == datetime.fromtimestamp(expiry+30, timezone.utc)

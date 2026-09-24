@@ -16,7 +16,7 @@ def database_url() -> str:
         port = os.getenv("DB_PORT", "5432")
         name = quote_plus(os.getenv("DB_NAME", "scholarship"))
         return f"postgresql+asyncpg://{user}:{encoded_password}@{host}:{port}/{name}"
-    return "postgresql+asyncpg://postgres:postgres@db:5432/scholarship"
+    raise RuntimeError("DATABASE_URLまたはDB_HOST・DB_PASSWORDを設定してください。")
 
 
 DATABASE_URL = database_url()

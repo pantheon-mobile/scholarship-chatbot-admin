@@ -1,7 +1,7 @@
 {
   "_comment_file": "客先引渡し前の再現テスト用設定例です。実設定JSONへコピーして値を置換します。_comment_*項目はCDKから無視されます。",
   "_comment_environmentName": "CDKスタック名やAWSリソース名に付ける環境識別名です。",
-  "environmentName": "rehearsal",
+  "environmentName": "rehearsal-temporary",
   "_comment_existingDocumentsBucketName": "流用する既存S3バケット名です。空欄ならCDKが新規作成します。",
   "existingDocumentsBucketName": "",
   "_comment_certificateArn": "独自ドメインのHTTPS通信で使用するACM証明書ARNです。",

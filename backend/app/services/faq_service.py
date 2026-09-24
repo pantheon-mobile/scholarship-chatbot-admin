@@ -1,3 +1,4 @@
+from app.services.excel_format import append_safe_row
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -228,7 +229,7 @@ class FaqService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "FAQ一覧"
-        worksheet.append([
+        append_safe_row(worksheet, [
             *FAQ_IMPORT_FIXED_HEADERS,
             *[labels.get(f"FAQ_TYPE_{i}", f"区分{i}") for i in range(1, 5)],
             "チャット利用", "更新日時",
@@ -239,7 +240,7 @@ class FaqService:
             similar_questions = [
                 item.question for item in sorted(row.similar_questions, key=lambda item: item.display_order)
             ][:FAQ_IMPORT_SIMILAR_COUNT]
-            worksheet.append([
+            append_safe_row(worksheet, [
                 row.id, row.question, row.answer,
                 *similar_questions, *([""] * (FAQ_IMPORT_SIMILAR_COUNT - len(similar_questions))),
                 *[values.get(f"FAQ_TYPE_{i}", "") for i in range(1, 5)],
@@ -260,7 +261,7 @@ class FaqService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "FAQ一括登録更新"
-        worksheet.append(headers)
+        append_safe_row(worksheet, headers)
         output = BytesIO()
         apply_download_format(worksheet)
         workbook.save(output)

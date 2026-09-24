@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/source_mutation_tests")
+
 from types import SimpleNamespace
 
 import pytest

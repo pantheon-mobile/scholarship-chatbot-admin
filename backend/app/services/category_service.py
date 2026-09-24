@@ -1,3 +1,4 @@
+from app.services.excel_format import append_safe_row
 from collections import defaultdict
 from io import BytesIO
 
@@ -294,9 +295,9 @@ class CategoryService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "カテゴリ一覧"
-        worksheet.append(["ID", *[f"カテゴリ{depth}" for depth in range(1, max_depth + 1)]])
+        append_safe_row(worksheet, ["ID", *[f"カテゴリ{depth}" for depth in range(1, max_depth + 1)]])
         for category, path in flattened:
-            worksheet.append([category.id, *path, *([""] * (max_depth - len(path)))])
+            append_safe_row(worksheet, [category.id, *path, *([""] * (max_depth - len(path)))])
         output = BytesIO()
         apply_download_format(worksheet)
         workbook.save(output)

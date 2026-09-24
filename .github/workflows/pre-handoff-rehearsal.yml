@@ -6,7 +6,13 @@ on:
       environment_name:
         description: Temporary environment suffix
         required: true
-        default: rehearsal
+        default: rehearsal-temporary
+      certificate_arn:
+        description: ACM certificate ARN for the temporary HTTPS domain
+        required: true
+      domain_name:
+        description: Temporary domain covered by the certificate (configure DNS separately)
+        required: true
       website_test_url:
         description: Optional HTTPS URL to register and start ingesting
         required: false
@@ -17,11 +23,18 @@ on:
         default: KEEP
 
 permissions:
-  id-token: write
   contents: read
+
+concurrency:
+  group: scholarship-rehearsal
+  cancel-in-progress: false
 
 jobs:
   rehearsal:
+    if: github.repository == 'pantheon-mobile/scholarship-chatbot-admin' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 120
     defaults:
@@ -31,7 +44,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: infrastructure/package-lock.json
       - uses: aws-actions/configure-aws-credentials@v4
@@ -41,8 +54,10 @@ jobs:
       - name: Create disposable configuration
         env:
           REHEARSAL_ENVIRONMENT: ${{ inputs.environment_name }}
+          REHEARSAL_CERTIFICATE: ${{ inputs.certificate_arn }}
+          REHEARSAL_DOMAIN: ${{ inputs.domain_name }}
         run: |
-          node -e 'const fs=require("fs"); const c=require("./config/rehearsal.example.json"); c.environmentName=process.env.REHEARSAL_ENVIRONMENT; fs.writeFileSync("config/rehearsal.json", JSON.stringify(c,null,2)+"\n")'
+          node -e 'const fs=require("fs"); const c=require("./config/rehearsal.example.json"); c.environmentName=process.env.REHEARSAL_ENVIRONMENT; c.certificateArn=process.env.REHEARSAL_CERTIFICATE; c.domainName=process.env.REHEARSAL_DOMAIN; c.corsAllowedOrigins="https://"+c.domainName; fs.writeFileSync("config/rehearsal.json", JSON.stringify(c,null,2)+"\n")'
       - name: Deploy and verify from scratch
         env:
           CHAT_MODEL_ARN: ${{ secrets.CHAT_MODEL_ARN }}

@@ -1,3 +1,4 @@
+from app.services.client_ip import client_ip
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -55,7 +56,7 @@ async def record_access(
         return await service.record_access(
             payload, subject=current.subject, display_name=current.display_name,
             role=current.role, site=current.site,
-            ip_address=(request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip() or (request.client.host if request.client else ""))[:64] or None,
+            ip_address=client_ip(request),
             user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
         )
     except AnalyticsError as error:
@@ -103,6 +104,22 @@ async def complete_interaction(
     current: AuthSession = Depends(require_authenticated_session),
     service: AnalyticsService = Depends(get_service),
 ):
+    # Answer contents are committed by /chat/messages, never by the browser.
+    row = await service.repository.get_owned_interaction(
+        interaction_id, service.visitor_key("AUTHENTICATED", f"{current.site}:{current.subject}"),
+        for_update=True,
+    )
+    if row is None:
+        raise api_error(AnalyticsError("INTERACTION_NOT_FOUND", "指定された応答が見つかりません。"))
+    if payload.processing_status == "COMPLETED":
+        if (row.processing_status != "COMPLETED" or row.answer_text != payload.answer_text
+                or row.answer_type != payload.answer_type or row.faq_id != payload.faq_id
+                or (row.citations or []) != payload.citations):
+            raise HTTPException(status_code=409, detail="保存された回答と一致しません。")
+        return row
+    # A disconnected browser cannot erase a successfully generated answer.
+    if row.processing_status == "COMPLETED":
+        return row
     try:
         return await service.complete_interaction(
             interaction_id, payload,

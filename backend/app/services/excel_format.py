@@ -1,5 +1,7 @@
 """Download formatting from the 2026-09-16 customer form definition."""
 import math
+import re
+from openpyxl.cell.cell import Cell
 import unicodedata
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill
@@ -67,3 +69,29 @@ def apply_download_format(sheet):
                 count += max(1, math.ceil(units / max(1, width - 1))) if wrap else 1
             lines = max(lines, count)
         sheet.row_dimensions[row[0].row].height = min(409.5, 18 * lines)
+
+
+# XML 1.0 excludes these controls; preserve TAB, LF and CR.
+_INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+
+
+def clean_export_text(value):
+    return _INVALID_XML.sub("", value) if isinstance(value, str) else value
+
+
+def append_safe_row(sheet, values):
+    cells = []
+    for value in values:
+        value = clean_export_text(value)
+        cell = Cell(sheet, value=value)
+        if isinstance(value, str):
+            cell.data_type = "s"
+        cells.append(cell)
+    sheet.append(cells)
+
+
+def safe_csv_value(value):
+    value = clean_export_text(value)
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value

@@ -111,14 +111,19 @@ async def test_api_uses_resolved_question_for_faq_and_never_forwards_browser_bed
     service.answer_from_faq.return_value = None
     service.answer = AsyncMock(return_value=ChatMessageResponse(answer="資料に基づく回答", answer_type="GENERATED_AI", citations=[]))
     user = SimpleNamespace(site="faculty", subject="staff-1")
-    response = await send_message(ChatMessageRequest(question="さっきの件", bedrock_session_id="untrusted-session"), user, service, session)
+    from app.repositories.analytics import AnalyticsRepository
+    interaction_id, session_id = uuid4(), uuid4()
+    row = SimpleNamespace(id=interaction_id, chat_session_id=session_id, question_text="さっきの件", processing_status="PROCESSING")
+    monkeypatch.setattr(AnalyticsRepository, "get_owned_interaction", AsyncMock(return_value=row))
+    response = await send_message(ChatMessageRequest(interaction_id=interaction_id, chat_session_id=session_id, question="さっきの件", bedrock_session_id="untrusted-session"), user, service, session)
     assert context.await_args.args[2] is enabled
     service.answer_from_faq.assert_called_once_with("第一種の条件", [])
     service.answer.assert_awaited_once_with("第一種の条件")
     assert response.context_reference == "以前の相談"
     service.answer_from_faq.return_value = ChatMessageResponse(answer="FAQ回答", answer_type="FAQ", citations=[], faq_id=1)
     service.answer.reset_mock()
-    assert (await send_message(ChatMessageRequest(question="続き"), user, service, session)).answer_type == "FAQ"
+    row.processing_status, row.question_text = "PROCESSING", "続き"
+    assert (await send_message(ChatMessageRequest(interaction_id=interaction_id, chat_session_id=session_id, question="続き"), user, service, session)).answer_type == "FAQ"
     service.answer.assert_not_awaited()
 
 

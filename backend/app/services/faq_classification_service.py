@@ -1,3 +1,4 @@
+from app.services.excel_format import append_safe_row
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -138,12 +139,12 @@ class FaqClassificationService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "区分"
-        worksheet.append(["区分", "区分ラベル名", "区分値"])
+        append_safe_row(worksheet, ["区分", "区分ラベル名", "区分値"])
         for classification_type in types:
             if not classification_type.values:
-                worksheet.append([classification_type.fixed_name, classification_type.display_label, ""])
+                append_safe_row(worksheet, [classification_type.fixed_name, classification_type.display_label, ""])
             for value in classification_type.values:
-                worksheet.append([classification_type.fixed_name, classification_type.display_label, value.value_name])
+                append_safe_row(worksheet, [classification_type.fixed_name, classification_type.display_label, value.value_name])
         output = BytesIO()
         apply_download_format(worksheet)
         workbook.save(output)

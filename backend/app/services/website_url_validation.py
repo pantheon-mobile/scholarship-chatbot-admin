@@ -1,3 +1,4 @@
+import ipaddress
 from urllib.parse import urlsplit
 
 
@@ -23,6 +24,14 @@ def validate_website_url(value: str) -> str:
         parsed.port
     except ValueError:
         valid = False
+    if valid:
+        valid = not parsed.username and not parsed.password
+        try:
+            address = ipaddress.ip_address(parsed.hostname)
+        except ValueError:
+            valid = valid and parsed.hostname.lower().rstrip('.') != 'localhost' and not parsed.hostname.lower().rstrip('.').endswith('.localhost')
+        else:
+            valid = valid and address.is_global and not address.is_multicast and not address.is_reserved
     if not valid:
         raise WebsiteUrlValidationError("INVALID_URL", "正しいURLを入力してください。")
     return url

@@ -1,3 +1,4 @@
+from app.services.excel_format import append_safe_row
 from io import BytesIO
 from typing import List
 
@@ -112,10 +113,10 @@ class ClassificationService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "種別"
-        worksheet.append(["種別", "種別ラベル名", "種別値"])
+        append_safe_row(worksheet, ["種別", "種別ラベル名", "種別値"])
         for classification_type in types:
             for value in classification_type.values:
-                worksheet.append([
+                append_safe_row(worksheet, [
                     classification_type.fixed_name,
                     classification_type.display_label,
                     value.value_name,

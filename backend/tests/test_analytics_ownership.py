@@ -2,6 +2,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import Mock, AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -51,6 +52,16 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
     original_overrides = app.dependency_overrides.copy()
     app.dependency_overrides[require_authenticated_session] = lambda: current
     app.dependency_overrides[api.get_service] = lambda: service
+    from app.api.v1 import chat as chat_api
+    from app.core.db import get_db
+    from app.schemas.chat import ChatMessageResponse
+    from app.services.chat_context_service import ChatContextService, ContextResult
+    chat_service = Mock()
+    chat_service.answer_from_faq.return_value = None
+    chat_service.answer = AsyncMock(return_value=ChatMessageResponse(answer="案内をご確認ください。", answer_type=answer_type, citations=[]))
+    monkeypatch.setattr(ChatContextService, "resolve", AsyncMock(return_value=ContextResult("申請期限は？")))
+    app.dependency_overrides[chat_api.get_service] = lambda: chat_service
+    app.dependency_overrides[get_db] = lambda: db
     now = datetime.now(timezone.utc)
     session_id, interaction_id, access_id = uuid4(), uuid4(), uuid4()
     forged = {"identity_kind": identity_kind, "identifier": "faculty:victim" if identity_kind == "AUTHENTICATED" else str(uuid4())}
@@ -90,6 +101,17 @@ async def test_http_ownership_and_normal_recording(analytics_db, other_subject, 
             assert await db.scalar(select(func.count()).select_from(ChatFeedback)) == 0
             assert await db.scalar(select(func.count()).select_from(ChatInteraction)) == 1
             current = owner
+            # The browser cannot fabricate a successful response before generation.
+            assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json=completed)).status_code == 409
+            generated = await client.post('/api/v1/chat/messages', json={
+                'interaction_id': str(interaction_id), 'chat_session_id': str(session_id), 'question': question['question_text']})
+            assert generated.status_code == 200, generated.text
+            await db.refresh(row)
+            assert row.processing_status == 'COMPLETED' and row.answer_text == completed['answer_text']
+            assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json={**completed, 'answer_text': 'forged'})).status_code == 409
+            assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json={'processing_status': 'FAILED'})).status_code == 200
+            await db.refresh(row)
+            assert row.processing_status == 'COMPLETED'
             for _ in range(2):
                 assert (await client.patch(f"{base}/interactions/{interaction_id}/completion", json=completed)).status_code == 200
             for rating in ["GOOD", "BAD"]:

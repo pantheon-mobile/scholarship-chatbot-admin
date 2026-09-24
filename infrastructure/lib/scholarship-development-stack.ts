@@ -337,6 +337,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       platform: ecrAssets.Platform.LINUX_AMD64,
     });
     const hasTls = usesExistingAlb || Boolean(config.certificateArn);
+    if (!hasTls) {
+      throw new Error("AWS environments require an HTTPS listener or certificateArn.");
+    }
     const value = (configured: string | number | boolean | undefined, fallback: string | number | boolean) =>
       String(configured ?? fallback);
     const sharedIngestionEnvironment = {
@@ -371,9 +374,10 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const backendContainer = backendTask.addContainer("backend", {
       image: backendImage,
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: "backend", logRetention: logs.RetentionDays.ONE_MONTH }),
-      command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"],
+      command: ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers"],
       environment: {
         APP_ENV: config.environmentName,
+        TRUSTED_PROXY_CIDRS: vpc.vpcCidrBlock,
         CPF_DEVELOPMENT_PASSWORD_REQUIRED: String(config.developmentCpfPasswordRequired ?? false),
         ENABLE_DEVELOPMENT_CPF_MOCK: String(config.enableDevelopmentCpfMock ?? false),
         AUTH_COOKIE_SECURE: String(hasTls),
@@ -451,6 +455,10 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const loadBalancer = usesExistingAlb
       ? elbv2.ApplicationLoadBalancer.fromLookup(this, "LoadBalancer", { loadBalancerArn: config.existingAlbArn })
       : new elbv2.ApplicationLoadBalancer(this, "LoadBalancer", { loadBalancerName: `${config.environmentName}-scholarship-alb`.slice(0, 32), vpc, internetFacing: true });
+    if (!usesExistingAlb) {
+      (loadBalancer as elbv2.ApplicationLoadBalancer).setAttribute("routing.http.xff_header_processing.mode", "append");
+      (loadBalancer as elbv2.ApplicationLoadBalancer).setAttribute("routing.http.xff_client_port.enabled", "false");
+    }
     const albSecurityGroup = usesExistingAlb
       ? ec2.SecurityGroup.fromSecurityGroupId(this, "AlbSecurityGroup", config.existingAlbSecurityGroupId!, { mutable: false })
       : loadBalancer.connections.securityGroups[0];

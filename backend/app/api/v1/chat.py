@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+import logging
 import os
 import asyncio
 from urllib.parse import quote
@@ -219,36 +221,56 @@ async def send_message(
 ):
     if _flag("CHAT_MAINTENANCE_ENABLED"):
         raise HTTPException(status_code=503, detail=os.getenv("CHAT_MAINTENANCE_MESSAGE", "現在メンテナンス中です。"))
+    visitor_key = _visitor_key(_current_user)
+    row = await AnalyticsRepository(session).get_owned_interaction(payload.interaction_id, visitor_key, for_update=True)
+    if row is None or row.chat_session_id != payload.chat_session_id or row.question_text != payload.question:
+        raise HTTPException(status_code=404, detail="質問の記録が見つかりません。画面を再読み込みしてください。")
+    if row.processing_status == "COMPLETED":
+        return ChatMessageResponse(answer=row.answer_text or "", answer_type=row.answer_type,
+                                   faq_id=row.faq_id, citations=row.citations or [])
+    if row.processing_status != "PROCESSING":
+        raise HTTPException(status_code=409, detail="この質問は終了しています。もう一度質問を送信してください。")
+
+    async def save_answer(result):
+        row.processing_status = "COMPLETED"
+        row.answer_text = result.answer
+        row.answer_type = result.answer_type
+        row.faq_id = result.faq_id
+        row.citations = [item.model_dump(exclude={"data_source_id"}) for item in result.citations]
+        row.answer_displayed_at = datetime.now(timezone.utc)
+        row.updated_at = row.answer_displayed_at
+        await session.commit()
+        return result
+
     try:
         context = await ChatContextService(session, _visitor_key(_current_user)).resolve(
             payload.question, payload.chat_session_id,
             _flag("CHAT_CROSS_SESSION_MEMORY_ENABLED", "true") and _flag("CHAT_HISTORY_ENABLED", "true"),
         )
         if context.clarification:
-            return ChatMessageResponse(answer=context.clarification, answer_type="GENERATED_AI", citations=[])
+            return await save_answer(ChatMessageResponse(answer=context.clarification, answer_type="GENERATED_AI", citations=[]))
         faqs = list((await session.execute(
             select(Faq)
             .where(Faq.chat_enabled.is_(True))
             .options(selectinload(Faq.similar_questions))
         )).scalars().unique().all())
-        faq_answer = service.answer_from_faq(context.question, faqs)
+        faq_answer = await asyncio.to_thread(service.answer_from_faq, context.question, faqs)
         if faq_answer is not None:
             faq_answer.context_reference = context.reference
-            return faq_answer
+            return await save_answer(faq_answer)
         # Context is reconstructed from owned DB history, for FAQ and AI turns alike.
         # A fresh Bedrock session prevents stale/deleted/unowned session context.
         result = await service.answer(context.question)
         result.context_reference = context.reference
         result.citations = await resolve_chat_citations(session, result.citations)
-        return result
+        return await save_answer(result)
     except ContextSessionNotFound:
         raise HTTPException(status_code=404, detail="チャット履歴が見つかりません。") from None
     except ChatConfigurationError:
         raise HTTPException(status_code=503, detail="チャット機能の設定が完了していません。") from None
-    except ChatGenerationError as error:
+    except ChatGenerationError:
         detail = "回答を生成できませんでした。時間をおいて再度お試しください。"
-        if _flag("ENABLE_DEVELOPMENT_CPF_MOCK"):
-            detail = f"{detail} 診断情報: {error}"
+        logging.getLogger(__name__).exception("Chat generation failed")
         raise HTTPException(status_code=502, detail=detail) from None
 
 

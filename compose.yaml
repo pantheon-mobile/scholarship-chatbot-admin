@@ -4,7 +4,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
     environment:
@@ -20,22 +20,23 @@ services:
     build:
       context: ./backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scholarship
+      - DB_HOST=db
+      - DB_PASSWORD=${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD in .env}
       - BACKEND_PORT=8000
       - UPLOAD_DIR=/app/storage/uploads
       - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
       - AWS_REGION=${AWS_REGION:-ap-northeast-1}
       - INGESTION_S3_BUCKET=${INGESTION_S3_BUCKET:-}
       - INGESTION_ORIGINAL_PREFIX=${INGESTION_ORIGINAL_PREFIX:-documents/admin/originals/}
-      - ANALYTICS_IDENTITY_SECRET=local-development-analytics-secret-change-in-production
+      - ANALYTICS_IDENTITY_SECRET=${ANALYTICS_IDENTITY_SECRET:?Set ANALYTICS_IDENTITY_SECRET in .env}
       - APP_ENV=development
       - ENABLE_DEVELOPMENT_CPF_MOCK=${ENABLE_DEVELOPMENT_CPF_MOCK:-true}
-      - CPF_DEVELOPMENT_JWT_SECRET=${CPF_DEVELOPMENT_JWT_SECRET:-local-development-cpf-jwt-secret-change-before-shared-use}
+      - CPF_DEVELOPMENT_JWT_SECRET=${CPF_DEVELOPMENT_JWT_SECRET:?Set CPF_DEVELOPMENT_JWT_SECRET in .env}
       - CPF_DEVELOPMENT_JWT_TTL_SECONDS=${CPF_DEVELOPMENT_JWT_TTL_SECONDS:-300}
       - CPF_PUBLIC_KEYS=${CPF_PUBLIC_KEYS:-}
       - CPF_PUBLIC_KEY_PATHS=${CPF_PUBLIC_KEY_PATHS:-}
@@ -112,7 +113,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scholarship
+      - DB_HOST=db
+      - DB_PASSWORD=${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD in .env}
       - UPLOAD_DIR=/app/storage/uploads
       - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
       - AWS_REGION=${AWS_REGION:-ap-northeast-1}
@@ -150,10 +152,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD in .env}
       POSTGRES_DB: scholarship
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d scholarship"]
       interval: 2s

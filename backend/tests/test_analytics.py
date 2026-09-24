@@ -39,7 +39,7 @@ def test_requests_store_chat_content_and_reject_naive_datetimes():
     assert interaction.question_text == " 申請期限は？ "
     completed = InteractionCompletionRequest(
         processing_status="COMPLETED", answer_type="GENERATED_AI",
-        answer_displayed_at=NOW, answer_text="回答", citations=[{"title": "案内", "uri": "s3://bucket/doc"}],
+        answer_displayed_at=NOW, answer_text="回答", citations=[{"title": "案内", "uri": "https://example.com/doc"}],
     )
     assert completed.answer_text == "回答" and completed.citations[0]["title"] == "案内"
     with pytest.raises(ValidationError):
@@ -93,7 +93,7 @@ async def test_access_idempotency_conflict_rolls_back():
     repo = repository()
     visitor = SimpleNamespace(id=uuid4())
     repo.get_or_create_visitor.return_value = visitor
-    repo.get_access.return_value = SimpleNamespace(id=uuid4(), visitor_id=visitor.id, accessed_at=NOW + timedelta(seconds=1))
+    repo.get_access.return_value = SimpleNamespace(id=uuid4(), visitor_id=visitor.id, accessed_at=NOW + timedelta(seconds=1), surface="ADMIN")
     service = AnalyticsService(repo, identity_secret="secret")
     with pytest.raises(AnalyticsError) as error:
         await service.record_access(AccessCreateRequest(id=uuid4(), identity=identity(), accessed_at=NOW))

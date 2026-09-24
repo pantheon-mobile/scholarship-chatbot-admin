@@ -16,6 +16,7 @@ from urllib.robotparser import RobotFileParser
 import boto3
 import fitz
 import requests
+from app.services.public_http import public_session
 from bs4 import BeautifulSoup, NavigableString, Tag
 from docx import Document
 from openpyxl import load_workbook
@@ -426,13 +427,19 @@ def crawl_website(root_url: str, report: dict | None = None) -> list[ConvertedDo
     max_depth = int(os.getenv("WEB_CRAWL_MAX_DEPTH", "5"))
     timeout = float(os.getenv("WEB_CRAWL_TIMEOUT_SECONDS", "20"))
     interval = max(float(os.getenv("WEB_CRAWL_INTERVAL_SECONDS", "0.5")), 0.0)
-    session = requests.Session()
+    session = public_session()
     session.headers["User-Agent"] = os.getenv("WEB_CRAWL_USER_AGENT", "ScholarshipChatbotCrawler/1.0")
     robots = None
     if os.getenv("WEB_CRAWL_RESPECT_ROBOTS", "true").lower() in {"1", "true", "yes", "on"}:
         robots = RobotFileParser(f"{root_parts.scheme}://{root_parts.netloc}/robots.txt")
         try:
-            robots.read()
+            robots_response = session.get(robots.url, timeout=timeout)
+            if robots_response.status_code in {401, 403}:
+                robots.disallow_all = True
+            elif robots_response.status_code >= 400:
+                robots.allow_all = True
+            else:
+                robots.parse(robots_response.text.splitlines())
         except Exception:
             robots = None
     pending = [(root, 0)]

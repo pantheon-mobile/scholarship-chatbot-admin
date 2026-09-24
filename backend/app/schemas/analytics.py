@@ -109,6 +109,15 @@ class InteractionCompletionRequest(BaseModel):
     answer_text: str | None = Field(default=None, max_length=20000)
     citations: list[dict[str, str | None]] = Field(default_factory=list)
 
+    @field_validator("citations")
+    @classmethod
+    def validate_citations(cls, values):
+        from app.services.citation_validation import safe_citation_uri
+        for item in values:
+            if item.get("uri") and safe_citation_uri(item["uri"]) is None:
+                raise ValueError("参照元URLが不正です。")
+        return values
+
     _timezone = field_validator("answer_displayed_at")(lambda value: require_timezone(value) if value else value)
 
     @model_validator(mode="after")

@@ -47,7 +47,7 @@ describe("CB-101 チャットUI", () => {
 
     fireEvent.compositionEnd(input);
     fireEvent.keyDown(input, { key: "Enter", keyCode: 13, isComposing: false });
-    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("給付奨学金", expect.any(String)));
+    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("給付奨学金", expect.any(String), expect.any(String)));
   });
 
   it("左メニュー、履歴、日時を表示し、Good理由をポップアップからDB APIへ送る", async () => {
@@ -205,7 +205,7 @@ it("FAQを挟んでも同じチャットIDを送信し、新しいチャット�
   await ask("第一種奨学金の返還方式", 1);
   const firstId = api.sendChatMessage.mock.calls[0][1];
   await ask("後者の条件は？", 2);
-  expect(api.sendChatMessage.mock.calls[1]).toEqual(["後者の条件は？", firstId]);
+  expect(api.sendChatMessage.mock.calls[1]).toEqual(["後者の条件は？", firstId, expect.any(String)]);
   fireEvent.click(screen.getByRole("button", { name: /新しいチャット/ }));
   await ask("昨日の件", 3);
   expect(api.sendChatMessage.mock.calls[2][1]).not.toBe(firstId);
@@ -222,7 +222,7 @@ it("履歴の続きを送る際に元のチャットIDと失敗分を含む次�
   await screen.findByText("定額と所得連動です");
   fireEvent.change(screen.getByLabelText("質問"), { target: { value: "後者の条件は？" } });
   fireEvent.click(screen.getByRole("button", { name: "送信" }));
-  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("後者の条件は？", id));
+  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("後者の条件は？", id, expect.any(String)));
   expect(api.startTrackedInteraction).toHaveBeenCalledWith(id, expect.any(String), 4, expect.any(String), "後者の条件は？");
   expect(api.startTrackedChat).not.toHaveBeenCalled();
 });
@@ -233,7 +233,7 @@ it("別チャット参照の切り替えUIはなく、参照した場合はチ�
   expect(screen.queryByRole("checkbox", { name: "別のチャットの履歴も参照" })).toBeNull();
   fireEvent.change(screen.getByLabelText("質問"), { target: { value: "昨日の件" } });
   fireEvent.click(screen.getByRole("button", { name: "送信" }));
-  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("昨日の件", expect.any(String)));
+  await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith("昨日の件", expect.any(String), expect.any(String)));
   expect(await screen.findByText("過去のチャット「第一種の相談」を参照しています。")).toBeTruthy();
 });
 

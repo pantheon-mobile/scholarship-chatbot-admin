@@ -1,3 +1,4 @@
+from app.services.client_ip import client_ip
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -5,6 +6,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.body_limit import BodyLimitMiddleware
+from app.middleware.csrf import CsrfMiddleware
 from app.api.v1.health import router as health_router
 from app.api.v1.data_source_types import router as data_source_router
 from app.api.v1.data_sources import router as data_sources_router
@@ -77,7 +79,7 @@ async def record_admin_operation(request: Request, call_next):
                     operator_role=current.role,
                     operator_site=current.site,
                     surface=getattr(request.state, "audit_surface", None) or ("CHAT" if request.url.path.startswith("/api/v1/chat/") else "ADMIN"),
-                    ip_address=(request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip() or (request.client.host if request.client else ""))[:64] or None,
+                    ip_address=client_ip(request),
                     user_agent=(request.headers.get("user-agent") or "")[:1000] or None,
                     http_method=request.method,
                     request_path=request.url.path,
@@ -106,6 +108,8 @@ app.include_router(dashboard_router, prefix="/api/v1", dependencies=admin_depend
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reporting_router, prefix="/api/v1")
+
+app.add_middleware(CsrfMiddleware)
 
 # Outermost middleware: enforce limits before body parsing and authentication.
 app.add_middleware(BodyLimitMiddleware)

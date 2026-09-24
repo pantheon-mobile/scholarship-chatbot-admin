@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatMessageRequest(BaseModel):
+    interaction_id: UUID
     question: str = Field(min_length=1, max_length=5000)
     # Legacy field accepted for older clients; never trusted as conversation ownership.
     bedrock_session_id: str | None = Field(default=None, max_length=2048)
@@ -13,6 +14,12 @@ class ChatMessageRequest(BaseModel):
 
 
 class ChatCitation(BaseModel):
+    @field_validator("uri")
+    @classmethod
+    def safe_uri(cls, value):
+        from app.services.citation_validation import safe_citation_uri
+        return safe_citation_uri(value)
+
     title: str
     # Internal lookup only; preserve the string-only citation history contract.
     data_source_id: int | None = Field(default=None, exclude=True)

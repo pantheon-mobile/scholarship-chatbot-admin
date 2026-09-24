@@ -1,3 +1,5 @@
+from starlette.concurrency import run_in_threadpool
+from app.services.excel_format import append_safe_row
 import asyncio
 from urllib.parse import quote
 from sqlalchemy import select
@@ -148,7 +150,7 @@ async def download_website_import_template():
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "URLリスト"
-    worksheet.append(["URL", "タイトル"])
+    append_safe_row(worksheet, ["URL", "タイトル"])
     worksheet.freeze_panes = "A2"
     output = BytesIO()
     apply_download_format(worksheet)
@@ -233,9 +235,23 @@ async def import_website_data_sources(
     if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(status_code=422, detail={"code": "INVALID_FILE", "message": "xlsx形式のファイルを選択してください。"})
     try:
-        workbook = load_workbook(BytesIO(await file.read()), read_only=True, data_only=True)
-        worksheet = workbook.active
-        rows = list(worksheet.iter_rows(values_only=True))
+        content = await file.read()
+        def read_url_rows():
+            workbook = load_workbook(BytesIO(content), read_only=True, data_only=True, keep_links=False)
+            try:
+                worksheet = workbook.active
+                rows = []
+                nonempty = 0
+                for row in worksheet.iter_rows(values_only=True, max_col=2):
+                    rows.append(row)
+                    if len(rows) > 1 and any(value not in (None, "") for value in row):
+                        nonempty += 1
+                    if nonempty > 100:
+                        break
+                return rows
+            finally:
+                workbook.close()
+        rows = await run_in_threadpool(read_url_rows)
     except Exception:
         raise HTTPException(status_code=422, detail={"code": "INVALID_FILE", "message": "Excelファイルを読み取れませんでした。"}) from None
     if not rows or tuple(rows[0][:2]) != ("URL", "タイトル"):

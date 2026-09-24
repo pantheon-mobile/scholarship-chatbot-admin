@@ -1,4 +1,6 @@
 from __future__ import annotations
+from starlette.concurrency import run_in_threadpool
+from app.services.excel_format import append_safe_row
 from app.services.excel_format import apply_download_format
 
 import logging
@@ -483,7 +485,7 @@ class DataSourceService:
         try:
             for item in validated:
                 storage_key = storage.create_storage_key(item.extension)
-                temporary_path = storage.save_temporary(item.upload.file)
+                temporary_path = await run_in_threadpool(storage.save_temporary, item.upload.file)
                 staged.append((temporary_path, storage_key))
                 records.append({
                     "title": normalized_title if len(validated) == 1 and normalized_title else item.file_name,
@@ -503,15 +505,15 @@ class DataSourceService:
                 classifications=classification_pairs,
             )
             for temporary_path, storage_key in staged:
-                storage.finalize(temporary_path, storage_key)
+                await run_in_threadpool(storage.finalize, temporary_path, storage_key)
                 finalized_keys.append(storage_key)
             await self.repository.commit()
         except Exception as exc:
             await self.repository.rollback()
             for temporary_path, _ in staged:
-                storage.delete_temporary(temporary_path)
+                await run_in_threadpool(storage.delete_temporary, temporary_path)
             for storage_key in finalized_keys:
-                storage.delete(storage_key)
+                await run_in_threadpool(storage.delete, storage_key)
             if isinstance(exc, (FileUploadError, DataSourceMutationError)):
                 raise
             raise FileUploadError("FILE_SAVE_FAILED", "ファイルの追加に失敗しました。") from exc
@@ -520,7 +522,7 @@ class DataSourceService:
             previous = item.get("previous_storage_key")
             if previous:
                 try:
-                    storage.delete(previous)
+                    await run_in_threadpool(storage.delete, previous)
                 except Exception:
                     # Replacement is already committed; do not discard the new file.
                     logging.getLogger(__name__).exception("Failed to remove replaced original")
@@ -552,12 +554,12 @@ class DataSourceService:
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "データソース一覧"
-        worksheet.append(headers)
+        append_safe_row(worksheet, headers)
         for row in all_rows:
             values = {item.type_code: item.value_name for item in row.classifications}
             location = row.file.file_name if row.file else row.website.url if row.website else ""
             updated = row.updated_at.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M")
-            worksheet.append([
+            append_safe_row(worksheet, [
                 row.id, source_labels[row.source_type], row.title, location, row.format,
                 status_labels[row.status], row.category_name or "", values.get("TYPE_1", ""),
                 values.get("TYPE_2", ""), values.get("TYPE_3", ""), row.size_bytes,

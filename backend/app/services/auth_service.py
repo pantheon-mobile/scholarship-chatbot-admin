@@ -260,7 +260,8 @@ class AuthService:
         )
         consumed = await self.repository.create_session_once(
             jti=claims["jti_uuid"],
-            jwt_expire_at=datetime.fromtimestamp(claims["exp"], timezone.utc),
+            jwt_expire_at=datetime.fromtimestamp(claims["exp"], timezone.utc)
+            + timedelta(seconds=max(0, int(os.getenv("CPF_JWT_LEEWAY_SECONDS", "30")))),
             session=session,
         )
         if not consumed:

@@ -1,3 +1,6 @@
+from app.services.excel_format import append_safe_row
+from app.services.excel_format import safe_csv_value
+from starlette.concurrency import run_in_threadpool
 import csv
 from datetime import date, datetime
 from io import BytesIO, StringIO
@@ -123,9 +126,9 @@ def xlsx_response(filename: str, sheet_name: str, headers: list[str], rows: list
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = sheet_name
-    sheet.append(headers)
+    append_safe_row(sheet, headers)
     for row in rows:
-        sheet.append(row)
+        append_safe_row(sheet, row)
     apply_download_format(sheet)
     sheet.freeze_panes = "A2"
     output = BytesIO()
@@ -140,8 +143,8 @@ def xlsx_response(filename: str, sheet_name: str, headers: list[str], rows: list
 def csv_response(filename: str, headers: list[str], rows: list[list[object]]) -> Response:
     output = StringIO(newline="")
     writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerow([safe_csv_value(value) for value in headers])
+    writer.writerows([safe_csv_value(value) for value in row] for row in rows)
     return Response(
         content=("\ufeff" + output.getvalue()).encode("utf-8"),
         media_type="text/csv; charset=utf-8",
@@ -181,7 +184,7 @@ async def chat_history_export(
         own_key = AnalyticsService(service.repository).visitor_key("AUTHENTICATED", f"{current.site}:{current.subject}")
         role, user_ids = None, None
     rows = await service.repository.chat_history_export(start_at, end_at, visitor_key=own_key, answer_type=answer_type if isinstance(answer_type, str) else None, rating=rating if isinstance(rating, str) else None, comment=comment if isinstance(comment, str) else None, role=role if isinstance(role, str) else None, user_ids=parsed_user_ids(user_ids))
-    return xlsx_response(
+    return await run_in_threadpool(xlsx_response,
         f"chathistory{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx",
         "チャット履歴",
         ["チャットID", "ログインID", "権限", "応答ID", "応答No", "質問", "回答", "回答種別", "評価", "コメント", "質問受付日時", "回答完了日時"],
@@ -209,7 +212,7 @@ async def usage_users_xlsx(
         raise HTTPException(status_code=422, detail=str(error)) from None
     role = role if isinstance(role, str) else None
     rows = await service.repository.usage_users(start_at, end_at, role=role)
-    return xlsx_response(
+    return await run_in_threadpool(xlsx_response,
         f"userlist{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.xlsx", "ユーザリスト",
         ["ログインID", "権限", "氏名", "最終アクセス日時"],
         [[
@@ -240,7 +243,7 @@ async def access_logs_xlsx(
     rows = await service.repository.access_logs(
         start_at, end_at, surface=surface, role=role, user_ids=parsed_user_ids(user_ids)
     )
-    return csv_response(
+    return await run_in_threadpool(csv_response,
         f"accesslog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.csv",
         ["アクセス日時", "ログインID", "権限", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
@@ -278,7 +281,7 @@ async def operation_logs_xlsx(
         rows = [row for row in rows if row.get("surface") == surface]
     if operation_type:
         rows = [row for row in rows if operation_kind(row["http_method"], row["request_path"]) == operation_type]
-    return csv_response(
+    return await run_in_threadpool(csv_response,
         f"operationlog{datetime.now(ZoneInfo('Asia/Tokyo')):%Y%m%d%H%M}.csv",
         ["操作日時", "ログインID", "権限", "操作種別", "サイト", "アクセス元（IP）", "デバイス/UA"],
         [[
