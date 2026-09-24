@@ -1,3 +1,4 @@
+import codecs
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
@@ -71,16 +72,19 @@ def _validate_content(upload: UploadFile, extension: str, content_type: str) -> 
     elif extension in {"docx", "xlsx", "pptx"}:
         valid = header.startswith(ZIP_SIGNATURES)
     else:
-        upload.file.seek(0)
-        content = upload.file.read()
-        if b"\x00" not in content:
-            for encoding in ("utf-8-sig", "cp932"):
-                try:
-                    content.decode(encoding)
-                    valid = True
-                    break
-                except UnicodeDecodeError:
-                    continue
+        for encoding in ("utf-8-sig", "cp932"):
+            upload.file.seek(0)
+            decoder = codecs.getincrementaldecoder(encoding)(errors="strict")
+            try:
+                while chunk := upload.file.read(64 * 1024):
+                    if b"\x00" in chunk:
+                        raise UnicodeDecodeError(encoding, chunk, 0, 1, "NUL byte")
+                    decoder.decode(chunk, final=False)
+                decoder.decode(b"", final=True)
+                valid = True
+                break
+            except UnicodeDecodeError:
+                continue
     upload.file.seek(0)
     if not valid:
         raise FileUploadValidationError("FILE_SIGNATURE_MISMATCH", "ファイルの形式と内容が一致していません。")

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from app.middleware.body_limit import BodyLimitMiddleware
 from app.api.v1.health import router as health_router
 from app.api.v1.data_source_types import router as data_source_router
 from app.api.v1.data_sources import router as data_sources_router
@@ -105,3 +106,6 @@ app.include_router(dashboard_router, prefix="/api/v1", dependencies=admin_depend
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(reporting_router, prefix="/api/v1")
+
+# Outermost middleware: enforce limits before body parsing and authentication.
+app.add_middleware(BodyLimitMiddleware)

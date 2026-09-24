@@ -48,10 +48,16 @@ jobs:
         run: ./scripts/deploy-development-ci.sh
       - name: Verify application and AWS resources
         run: ./scripts/smoke-test.sh ScholarshipChatbot-development development-deploy-report.md
+      - name: Verify upload security and normal imports (development only)
+        run: |
+          python3 -m pip install 'requests>=2.32,<3' 'openpyxl>=3.1,<4'
+          python3 scripts/verify-upload-security.py
       - name: Upload deployment report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: development-deploy-report-${{ github.run_id }}
-          path: infrastructure/development-deploy-report.md
+          path: |
+            infrastructure/development-deploy-report.md
+            infrastructure/upload-security-report.md
           if-no-files-found: warn
