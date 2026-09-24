@@ -21,7 +21,7 @@ export default function ChatHistoryPage() {
     {error && <p className={styles.error} role="alert">{error}</p>}
     <section className={styles.formArea}>
       <div className={styles.period}><b>期間指定：</b><FormField aria-label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} required /><span>～</span><FormField aria-label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} required /></div>
-      <SelectField label="チャット回答種別：" value={answerType} onChange={(e) => setAnswerType(e.target.value)}><option value="">（全て）</option><option value="FAQ">FAQ</option><option value="GENERATED_AI">生成AI</option></SelectField>
+      <SelectField label="チャット回答種別：" value={answerType} onChange={(e) => setAnswerType(e.target.value)}><option value="">（全て）</option><option value="FAQ">FAQ</option><option value="GENERATED_AI">生成AI</option><option value="NO_ANSWER">回答NG</option></SelectField>
       <SelectField label="評価：" value={rating} onChange={(e) => setRating(e.target.value)}><option value="">（全て）</option><option value="RATED">Good＆Bad</option><option value="GOOD">Goodのみ</option><option value="BAD">Badのみ</option><option value="NONE">評価なし</option></SelectField>
       <SelectField label="コメント：" value={comment} onChange={(e) => setComment(e.target.value)}><option value="">（全て）</option><option value="WITH">コメント有</option><option value="WITHOUT">コメントなし</option></SelectField>
       {canFilterByUser && <>

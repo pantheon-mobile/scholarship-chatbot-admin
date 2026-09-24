@@ -201,3 +201,28 @@ def test_operation_description_explains_special_operations():
 ])
 def test_operation_description_matches_customer_audit_spec(method, path, surface, expected):
     assert operation_description(method, path, surface) == expected
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("answer_type,label", [("FAQ", "FAQ"), ("GENERATED_AI", "生成AI"), ("NO_ANSWER", "回答NG")])
+async def test_chat_history_export_accepts_answer_type_filter_over_http(answer_type, label):
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from app.api.v1 import reporting
+
+    repository = SimpleNamespace(chat_history_export=AsyncMock(return_value=[{
+        "session_id": "session-1", "interaction_id": "interaction-1",
+        "sequence_number": 1, "answer_type": answer_type,
+    }]))
+    app = FastAPI()
+    app.include_router(reporting.router)
+    app.dependency_overrides[reporting.require_authenticated_session] = lambda: SimpleNamespace(role="admin")
+    app.dependency_overrides[reporting.get_service] = lambda: SimpleNamespace(repository=repository)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/chat-history/export.xlsx", params={
+            "from": "2026-09-01", "to": "2026-09-24", "answer_type": answer_type,
+        })
+    assert response.status_code == 200
+    assert repository.chat_history_export.await_args.kwargs["answer_type"] == answer_type
+    rows = list(load_workbook(BytesIO(response.content), data_only=True).active.values)
+    assert rows[1][7] == label

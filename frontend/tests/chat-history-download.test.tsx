@@ -33,6 +33,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CB-216 チャット履歴ダウンロード", () => {
+  it("回答種別の末尾に回答NGを表示し、選択した条件でダウンロードする", async () => {
+    render(<ChatHistoryPage />);
+    const select = screen.getByRole("combobox", { name: "チャット回答種別：" });
+    expect(Array.from((select as HTMLSelectElement).options).map((option) => option.text)).toEqual(["（全て）", "FAQ", "生成AI", "回答NG"]);
+    fireEvent.change(select, { target: { value: "NO_ANSWER" } });
+    fireEvent.click(screen.getByRole("button", { name: "履歴ダウンロード" }));
+    await waitFor(() => expect(reporting.downloadChatHistory).toHaveBeenCalledWith(expect.objectContaining({ answerType: "NO_ANSWER" })));
+  });
+
   it("職員には権限とログインIDを表示せず、本人限定条件はサーバーに委ねる", async () => {
     auth.user.role = "staff";
     render(<ChatHistoryPage />);

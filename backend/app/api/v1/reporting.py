@@ -167,7 +167,7 @@ async def chat_history(
 @router.get("/chat-history/export.xlsx")
 async def chat_history_export(
     from_date: date = Query(..., alias="from"), to_date: date = Query(..., alias="to"),
-    answer_type: str | None = Query(None, pattern="^(FAQ|GENERATED_AI)$"),
+    answer_type: str | None = Query(None, pattern="^(FAQ|GENERATED_AI|NO_ANSWER)$"),
     rating: str | None = Query(None, pattern="^(RATED|GOOD|BAD|NONE)$"),
     comment: str | None = Query(None, pattern="^(WITH|WITHOUT)$"),
     role: str | None = Query(None, pattern="^(staff|admin)$"), user_ids: str | None = Query(None, max_length=5000),
