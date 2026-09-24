@@ -67,13 +67,14 @@ def main():
         check('FAQ Excel import', imported['created_count'] == 1)
         answer = request('POST', '/chat/messages', json={'question': '登録資料に情報がない場合の動作確認です'}).json()
         check('Chat response', isinstance(answer.get('answer'), str) and bool(answer['answer']))
-        # Only 11 MiB + 1 is sent, sequentially; no attempt to exhaust resources.
+        # Approximately 11 MiB is sent sequentially; no resource exhaustion test.
         def oversized():
+            yield b'--security-probe\r\nContent-Disposition: form-data; name="file"; filename="probe.xlsx"\r\n\r\n'
             for _ in range(11):
                 yield b'x' * MIB
-            yield b'x'
+            yield b'x\r\n--security-probe--\r\n'
         response = requests.post(HOST + '/api/v1/faqs/import', data=oversized(),
-            headers={'Content-Type': 'application/octet-stream'}, timeout=45)
+            headers={'Content-Type': 'multipart/form-data; boundary=security-probe'}, timeout=45)
         check('Unauthenticated chunked body limit / Japanese error', response.status_code == 413 and
               response.json()['detail']['code'] == 'REQUEST_BODY_TOO_LARGE' and
               '上限' in response.json()['detail']['message'])
