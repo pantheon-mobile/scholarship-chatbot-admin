@@ -43,9 +43,10 @@ async def analytics_db():
     ("owner", "student", "admin"),
 ])
 async def test_http_ownership_and_normal_recording(analytics_db, other_subject, other_site, other_role, identity_kind, answer_type, monkeypatch, signed_access):
-    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "ownership-test-secret")
+    secret = str(uuid4())
+    monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", secret)
     db = analytics_db
-    service = AnalyticsService(AnalyticsRepository(db), identity_secret="ownership-test-secret")
+    service = AnalyticsService(AnalyticsRepository(db), identity_secret=secret)
     owner = SimpleNamespace(subject="owner", site="faculty", role="staff", display_name="所有者")
     other = SimpleNamespace(subject=other_subject, site=other_site, role=other_role, display_name="別人")
     current = owner

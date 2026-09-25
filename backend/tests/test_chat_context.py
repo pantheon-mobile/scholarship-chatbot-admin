@@ -98,6 +98,11 @@ def test_history_is_data_not_system_instructions_and_json_is_validated(monkeypat
 @pytest.mark.anyio
 @pytest.mark.parametrize("memory,history,enabled", [("true", "true", True), ("false", "true", False), ("true", "false", False), ("false", "false", False)])
 async def test_api_uses_resolved_question_for_faq_and_never_forwards_browser_bedrock_session(monkeypatch, memory, history, enabled):
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def allowed(*args):
+        yield
+    monkeypatch.setattr("app.api.v1.chat.admit_chat", allowed)
     monkeypatch.setenv("CHAT_CROSS_SESSION_MEMORY_ENABLED", memory)
     monkeypatch.setenv("CHAT_HISTORY_ENABLED", history)
     monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test-secret")
@@ -174,7 +179,7 @@ async def test_database_isolates_users_and_deleted_expired_chats(context_db):
     await chat(db, owner, age=31, title="期限外")
     foreign = await chat(db, other, age=1, title="他人")
     deleted = await chat(db, owner, title="削除済み")
-    await db.delete(deleted)
+    deleted.user_deleted = True
     await db.flush()
     service = ChatContextService(db, "owner")
     histories = await service.other_chats(current.id, datetime.now(timezone.utc))

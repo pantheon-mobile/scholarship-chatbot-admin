@@ -20,6 +20,7 @@ from app.services.public_http import public_session
 from bs4 import BeautifulSoup, NavigableString, Tag
 from docx import Document
 from openpyxl import load_workbook
+from app.services.excel_security import validate_excel_expansion
 from pptx import Presentation
 
 
@@ -146,6 +147,7 @@ def _table_markdown(rows: list[list[str]]) -> str:
 
 
 def convert_xlsx(content: bytes, name: str) -> list[ConvertedDocument]:
+    validate_excel_expansion(content)
     workbook = load_workbook(io.BytesIO(content), data_only=True, read_only=True)
     documents = []
     visible_sheets = [sheet for sheet in workbook.worksheets if sheet.sheet_state == "visible"]

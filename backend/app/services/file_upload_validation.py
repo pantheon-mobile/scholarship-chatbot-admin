@@ -58,6 +58,13 @@ def _safe_file_name(filename: str | None) -> str:
 
 
 def _validate_content(upload: UploadFile, extension: str, content_type: str) -> None:
+    if extension == "xlsx":
+        from app.services.excel_security import validate_excel_expansion
+        from zipfile import BadZipFile
+        try:
+            validate_excel_expansion(upload.file)
+        except BadZipFile:
+            raise FileUploadValidationError("INVALID_FILE_CONTENT", "有効なxlsxファイルを選択してください。") from None
     allowed_types = ALLOWED_CONTENT_TYPES[extension]
     if content_type and content_type != "application/octet-stream" and content_type not in allowed_types:
         raise FileUploadValidationError("FILE_SIGNATURE_MISMATCH", "ファイルの形式と内容が一致していません。")

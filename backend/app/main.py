@@ -61,6 +61,14 @@ async def data_source_mutation_error(request: Request, exc: DataSourceMutationEr
     }})
 
 
+from app.services.resource_limits import ExportLimitExceeded, ExcelExpansionLimitExceeded
+
+@app.exception_handler(ExportLimitExceeded)
+@app.exception_handler(ExcelExpansionLimitExceeded)
+async def resource_limit_error(request: Request, exc):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
 @app.middleware("http")
 async def record_admin_operation(request: Request, call_next):
     response = await call_next(request)

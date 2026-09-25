@@ -244,7 +244,8 @@ async def test_chat_history_title_update_and_delete_are_limited_to_owner(monkeyp
 
     session.commit.reset_mock()
     await delete_chat_session(row.id, current_user=current_user, session=session)
-    session.delete.assert_awaited_once_with(row)
+    assert row.user_deleted is True
+    session.delete.assert_not_awaited()
     session.commit.assert_awaited_once()
 
 

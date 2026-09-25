@@ -66,7 +66,7 @@ class ChatContextService:
         self.session, self.visitor_key, self.client = session, visitor_key, client
 
     def owned(self):
-        return AnalyticsVisitor.visitor_key == self.visitor_key
+        return (AnalyticsVisitor.visitor_key == self.visitor_key) & ChatSession.user_deleted.is_(False)
 
     async def recent_turns(self, session_id: UUID, limit=8):
         # Fetch bounded text in SQL, not whole ORM transcripts.

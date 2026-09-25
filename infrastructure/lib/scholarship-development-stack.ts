@@ -69,6 +69,10 @@ export interface ScholarshipEnvironmentConfig {
   readonly chatInitialMessage?: string;
   readonly chatInputPlaceholder?: string;
   readonly chatQuestionMaxLength?: number;
+  readonly chatRequestsPerMinute?: number;
+  readonly chatMaxConcurrentRequests?: number;
+  readonly reportExportMaxRows?: number;
+  readonly excelExpandedMaxMb?: number;
   readonly chatFrameColor?: string;
   readonly chatBotIconUrl?: string;
   readonly chatHistoryEnabled?: boolean;
@@ -106,6 +110,12 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ScholarshipDevelopmentStackProps) {
     super(scope, id, props);
     const config = props.config;
+    for (const name of ["chatRequestsPerMinute", "chatMaxConcurrentRequests", "reportExportMaxRows", "excelExpandedMaxMb"] as const) {
+      const configured = config[name];
+      if (configured !== undefined && (!Number.isSafeInteger(configured) || configured < 1)) {
+        throw new Error(`${name} must be a positive integer`);
+      }
+    }
     const prefix = `scholarship-chatbot-${config.environmentName}`;
 
     const parameter = (name: string, description: string) => new cdk.CfnParameter(this, name, { type: "String", default: "", description }).valueAsString;
@@ -347,6 +357,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     const value = (configured: string | number | boolean | undefined, fallback: string | number | boolean) =>
       String(configured ?? fallback);
     const sharedIngestionEnvironment = {
+      EXCEL_EXPANDED_MAX_MB: value(config.excelExpandedMaxMb, 100),
       INGESTION_ORIGINAL_PREFIX: config.ingestionOriginalPrefix ?? "documents/admin/originals/",
       INGESTION_PROCESSOR_TIMEOUT_SECONDS: value(config.ingestionProcessorTimeoutSeconds, 1800),
       INGESTION_WORKER_MAX_JOBS: value(config.ingestionWorkerMaxJobs, 1000),
@@ -416,6 +427,9 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         CHAT_INITIAL_MESSAGE: config.chatInitialMessage ?? "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
         CHAT_INPUT_PLACEHOLDER: config.chatInputPlaceholder ?? "質問を入力してください",
         CHAT_QUESTION_MAX_LENGTH: value(config.chatQuestionMaxLength, 2000),
+        CHAT_REQUESTS_PER_MINUTE: value(config.chatRequestsPerMinute, 10),
+        CHAT_MAX_CONCURRENT_REQUESTS: value(config.chatMaxConcurrentRequests, 1),
+        REPORT_EXPORT_MAX_ROWS: value(config.reportExportMaxRows, 10000),
         CHAT_FRAME_COLOR: config.chatFrameColor ?? "#171a1d",
         CHAT_BOT_ICON_URL: config.chatBotIconUrl ?? "",
         CHAT_HISTORY_ENABLED: value(config.chatHistoryEnabled, true),

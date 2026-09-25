@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile, is_zipfile
+from app.services.excel_security import validate_excel_expansion
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
@@ -278,6 +279,7 @@ class FaqService:
         if not content or not is_zipfile(BytesIO(content)):
             raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。")
         try:
+            validate_excel_expansion(content)
             with ZipFile(BytesIO(content)) as archive:
                 names = {name.lower() for name in archive.namelist()}
                 content_types = archive.read("[Content_Types].xml").lower()

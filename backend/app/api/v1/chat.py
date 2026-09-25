@@ -8,11 +8,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.v1.auth import require_authenticated_session
 from app.core.db import get_db
+from app.services.chat_admission import admit_chat
 from app.models.data_source import DataSource
 from app.api.v1.data_sources import get_storage
 from app.storage.base import StorageAdapter
@@ -88,6 +89,7 @@ async def list_chat_sessions(
         .join(AnalyticsVisitor)
         .where(
             AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+            ChatSession.user_deleted.is_(False),
             completed_interaction_exists,
         )
         .options(selectinload(ChatSession.interactions))
@@ -135,6 +137,7 @@ async def get_chat_session_history(
         .where(
             ChatSession.id == session_id,
             AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+            ChatSession.user_deleted.is_(False),
             completed_interaction_exists,
         )
         .options(selectinload(ChatSession.interactions).selectinload(ChatInteraction.feedback))
@@ -175,6 +178,7 @@ async def _owned_chat_session(session_id: UUID, current_user: AuthSession, sessi
         .where(
             ChatSession.id == session_id,
             AnalyticsVisitor.visitor_key == _visitor_key(current_user),
+            ChatSession.user_deleted.is_(False),
         )
         .options(selectinload(ChatSession.interactions))
     )
@@ -208,7 +212,7 @@ async def delete_chat_session(
     session: AsyncSession = Depends(get_db),
 ):
     row = await _owned_chat_session(session_id, current_user, session)
-    await session.delete(row)
+    row.user_deleted = True
     await session.commit()
 
 
@@ -221,6 +225,13 @@ async def send_message(
 ):
     if _flag("CHAT_MAINTENANCE_ENABLED"):
         raise HTTPException(status_code=503, detail=os.getenv("CHAT_MAINTENANCE_MESSAGE", "現在メンテナンス中です。"))
+    bind = session.bind
+    engine = bind.engine if isinstance(bind, AsyncConnection) else bind
+    async with admit_chat(engine, _visitor_key(_current_user)):
+        return await _generate_message(payload, _current_user, service, session)
+
+
+async def _generate_message(payload, _current_user, service, session):
     visitor_key = _visitor_key(_current_user)
     row = await AnalyticsRepository(session).get_owned_interaction(payload.interaction_id, visitor_key, for_update=True)
     if row is None or row.chat_session_id != payload.chat_session_id or row.question_text != payload.question:

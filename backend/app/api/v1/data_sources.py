@@ -15,6 +15,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
+from app.services.excel_security import validate_excel_expansion
+from app.services.resource_limits import ExcelExpansionLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.data_source_mutation import DataSourceMutationError
@@ -138,7 +140,7 @@ async def import_data_sources(file: UploadFile = File(...), service: DataSourceS
         status = 500 if error.code == "DATA_SOURCE_IMPORT_FAILED" else 422
         raise HTTPException(status_code=status, detail={"code": error.code, "message": error.message, "errors": [item.model_dump() for item in error.errors]}) from None
 
-    except DataSourceMutationError:
+    except (DataSourceMutationError, ExcelExpansionLimitExceeded):
         raise
     except Exception:
         logging.getLogger(__name__).exception("Unexpected data source import failure")
@@ -237,6 +239,7 @@ async def import_website_data_sources(
     try:
         content = await file.read()
         def read_url_rows():
+            validate_excel_expansion(content)
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=True, keep_links=False)
             try:
                 worksheet = workbook.active
@@ -252,6 +255,8 @@ async def import_website_data_sources(
             finally:
                 workbook.close()
         rows = await run_in_threadpool(read_url_rows)
+    except ExcelExpansionLimitExceeded:
+        raise
     except Exception:
         raise HTTPException(status_code=422, detail={"code": "INVALID_FILE", "message": "Excelファイルを読み取れませんでした。"}) from None
     if not rows or tuple(rows[0][:2]) != ("URL", "タイトル"):

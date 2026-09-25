@@ -89,7 +89,7 @@ class AnalyticsService:
             existing = await self.repository.get_chat_session(payload.id)
             if existing is not None:
                 if (
-                    existing.visitor_id != visitor_id
+                    existing.visitor_id != visitor_id or getattr(existing, "user_deleted", False)
                 ):
                     raise AnalyticsError("IDEMPOTENCY_CONFLICT", "同じセッションIDに異なる内容が指定されています。")
                 await self.repository.commit()
@@ -106,7 +106,7 @@ class AnalyticsService:
             await self.repository.rollback()
             existing = await self.repository.get_chat_session(payload.id)
             if visitor_id is not None and existing is not None and (
-                existing.visitor_id == visitor_id
+                existing.visitor_id == visitor_id and not getattr(existing, "user_deleted", False)
             ):
                 return existing
             raise AnalyticsError("IDEMPOTENCY_CONFLICT", "チャットセッション記録が競合しました。") from error

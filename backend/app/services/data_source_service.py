@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from dataclasses import dataclass
 from zipfile import BadZipFile, ZipFile, is_zipfile
+from app.services.excel_security import validate_excel_expansion
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
@@ -450,7 +451,7 @@ class DataSourceService:
         category_id: int | None = None,
     ) -> list[DataSourceResponse]:
         try:
-            validated = validate_uploads(files)
+            validated = await run_in_threadpool(validate_uploads, files)
         except FileUploadValidationError as exc:
             raise FileUploadError(exc.code, exc.message) from exc
 
@@ -597,6 +598,7 @@ class DataSourceService:
         if not content or not is_zipfile(BytesIO(content)):
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。")
         try:
+            validate_excel_expansion(content)
             with ZipFile(BytesIO(content)) as archive:
                 names = {name.lower() for name in archive.namelist()}
                 if any(name.endswith("vbaproject.bin") for name in names):

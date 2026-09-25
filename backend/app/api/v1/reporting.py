@@ -275,7 +275,7 @@ async def operation_logs_xlsx(
     operation_type = operation_type if isinstance(operation_type, str) else None
     role = role if isinstance(role, str) else None
     rows = await service.repository.operation_logs(
-        start_at, end_at, role=role, user_ids=parsed_user_ids(user_ids)
+        start_at, end_at, role=role, user_ids=parsed_user_ids(user_ids), surface=surface, operation_type=operation_type
     )
     if surface:
         rows = [row for row in rows if row.get("surface") == surface]

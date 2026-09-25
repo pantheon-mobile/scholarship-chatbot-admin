@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, JSON, BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
@@ -55,6 +55,7 @@ class ChatSession(Base):
     id: Mapped[UUID] = Column(Uuid, primary_key=True)
     visitor_id: Mapped[UUID] = Column(ForeignKey("analytics_visitors.id", ondelete="RESTRICT"), nullable=False)
     title: Mapped[str | None] = Column(String(100), nullable=True)
+    user_deleted: Mapped[bool] = Column(Boolean, nullable=False, default=False, server_default="false")
     started_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = Column(DateTime(timezone=True), nullable=True)
     recorded_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
@@ -109,3 +110,9 @@ class ChatFeedback(Base):
     created_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=False)
     interaction = relationship("ChatInteraction", back_populates="feedback")
+
+
+class ChatRequestLimit(Base):
+    __tablename__ = "chat_request_limits"
+    visitor_key = Column(String(64), primary_key=True)
+    accepted_at = Column(JSON, nullable=False)

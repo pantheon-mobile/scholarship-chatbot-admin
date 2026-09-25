@@ -26,13 +26,20 @@ def make_row(version: int = 1):
     )
 
 
+def xlsx_bytes():
+    from openpyxl import Workbook
+    output = BytesIO()
+    Workbook().save(output)
+    return output.getvalue()
+
+
 SIGNATURES = {
     "pdf": b"%PDF-1.7\ncontent",
     "doc": bytes.fromhex("D0CF11E0A1B11AE1") + b"content",
     "xls": bytes.fromhex("D0CF11E0A1B11AE1") + b"content",
     "ppt": bytes.fromhex("D0CF11E0A1B11AE1") + b"content",
     "docx": b"PK\x03\x04content",
-    "xlsx": b"PK\x03\x04content",
+    "xlsx": xlsx_bytes(),
     "pptx": b"PK\x03\x04content",
     "txt": "テキスト".encode(),
     "csv": "a,b\n1,2".encode(),
