@@ -3,6 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
 from app.repositories.dashboard import DashboardRepository
+from app.services.dashboard_settings import visible_basic_metrics
 from app.schemas.dashboard import (
     AnswerTypeMetrics,
     BasicMetrics,
@@ -63,6 +64,10 @@ class DashboardService:
     async def get(self, from_date: date, to_date: date) -> DashboardResponse:
         if from_date > to_date:
             raise DashboardError("INVALID_DATE_RANGE", "開始日は終了日以前を指定してください。")
+        try:
+            visible = visible_basic_metrics()
+        except ValueError as exc:
+            raise DashboardError("INVALID_DASHBOARD_SETTINGS", str(exc)) from exc
         start_jst = datetime.combine(from_date, time.min, tzinfo=JST)
         end_jst = datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=JST)
         data = await self.repository.aggregate(start_jst.astimezone(timezone.utc), end_jst.astimezone(timezone.utc))
@@ -84,6 +89,7 @@ class DashboardService:
         days = (to_date - from_date).days + 1
 
         return DashboardResponse(
+            visible_basic_metrics=visible,
             period=DashboardPeriod(from_date=from_date, to_date=to_date, timezone="Asia/Tokyo"),
             basic_metrics=BasicMetrics(
                 access_count=access_count,

@@ -44,6 +44,7 @@ export type DashboardBucket = {
 };
 
 export type DashboardResponse = {
+  visible_basic_metrics?: string[];
   period: { from_date: string; to_date: string; timezone: string };
   basic_metrics: BasicMetrics;
   answer_types: AnswerTypeMetrics;

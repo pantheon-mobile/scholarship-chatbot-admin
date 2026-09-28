@@ -17,8 +17,8 @@ function count(value: number) {
   return value.toLocaleString("ja-JP");
 }
 
-function Metric({ label, value, newRow = false }: { label: ReactNode; value: string; newRow?: boolean }) {
-  return <div className={`${styles.metric} ${newRow ? styles.metricNewRow : ""}`}>
+function Metric({ label, value }: { label: ReactNode; value: string }) {
+  return <div className={styles.metric}>
     <dt>{label}</dt>
     <dd>{value}</dd>
   </div>;
@@ -64,6 +64,30 @@ export default function DashboardPage() {
     void load(fromDate, toDate);
   };
 
+  const metrics = dashboard ? [
+    { id: "access_count", label: "アクセス数", value: count(dashboard.basic_metrics.access_count) },
+    { id: "access_user_count", label: "アクセスユーザ数", value: count(dashboard.basic_metrics.access_user_count) },
+    { id: "chat_count", label: "チャット数", value: count(dashboard.basic_metrics.chat_count) },
+    { id: "chat_user_count", label: "チャットユーザ数", value: count(dashboard.basic_metrics.chat_user_count) },
+    { id: "average_chats_per_day", label: "1日平均チャット数", value: decimal(dashboard.basic_metrics.average_chats_per_day) },
+    { id: "average_chats_per_user", label: "1人あたりチャット数", value: decimal(dashboard.basic_metrics.average_chats_per_user) },
+    { id: "response_count", label: "応答数", value: count(dashboard.basic_metrics.response_count) },
+    { id: "average_responses_per_chat", label: "1チャットあたり平均応答数", value: decimal(dashboard.basic_metrics.average_responses_per_chat) },
+    { id: "average_responses_per_user", label: "1人あたり平均応答数", value: decimal(dashboard.basic_metrics.average_responses_per_user) },
+    { id: "response_time_average", label: <>応答時間<br />（平均／秒）</>, value: decimal(dashboard.basic_metrics.response_time.average_seconds) },
+    { id: "response_time_range", label: <>応答時間<br />（最短 - 最長／秒）</>, value: dashboard.basic_metrics.response_time.minimum_seconds === null ? "－" : `${decimal(dashboard.basic_metrics.response_time.minimum_seconds)} - ${decimal(dashboard.basic_metrics.response_time.maximum_seconds)}` },
+    { id: "valid_answer_count", label: "有効回答数", value: count(dashboard.basic_metrics.valid_answer_count) },
+    { id: "no_answer_count", label: "回答NG数", value: count(dashboard.basic_metrics.no_answer_count) },
+    { id: "answer_rate", label: "回答率", value: decimal(dashboard.basic_metrics.answer_rate, "%") },
+    { id: "good_count", label: "Good数", value: count(dashboard.basic_metrics.good_count) },
+    { id: "bad_count", label: "Bad数", value: count(dashboard.basic_metrics.bad_count) },
+    { id: "unrated_count", label: "評価なし", value: count(dashboard.basic_metrics.unrated_count) },
+    { id: "satisfaction_rate", label: "満足度", value: decimal(dashboard.basic_metrics.satisfaction_rate, "%") },
+    { id: "comment_count", label: "コメント総数", value: count(dashboard.basic_metrics.comment_count) },
+    { id: "good_comment_count", label: <>コメント数<br />（Good）</>, value: count(dashboard.basic_metrics.good_comment_count) },
+    { id: "bad_comment_count", label: <>コメント数<br />（Bad）</>, value: count(dashboard.basic_metrics.bad_comment_count) },
+  ].filter((metric) => dashboard.visible_basic_metrics === undefined || dashboard.visible_basic_metrics.includes(metric.id)) : [];
+
   return <AdminLayout activeMenu="dashboard" contentWidth="wide" onNavigate={(href) => router.push(href)}>
     <PageHeader title="ダッシュボード" />
     <form className={styles.periodForm} onSubmit={aggregate} aria-label="集計期間">
@@ -78,29 +102,9 @@ export default function DashboardPage() {
     {loading && <p className={styles.loading} role="status">集計中です。</p>}
 
     {!loading && dashboard && <div className={styles.dashboardContent}>
-      <dl className={styles.metricsPanel} aria-label="基本指標">
-        <Metric label="アクセス数" value={count(dashboard.basic_metrics.access_count)} />
-        <Metric label="アクセスユーザ数" value={count(dashboard.basic_metrics.access_user_count)} />
-        <Metric label="チャット数" value={count(dashboard.basic_metrics.chat_count)} />
-        <Metric label="チャットユーザ数" value={count(dashboard.basic_metrics.chat_user_count)} />
-        <Metric label="1日平均チャット数" value={decimal(dashboard.basic_metrics.average_chats_per_day)} />
-        <Metric label="1人あたりチャット数" value={decimal(dashboard.basic_metrics.average_chats_per_user)} />
-        <Metric label="応答数" value={count(dashboard.basic_metrics.response_count)} />
-        <Metric label="1チャットあたり平均応答数" value={decimal(dashboard.basic_metrics.average_responses_per_chat)} />
-        <Metric label="1人あたり平均応答数" value={decimal(dashboard.basic_metrics.average_responses_per_user)} />
-        <Metric label={<>応答時間<br />（平均／秒）</>} value={decimal(dashboard.basic_metrics.response_time.average_seconds)} />
-        <Metric label={<>応答時間<br />（最短 - 最長／秒）</>} value={dashboard.basic_metrics.response_time.minimum_seconds === null ? "－" : `${decimal(dashboard.basic_metrics.response_time.minimum_seconds)} - ${decimal(dashboard.basic_metrics.response_time.maximum_seconds)}`} />
-        <Metric label="有効回答数" value={count(dashboard.basic_metrics.valid_answer_count)} newRow />
-        <Metric label="回答NG数" value={count(dashboard.basic_metrics.no_answer_count)} />
-        <Metric label="回答率" value={decimal(dashboard.basic_metrics.answer_rate, "%")} />
-        <Metric label="Good数" value={count(dashboard.basic_metrics.good_count)} />
-        <Metric label="Bad数" value={count(dashboard.basic_metrics.bad_count)} />
-        <Metric label="評価なし" value={count(dashboard.basic_metrics.unrated_count)} />
-        <Metric label="満足度" value={decimal(dashboard.basic_metrics.satisfaction_rate, "%")} newRow />
-        <Metric label="コメント総数" value={count(dashboard.basic_metrics.comment_count)} />
-        <Metric label={<>コメント数<br />（Good）</>} value={count(dashboard.basic_metrics.good_comment_count)} />
-        <Metric label={<>コメント数<br />（Bad）</>} value={count(dashboard.basic_metrics.bad_comment_count)} />
-      </dl>
+      {metrics.length > 0 && <dl className={styles.metricsPanel} aria-label="基本指標">
+        {metrics.map((metric) => <Metric key={metric.id} label={metric.label} value={metric.value} />)}
+      </dl>}
 
       <div className={styles.breakdownGrid}>
         <section className={styles.breakdownPanel} aria-labelledby="answer-types-title">

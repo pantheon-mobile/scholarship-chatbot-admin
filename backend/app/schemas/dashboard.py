@@ -62,6 +62,7 @@ class DashboardPeriod(BaseModel):
 
 
 class DashboardResponse(BaseModel):
+    visible_basic_metrics: list[str]
     period: DashboardPeriod
     basic_metrics: BasicMetrics
     answer_types: AnswerTypeMetrics

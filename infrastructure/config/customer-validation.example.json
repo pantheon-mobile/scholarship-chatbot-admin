@@ -105,5 +105,91 @@
   "_comment_databaseClientSecurityGroupIds": "踏み台・ビルドサーバー等からRDS接続を許可する追加Security Group ID一覧です。不要なら空配列にします。",
   "databaseClientSecurityGroupIds": [
     "sg-00000000000000001"
-  ]
+  ],
+  "dashboardBasicMetrics": {
+    "access_count": {
+      "name": "アクセス数",
+      "visible": 1
+    },
+    "access_user_count": {
+      "name": "アクセスユーザ数",
+      "visible": 1
+    },
+    "chat_count": {
+      "name": "チャット数",
+      "visible": 1
+    },
+    "chat_user_count": {
+      "name": "チャットユーザ数",
+      "visible": 1
+    },
+    "average_chats_per_day": {
+      "name": "1日平均チャット数",
+      "visible": 1
+    },
+    "average_chats_per_user": {
+      "name": "1人あたりチャット数",
+      "visible": 1
+    },
+    "response_count": {
+      "name": "応答数",
+      "visible": 1
+    },
+    "average_responses_per_chat": {
+      "name": "1チャットあたり平均応答数",
+      "visible": 1
+    },
+    "average_responses_per_user": {
+      "name": "1人あたり平均応答数",
+      "visible": 1
+    },
+    "response_time_average": {
+      "name": "応答時間（平均／秒）",
+      "visible": 1
+    },
+    "response_time_range": {
+      "name": "応答時間（最短 - 最長／秒）",
+      "visible": 1
+    },
+    "valid_answer_count": {
+      "name": "有効回答数",
+      "visible": 1
+    },
+    "no_answer_count": {
+      "name": "回答NG数",
+      "visible": 1
+    },
+    "answer_rate": {
+      "name": "回答率",
+      "visible": 1
+    },
+    "good_count": {
+      "name": "Good数",
+      "visible": 1
+    },
+    "bad_count": {
+      "name": "Bad数",
+      "visible": 1
+    },
+    "unrated_count": {
+      "name": "評価なし",
+      "visible": 1
+    },
+    "satisfaction_rate": {
+      "name": "満足度",
+      "visible": 1
+    },
+    "comment_count": {
+      "name": "コメント総数",
+      "visible": 1
+    },
+    "good_comment_count": {
+      "name": "コメント数（Good）",
+      "visible": 1
+    },
+    "bad_comment_count": {
+      "name": "コメント数（Bad）",
+      "visible": 1
+    }
+  }
 }
