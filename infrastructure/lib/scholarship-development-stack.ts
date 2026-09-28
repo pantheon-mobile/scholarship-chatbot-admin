@@ -26,6 +26,10 @@ export interface ScholarshipEnvironmentConfig {
   readonly awsAccountId?: string;
   readonly existingDocumentsBucketName?: string;
   readonly certificateArn?: string;
+  /** H+さんが別管理するアプリ用ロールの権限境界。未指定の環境は従来どおり。 */
+  readonly appPermissionsBoundaryArn?: string;
+  /** 既存Listenerの証明書管理移管。retainを反映後にexternalへ変更する。 */
+  readonly existingListenerCertificateManagement?: "managed" | "retain" | "external";
   readonly domainName?: string;
   readonly hostedZoneId?: string;
   readonly hostedZoneName?: string;
@@ -112,6 +116,18 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ScholarshipDevelopmentStackProps) {
     super(scope, id, props);
     const config = props.config;
+    if (config.appPermissionsBoundaryArn) {
+      iam.PermissionsBoundary.of(this).apply(
+        iam.ManagedPolicy.fromManagedPolicyArn(this, "AppPermissionsBoundary", config.appPermissionsBoundaryArn),
+      );
+    }
+    const certificateManagement = config.existingListenerCertificateManagement ?? "managed";
+    if (!["managed", "retain", "external"].includes(certificateManagement)) {
+      throw new Error("existingListenerCertificateManagement must be managed, retain or external");
+    }
+    if (certificateManagement !== "managed" && !config.existingHttpsListenerArn) {
+      throw new Error("Certificate management transfer requires an existing HTTPS listener");
+    }
     const dashboardMetrics = dashboardMetricsEnvironment(config.dashboardBasicMetrics);
     for (const name of ["chatRequestsPerMinute", "chatMaxConcurrentRequests", "reportExportMaxRows", "excelExpandedMaxMb"] as const) {
       const configured = config[name];
@@ -496,10 +512,17 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       : hasTls
         ? loadBalancer.addListener("Https", { port: 443, open: true, certificates: [acm.Certificate.fromCertificateArn(this, "Certificate", config.certificateArn!)] })
         : loadBalancer.addListener("Http", { port: 80, open: true });
-    if (usesExistingAlb && config.certificateArn) {
+    if (usesExistingAlb && config.certificateArn && certificateManagement !== "external") {
       listener.addCertificates("ApplicationCertificate", [
         acm.Certificate.fromCertificateArn(this, "ApplicationCertificate", config.certificateArn),
       ]);
+      if (certificateManagement === "retain") {
+        const attachment = listener.node.findChild("ApplicationCertificate").node.defaultChild;
+        if (!(attachment instanceof elbv2.CfnListenerCertificate)) {
+          throw new Error("Expected the existing listener certificate attachment");
+        }
+        attachment.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+      }
     }
     if (hasTls && !usesExistingAlb) {
       (loadBalancer as elbv2.ApplicationLoadBalancer).addRedirect({ sourcePort: 80, sourceProtocol: elbv2.ApplicationProtocol.HTTP, targetPort: 443, targetProtocol: elbv2.ApplicationProtocol.HTTPS });

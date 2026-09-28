@@ -1,0 +1,247 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnlyLookups",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAccountAttributes",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcAttribute",
+        "ec2:DescribeVpcs",
+        "elasticloadbalancing:Describe*",
+        "ecs:Describe*",
+        "ecs:List*",
+        "iam:ListRoles",
+        "logs:DescribeLogGroups",
+        "s3:ListAllMyBuckets",
+        "secretsmanager:GetRandomPassword",
+        "secretsmanager:ListSecrets",
+        "rds:Describe*",
+        "sqs:ListQueues",
+        "scheduler:ListSchedules",
+        "bedrock:ListKnowledgeBases",
+        "aoss:BatchGetCollection",
+        "aoss:ListCollections",
+        "aoss:ListAccessPolicies",
+        "aoss:ListSecurityPolicies",
+        "aoss:GetAccessPolicy",
+        "aoss:GetSecurityPolicy",
+        "aoss:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityGroupCreate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-1:796575284584:vpc/vpc-03cdcf1b20ab6f936",
+        "arn:aws:ec2:ap-northeast-1:796575284584:security-group/*"
+      ]
+    },
+    {
+      "Sid": "SecurityGroupTagOnCreate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-1:796575284584:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "CreateSecurityGroup"
+        }
+      }
+    },
+    {
+      "Sid": "SecurityGroupManageOwnStackOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
+        "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
+        "ec2:DeleteSecurityGroup",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-1:796575284584:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/aws:cloudformation:stack-name": "ScholarshipChatbot-stg01-demo"
+        }
+      }
+    },
+    {
+      "Sid": "SecurityGroupRules",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
+        "ec2:UpdateSecurityGroupRuleDescriptionsEgress"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-1:796575284584:security-group-rule/*"
+    },
+    {
+      "Sid": "TargetGroups",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "elasticloadbalancing:DeleteTargetGroup",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:DeregisterTargets",
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:RemoveTags"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:targetgroup/Schola-*/*"
+    },
+    {
+      "Sid": "SharedListenerCreateRuleOnly",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateRule"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:listener/app/gakupita-stg-web-fargate-alb/ea893fe54fc88e36/ecef481f0bab2efd"
+    },
+    {
+      "Sid": "OwnListenerRules",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:ModifyRule",
+        "elasticloadbalancing:DeleteRule",
+        "elasticloadbalancing:SetRulePriorities",
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:RemoveTags"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:listener-rule/app/gakupita-stg-web-fargate-alb/ea893fe54fc88e36/ecef481f0bab2efd/3358947fdc76b533",
+        "arn:aws:elasticloadbalancing:ap-northeast-1:796575284584:listener-rule/app/gakupita-stg-web-fargate-alb/ea893fe54fc88e36/ecef481f0bab2efd/996b711796a2e08a"
+      ]
+    },
+    {
+      "Sid": "EcsClusterServicesTasks",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:UpdateCluster",
+        "ecs:UpdateClusterSettings",
+        "ecs:PutClusterCapacityProviders",
+        "ecs:DeleteCluster",
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:DeleteService",
+        "ecs:StopServiceDeployment",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:TagResource",
+        "ecs:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:ecs:ap-northeast-1:796575284584:cluster/scholarship-chatbot-stg01-demo-cluster",
+        "arn:aws:ecs:ap-northeast-1:796575284584:service/scholarship-chatbot-stg01-demo-cluster/*",
+        "arn:aws:ecs:ap-northeast-1:796575284584:service-deployment/scholarship-chatbot-stg01-demo-cluster/*/*",
+        "arn:aws:ecs:ap-northeast-1:796575284584:task-definition/ScholarshipChatbotstg01demo*:*",
+        "arn:aws:ecs:ap-northeast-1:796575284584:capacity-provider/*"
+      ]
+    },
+    {
+      "Sid": "EcsRegisterTaskDefinition",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:RegisterTaskDefinition"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IamRolesOfThisStack",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:DeleteRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::796575284584:role/ScholarshipChatbot-stg01-*",
+        "arn:aws:iam::796575284584:role/scholarship-chatbot-stg01-demo-*"
+      ]
+    },
+    {
+      "Sid": "IamCreateRoleRequiresBoundary",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:PutRolePermissionsBoundary"
+      ],
+      "Resource": [
+        "arn:aws:iam::796575284584:role/ScholarshipChatbot-stg01-*",
+        "arn:aws:iam::796575284584:role/scholarship-chatbot-stg01-demo-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::796575284584:policy/ScholarshipChatbotAppBoundary"
+        }
+      }
+    },
+    {
+      "Sid": "IamPassRoleToServicesOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::796575284584:role/ScholarshipChatbot-stg01-*",
+        "arn:aws:iam::796575284584:role/scholarship-chatbot-stg01-demo-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "ecs-tasks.amazonaws.com",
+            "bedrock.amazonaws.com",
+            "scheduler.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyBoundaryRemovalAndPolicyTampering",
+      "Effect": "Deny",
+      "Action": [
+        "iam:DeleteRolePermissionsBoundary",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:CreatePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:SetDefaultPolicyVersion",
+        "iam:CreateUser",
+        "iam:CreateAccessKey",
+        "iam:CreateGroup",
+        "iam:CreateLoginProfile"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

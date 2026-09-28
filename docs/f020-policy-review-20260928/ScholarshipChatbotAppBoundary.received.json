@@ -1,0 +1,146 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DocumentsBucketObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts",
+        "s3:PutObjectTagging"
+      ],
+      "Resource": "arn:aws:s3:::scholarshipchatbot-stg01-demo-documents7e5b2978-ax0ixkwtsmzm/*"
+    },
+    {
+      "Sid": "DocumentsBucketList",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:ListBucketMultipartUploads"
+      ],
+      "Resource": "arn:aws:s3:::scholarshipchatbot-stg01-demo-documents7e5b2978-ax0ixkwtsmzm"
+    },
+    {
+      "Sid": "KnowledgeBaseRetrieveAndSync",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:Retrieve",
+        "bedrock:StartIngestionJob",
+        "bedrock:GetIngestionJob",
+        "bedrock:ListIngestionJobs",
+        "bedrock:GetKnowledgeBase",
+        "bedrock:ListDataSources",
+        "bedrock:GetDataSource"
+      ],
+      "Resource": "arn:aws:bedrock:ap-northeast-1:796575284584:knowledge-base/BEF0NPAOGN"
+    },
+    {
+      "Sid": "RetrieveAndGenerateHasNoResourceLevelSupport",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:RetrieveAndGenerate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ModelInvocation",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:GetInferenceProfile"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-northeast-1:796575284584:inference-profile/jp.anthropic.claude-sonnet-4-6",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-sonnet-4-6",
+        "arn:aws:bedrock:ap-northeast-3::foundation-model/anthropic.claude-sonnet-4-6",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0"
+      ]
+    },
+    {
+      "Sid": "VectorCollectionDataAccess",
+      "Effect": "Allow",
+      "Action": [
+        "aoss:APIAccessAll"
+      ],
+      "Resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/r1c8mzga2ln7rlto73a1"
+    },
+    {
+      "Sid": "RunIngestionWorker",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:RunTask"
+      ],
+      "Resource": "arn:aws:ecs:ap-northeast-1:796575284584:task-definition/ScholarshipChatbotstg01demoWorkerTask*:*",
+      "Condition": {
+        "ArnEquals": {
+          "ecs:cluster": "arn:aws:ecs:ap-northeast-1:796575284584:cluster/scholarship-chatbot-stg01-demo-cluster"
+        }
+      }
+    },
+    {
+      "Sid": "PassWorkerRolesToEcs",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::796575284584:role/ScholarshipChatbot-stg01-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "EcrAuthToken",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPullBootstrapAssetsOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-1:796575284584:repository/cdk-hnb659fds-container-assets-796575284584-ap-northeast-1"
+    },
+    {
+      "Sid": "OwnLogGroups",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:ap-northeast-1:796575284584:log-group:ScholarshipChatbot-stg01-demo-*"
+    },
+    {
+      "Sid": "OwnSecretsRead",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:ap-northeast-1:796575284584:secret:scholarship-chatbot-stg01-demo/*",
+        "arn:aws:secretsmanager:ap-northeast-1:796575284584:secret:ScholarshipChatbotstg01demo*"
+      ]
+    },
+    {
+      "Sid": "WorkerDeadLetterQueue",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage"
+      ],
+      "Resource": "arn:aws:sqs:ap-northeast-1:796575284584:scholarship-chatbot-stg01-demo-worker-dlq"
+    }
+  ]
+}

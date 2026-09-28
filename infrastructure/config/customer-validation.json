@@ -166,5 +166,7 @@
       "name": "コメント数（Bad）",
       "visible": 1
     }
-  }
+  },
+  "appPermissionsBoundaryArn": "arn:aws:iam::796575284584:policy/ScholarshipChatbotAppBoundary",
+  "existingListenerCertificateManagement": "retain"
 }
