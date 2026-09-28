@@ -255,3 +255,7 @@ npm run deploy -- --context config=config/development.json \
 - CB-101は公開FAQの質問・類似質問を先に照合し、`CHAT_FAQ_MATCH_THRESHOLD`（既定0.85）以上なら最も一致率の高いFAQを回答します。閾値未満の場合は`CHAT_KNOWLEDGE_BASE_ID`と`CHAT_MODEL_ARN`でBedrock Knowledge Baseへ接続してRAG回答を生成します。RAGでは「回答に利用する」が有効なデータソースだけを検索し、関連度が`CHAT_PRIORITY_SCORE_TOLERANCE`（既定0.05）以内で近い候補は回答利用の優先度（高→中→低）を優先します。`CHAT_CURRENT_ACADEMIC_YEAR`（未設定時は日本時間の現在年）より古い年度だけがFAQ本文・質問に含まれる場合は、旧年度情報である旨を回答の先頭に表示します。本人別の会話履歴、FAQ ID、出典、Good／Bad理由、利用統計をDBへ保存します。RAG回答生成はtemperature 0、既定HYBRID検索・Top 5です。
 - チャット画面のタイトル、初期メッセージ、入力欄文言、枠色、BotアイコンURL、履歴表示、メンテナンス表示、Good／Badの案内・選択肢は`CHAT_UI_*`、`CHAT_HISTORY_ENABLED`、`CHAT_MAINTENANCE_*`、`CHAT_*_FEEDBACK_*`で環境別に変更できます。選択肢は`|`区切りです。生成指示は`CHAT_SYSTEM_PROMPT`（最大5000文字、`$search_results$`と`$query$`が必須）で変更できます。
 - Frontendは既知の脆弱性修正を含むNext.js 16.3.4、Vitest 3.2.6へ更新し、`package-lock.json`と`npm ci`で依存を固定しています。
+
+### ダッシュボード基本指標の表示設定
+
+環境別JSONの `dashboardBasicMetrics` に全21項目を日本語名付きで定義しています。各項目の `visible` を1（表示）または0（非表示）に設定してください。表示順と画面上の名称は固定です。設定UIはありません。ローカルの環境変数指定、反映方法、全項目一覧は [基本指標の表示設定](docs/dashboard-visible-metrics-design.md) を参照してください。

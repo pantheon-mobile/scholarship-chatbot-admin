@@ -106,3 +106,24 @@ describe("CB-201 Dashboard", () => {
     expect(await screen.findByText("アクセス数")).not.toBeNull();
   });
 });
+
+
+describe("基本指標の表示設定", () => {
+  it("指定された項目だけを現行順で表示し、説明名では表示を変えない", async () => {
+    fetchDashboard.mockResolvedValueOnce({ ...response, visible_basic_metrics: ["satisfaction_rate", "chat_count"] });
+    render(<DashboardPage />);
+    const panel = await screen.findByLabelText("基本指標");
+    expect(Array.from(panel.querySelectorAll("dt"), (node) => node.textContent)).toEqual(["チャット数", "満足度"]);
+    expect(panel.querySelectorAll("dd")).toHaveLength(2);
+    expect(screen.queryByText("アクセス数")).toBeNull();
+    expect(screen.getByText("チャット種別利用")).not.toBeNull();
+  });
+
+  it("全非表示ならパネルを除去し下部の集計は残す", async () => {
+    fetchDashboard.mockResolvedValueOnce({ ...response, visible_basic_metrics: [] });
+    render(<DashboardPage />);
+    await screen.findByText("チャット種別利用");
+    expect(screen.queryByLabelText("基本指標")).toBeNull();
+    expect(screen.getByLabelText("集計期間")).not.toBeNull();
+  });
+});

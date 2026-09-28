@@ -1,4 +1,5 @@
 import * as path from "path";
+import { DashboardBasicMetrics, dashboardMetricsEnvironment } from "./dashboard-settings";
 import * as cdk from "aws-cdk-lib";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
@@ -21,6 +22,7 @@ import { Construct } from "constructs";
 
 export interface ScholarshipEnvironmentConfig {
   readonly environmentName: string;
+  readonly dashboardBasicMetrics?: DashboardBasicMetrics;
   readonly awsAccountId?: string;
   readonly existingDocumentsBucketName?: string;
   readonly certificateArn?: string;
@@ -106,6 +108,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ScholarshipDevelopmentStackProps) {
     super(scope, id, props);
     const config = props.config;
+    const dashboardMetrics = dashboardMetricsEnvironment(config.dashboardBasicMetrics);
     const prefix = `scholarship-chatbot-${config.environmentName}`;
 
     const parameter = (name: string, description: string) => new cdk.CfnParameter(this, name, { type: "String", default: "", description }).valueAsString;
@@ -413,6 +416,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         CHAT_UI_TITLE: config.chatUiTitle ?? "東京理科大学奨学金問合せチャット",
         ADMIN_UI_TITLE: config.adminUiTitle ?? "東京理科大学奨学金問合せチャット　管理サイト",
         HEADER_ICON_URL: config.headerIconUrl ?? "",
+        DASHBOARD_BASIC_METRICS: dashboardMetrics,
         CHAT_INITIAL_MESSAGE: config.chatInitialMessage ?? "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
         CHAT_INPUT_PLACEHOLDER: config.chatInputPlaceholder ?? "質問を入力してください",
         CHAT_QUESTION_MAX_LENGTH: value(config.chatQuestionMaxLength, 2000),
