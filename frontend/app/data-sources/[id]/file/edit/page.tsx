@@ -59,6 +59,13 @@ function formatSize(size: number | null) {
   return `${(size / 1024 ** 2).toFixed(size >= 10 * 1024 ** 2 ? 1 : 2)}MB`;
 }
 
+function formatJst(value: string) {
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
 export default function DataSourceFileEditPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -205,6 +212,10 @@ export default function DataSourceFileEditPage() {
             <div className={`${styles.formRow} ${styles.toggleRow}`}>
               <span className={styles.rowLabel}>チャットの回答に参照元リンクとして表示：</span>
               <ToggleSwitch checked={values.reference_link_visible} checkedLabel="表示" uncheckedLabel="非表示" disabled={busy} onChange={(value) => setValue("reference_link_visible", value)} />
+            </div>
+            <div className={`${styles.formRow} ${styles.readonlyRow}`}>
+              <span className={styles.rowLabel}>最終更新日時：</span>
+              <time dateTime={row.updated_at}>{formatJst(row.updated_at)}</time>
             </div>
           </div>
           <div className={styles.actions}>
