@@ -48,6 +48,13 @@ function valuesFrom(row: DataSource): EditableValues {
   };
 }
 
+function formatJst(value: string) {
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
 export default function DataSourceWebsiteEditPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -165,6 +172,10 @@ export default function DataSourceWebsiteEditPage() {
             <div className={styles.formRow}><span className={styles.rowLabel}>回答利用の優先度：</span><SelectField wrapperClassName={styles.priorityField} aria-label="回答利用の優先度" value={values.priority} disabled={busy} onChange={(event) => setValue("priority", event.target.value as Priority)}><option value="HIGH">優先度高</option><option value="MEDIUM">優先度中</option><option value="LOW">優先度低</option></SelectField></div>
             <div className={`${styles.formRow} ${styles.toggleRow}`}><span className={styles.rowLabel}>チャットの回答ソースとして利用：</span><ToggleSwitch checked={values.answer_source_enabled} checkedLabel="有効" uncheckedLabel="無効" disabled={busy} onChange={(value) => setValue("answer_source_enabled", value)} /></div>
             <div className={`${styles.formRow} ${styles.toggleRow}`}><span className={styles.rowLabel}>チャットの回答に参照元リンクとして表示：</span><ToggleSwitch checked={values.reference_link_visible} checkedLabel="表示" uncheckedLabel="非表示" disabled={busy} onChange={(value) => setValue("reference_link_visible", value)} /></div>
+            <div className={`${styles.formRow} ${styles.readonlyRow}`}>
+              <span className={styles.rowLabel}>最終更新日時：</span>
+              <time dateTime={row.updated_at}>{formatJst(row.updated_at)}</time>
+            </div>
           </div>
           <div className={styles.actions}><Button type="submit" variant="primary" disabled={!dirty || !values.url.trim() || busy}>{busy ? "更新中..." : "更新する"}</Button><Button variant="secondary" onClick={() => requestNavigate("/data-sources")} disabled={busy}>キャンセル</Button></div>
         </>}

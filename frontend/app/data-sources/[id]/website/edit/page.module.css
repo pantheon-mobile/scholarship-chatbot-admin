@@ -16,3 +16,6 @@
 .toggleRow .rowLabel { width: 380px; padding-top: 0; }
 .actions { display: flex; justify-content: flex-start; gap: 35px; margin: 28px 0 0 260px; }
 .actions button { min-width: 230px; min-height: 48px; }
+
+.readonlyRow { align-items: center; font-size: 15px; }
+.readonlyRow .rowLabel { padding-top: 0; }
