@@ -572,6 +572,11 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
       memoryLimitMiB: 2048,
       runtimePlatform: fargateRuntimePlatform,
     });
+    // Keep superseded task definitions; deployment does not need account-wide
+    // ecs:DeregisterTaskDefinition permission. Running tasks are unaffected.
+    for (const task of [backendTask, frontendTask, workerTask]) {
+      task.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+    }
     workerTask.addContainer("worker", {
       image: backendImage,
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: "worker", logRetention: logs.RetentionDays.ONE_MONTH }),
