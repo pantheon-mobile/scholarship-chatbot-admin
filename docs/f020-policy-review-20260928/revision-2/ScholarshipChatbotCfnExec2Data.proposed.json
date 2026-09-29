@@ -1,0 +1,161 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LogGroups",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:logs:ap-northeast-1:796575284584:log-group:ScholarshipChatbot-stg01-demo-*"
+    },
+    {
+      "Sid": "DocumentsBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:ListBucket",
+        "s3:GetBucket*",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:PutBucketOwnershipControls",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketTagging",
+        "s3:PutBucketVersioning",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutLifecycleConfiguration"
+      ],
+      "Resource": "arn:aws:s3:::scholarshipchatbot-stg01-demo-*"
+    },
+    {
+      "Sid": "OwnSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:TagResource",
+        "secretsmanager:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:ap-northeast-1:796575284584:secret:scholarship-chatbot-stg01-demo/*",
+        "arn:aws:secretsmanager:ap-northeast-1:796575284584:secret:ScholarshipChatbotstg01demo*"
+      ]
+    },
+    {
+      "Sid": "OwnDatabase",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:ModifyDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:RebootDBInstance",
+        "rds:CreateDBSnapshot",
+        "rds:CreateDBSubnetGroup",
+        "rds:ModifyDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:AddTagsToResource",
+        "rds:RemoveTagsFromResource",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:796575284584:db:scholarship-chatbot-stg01-demo-*",
+        "arn:aws:rds:ap-northeast-1:796575284584:subgrp:scholarshipchatbot-stg01-demo-*",
+        "arn:aws:rds:ap-northeast-1:796575284584:snapshot:scholarship-chatbot-stg01-demo-*",
+        "arn:aws:rds:ap-northeast-1:796575284584:snapshot:scholarshipchatbot-stg01-demo-*",
+        "arn:aws:rds:ap-northeast-1:796575284584:pg:default.postgres*",
+        "arn:aws:rds:ap-northeast-1:796575284584:og:default:postgres-*"
+      ]
+    },
+    {
+      "Sid": "OwnQueue",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:CreateQueue",
+        "sqs:DeleteQueue",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:SetQueueAttributes",
+        "sqs:ListQueueTags",
+        "sqs:TagQueue",
+        "sqs:UntagQueue"
+      ],
+      "Resource": "arn:aws:sqs:ap-northeast-1:796575284584:scholarship-chatbot-stg01-demo-*"
+    },
+    {
+      "Sid": "OwnSchedule",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:DeleteSchedule",
+        "scheduler:GetSchedule"
+      ],
+      "Resource": "arn:aws:scheduler:ap-northeast-1:796575284584:schedule/default/scholarship-chatbot-stg01-demo-*"
+    },
+    {
+      "Sid": "KnowledgeBaseCreate",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:CreateKnowledgeBase"
+      ],
+      "Resource": "arn:aws:bedrock:ap-northeast-1:796575284584:knowledge-base/*"
+    },
+    {
+      "Sid": "OwnKnowledgeBaseAndDataSources",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:GetKnowledgeBase",
+        "bedrock:UpdateKnowledgeBase",
+        "bedrock:DeleteKnowledgeBase",
+        "bedrock:ListDataSources",
+        "bedrock:CreateDataSource",
+        "bedrock:GetDataSource",
+        "bedrock:UpdateDataSource",
+        "bedrock:DeleteDataSource",
+        "bedrock:ListTagsForResource",
+        "bedrock:TagResource",
+        "bedrock:UntagResource"
+      ],
+      "Resource": "arn:aws:bedrock:ap-northeast-1:796575284584:knowledge-base/BEF0NPAOGN"
+    },
+    {
+      "Sid": "OwnOpenSearchServerlessCollection",
+      "Effect": "Allow",
+      "Action": [
+        "aoss:UpdateCollection",
+        "aoss:DeleteCollection",
+        "aoss:APIAccessAll"
+      ],
+      "Resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/r1c8mzga2ln7rlto73a1"
+    },
+    {
+      "Sid": "DenyAossProvisioningAndPolicyChangesDuringMigration",
+      "Effect": "Deny",
+      "Action": [
+        "aoss:CreateCollection",
+        "aoss:TagResource",
+        "aoss:UntagResource",
+        "aoss:CreateSecurityPolicy",
+        "aoss:UpdateSecurityPolicy",
+        "aoss:DeleteSecurityPolicy",
+        "aoss:CreateAccessPolicy",
+        "aoss:UpdateAccessPolicy",
+        "aoss:DeleteAccessPolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

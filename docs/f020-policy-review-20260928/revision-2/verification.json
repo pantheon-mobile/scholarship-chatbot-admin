@@ -1,0 +1,82 @@
+{
+  "accessAnalyzerFindings": [],
+  "unchangedOtherServices": true,
+  "simulationResults": [
+    {
+      "action": "aoss:CreateCollection",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:TagResource",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:UntagResource",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:CreateSecurityPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:UpdateSecurityPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:DeleteSecurityPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:CreateAccessPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:UpdateAccessPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:DeleteAccessPolicy",
+      "resource": "*",
+      "decision": "explicitDeny"
+    },
+    {
+      "action": "aoss:APIAccessAll",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/r1c8mzga2ln7rlto73a1",
+      "decision": "allowed"
+    },
+    {
+      "action": "aoss:APIAccessAll",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/other-system-test",
+      "decision": "implicitDeny"
+    },
+    {
+      "action": "aoss:UpdateCollection",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/r1c8mzga2ln7rlto73a1",
+      "decision": "allowed"
+    },
+    {
+      "action": "aoss:UpdateCollection",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/other-system-test",
+      "decision": "implicitDeny"
+    },
+    {
+      "action": "aoss:DeleteCollection",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/r1c8mzga2ln7rlto73a1",
+      "decision": "allowed"
+    },
+    {
+      "action": "aoss:DeleteCollection",
+      "resource": "arn:aws:aoss:ap-northeast-1:796575284584:collection/other-system-test",
+      "decision": "implicitDeny"
+    }
+  ],
+  "limitations": "IAM custom-policy simulation, not live customer API execution. Statements split across simulation input documents solely for API input length; semantics unchanged."
+}
