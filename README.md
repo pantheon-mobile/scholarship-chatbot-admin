@@ -24,6 +24,16 @@ docker compose up --build
 
 - `http://localhost:3000`
 
+### 環境ごとのCPF疑似ログイン
+
+| 環境 | 疑似ログイン | 共通パスワード |
+| --- | --- | --- |
+| ローカル（Docker Compose） | 有効：`http://localhost:3000/development/cpf` | 不要（氏名・利用者ID・ロールを指定） |
+| 自社AWS開発環境 | 有効 | 必須 |
+| H+さん検証環境 | 無効（正式CPFからログイン） | 疑似ログイン自体を提供しない |
+
+ローカルは `.env` の `ENABLE_DEVELOPMENT_CPF_MOCK=true` を画面・APIの両コンテナへ渡します。共通パスワード要求は `compose.yaml` で `CPF_DEVELOPMENT_PASSWORD_REQUIRED=false` に固定します。環境変数の変更後はコンテナの再作成、コード更新後は再ビルドが必要です。自社AWSの設定は `infrastructure/config/development-ci.json`、H+さん環境は `infrastructure/config/customer-validation.json` で管理します。
+
 開発用AWSへ接続する場合は、AWS SSOログイン後に`.env.aws-dev.example`を`.env.aws-dev`へコピーし、実値を設定して次を実行します。
 
 ```bash
