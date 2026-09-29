@@ -17,11 +17,44 @@
 ## ファイル
 
 - `infrastructure/scripts/validation_baseline.py`：参照、保存、検証、復元。
+- `infrastructure/scripts/preflight-validation-baseline.py`：停止前に実行する読取専用の接続・ツール・容量・保存先設定確認。
 - `infrastructure/scripts/save-validation-baseline.sh`：保存の入口。
 - `infrastructure/scripts/restore-validation-baseline.sh`：復元の入口。
 - `infrastructure/scripts/validation_maintenance.py`：アプリと定期実行の停止・再開。
 
 バックアップは実行端末の指定ディレクトリに作成する。`database.dump`、連番のオブジェクト本体、元のS3キー・属性・ハッシュ等を記録した `manifest.json` の組である。S3キーをローカルパスに使わないため、特殊文字や `../` を含むキーでも安全に保存できる。
+
+## 2026-09-25 客先と合意した実行場所・保存先
+
+- 作業場所：GAKUPITA/CPF共用のビルド／デプロイ用EC2。接続ユーザー・接続鍵等は客先準備待ち。既存ビルドやデプロイと作業時間を調整する。
+- EC2のIAMロール：`dev-gakupita-app-build-server-role`。通常はEC2のインスタンスロールを使うため、新しいアクセスキーは不要。初期構築はCDKロールへのAssumeRoleを経由するため、バックアップの直接操作権限が付与済みとは判断しない。不足するAPI許可は対象リソースを限定して依頼する。
+- 保存先：`s3://gakupita.backup/ai-chatbot/stg01-demo/<取得日時>/`。GAKUPITA共用のバックアップバケット内の専用prefix。**このバケットは退避先であり、復元による削除・同期の対象にしない。** 他システムのprefixへ書き込まない。
+- 保持：客先の既存ライフサイクルに従い183日。実際の対象prefixへの適用、現行版・過去バージョンの扱いを接続後に確認し、既存ルールを変更しない。長期間使う復元基準では、期限前に再取得等の判断が必要。
+- 共用EC2全体のIAMロール変更・sudoers変更はこのスクリプトでは行わない。通常実行にsudoは不要。Python/PostgreSQLクライアント等の導入が必要なら客先と調整する。
+- 保存・復元で停止するのはAIチャットボットの対象環境だけ。GAKUPITA/CPFや共用ALBを停止しない。
+
+### 接続後、停止前に実行する事前確認
+
+必要ツールは下記の実行前準備に従って用意し、作業用の非公開ディレクトリを作成する。EC2の暗号化ディスク・アクセス権限・空き容量も確認する。
+
+```bash
+export BASELINE_PYTHON="<バックアップ用venv>/bin/python"
+export BASELINE_ROOT="$HOME/validation-backups"
+mkdir -p "$BASELINE_ROOT"
+chmod 700 "$BASELINE_ROOT"
+# 作業シェルに別のAWS_PROFILE/アクセスキーが残っていないことを確認。
+# --profile未指定でEC2ロールを利用する。認証情報の値を出力しない。
+"$BASELINE_PYTHON" infrastructure/scripts/preflight-validation-baseline.py \
+  --work-directory "$BASELINE_ROOT" > "$BASELINE_ROOT/preflight.json"
+```
+
+出力のアカウントは796575284584、呼出元はdev-gakupita-app-build-server-roleであることを確認する。異なるロールが表示されたら原因を確認してから進める。S3の設定取得がAccessDenied等の場合は確認未完了として扱う。`preflight.json` は環境識別子を含むため公開しない。
+
+このコマンドはDBを読み取り専用で照会し、ECSやS3の状態を読むだけで、停止・ダンプ・S3書込み・復元を行わない。PGツールのメジャーバージョン一致と空き容量を確認する。容量見積りにはダンプ一時領域や復元直前退避分の余裕が別途必要。
+
+**この事前確認の成功だけでは、PutObject/KMS暗号化・復号、ECS/Scheduler更新、iam:PassRole、復元時のDB作成権限等を確認したことにはならない。** 下記権限一覧と実ポリシーを照合し、必要な場合は専用prefixでの小さなアップロード／ダウンロード試験等を作業計画に追加する。読取検査中に試験書込みを自動実行しない。保守時間が決まるまではpause/save/restoreを実行しない。
+
+客先への接続準備が完了したら、インスタンスID・接続方法・接続ユーザーの案内を受ける。秘密鍵・アクセスキー・DBパスワードをGitや手順書に記載しない。
 
 ## 実行前の準備
 
@@ -29,7 +62,7 @@
 
 1. Python 3.11以上、`boto3`、`psycopg[binary]` を用意する。既存のbackend用venvも利用可能。専用venvの場合は `python -m pip install -r infrastructure/scripts/requirements-baseline.txt` で導入する。
 2. PostgreSQLサーバーと同じメジャーバージョンの `pg_dump` / `pg_restore` をPATHに入れる。
-3. 客先用AWSプロファイルを設定する。アクセスキーやDBパスワードをスクリプトや手順書へ記載しない。
+3. 共用EC2では既存のIAMロールを利用する（--profile省略）。別端末・SSM利用の場合は客先用AWSプロファイルを設定する。アクセスキーやDBパスワードをスクリプトや手順書へ記載しない。
 4. RDSへの経路とセキュリティグループの接続許可を確認する。RDSを公開したり、`0.0.0.0/0` を許可したりしない。
 5. 端末の暗号化された保存領域に、DB＋S3全量を格納できる空きを用意する。復元時は追加で直前退避分が必要。
 6. 保存先と保持期間は担当者が決める。バックアップに個人情報・セッション情報等が含まれるため、Gitや公開ストレージへ置かない。
@@ -46,13 +79,19 @@
 - Bedrock `GetDataSource`, `ListIngestionJobs`, `StartIngestionJob`, `GetIngestionJob`
 - DB所有者としてダンプ・DB削除／作成・復元を実行できる権限。実際にはスタックのDB管理者シークレットを使用する。
 
+### バックアップ先の追加権限と共用領域の扱い
+
+退避先gakupita.backupには、専用prefixのListBucket・GetObject・PutObject、必要なマルチパート操作とKMS権限が必要。これは復元対象のDocumentsBucketとは別権限として整理する。退避先全体へのDeleteObjectやバケット削除権限は要求しない。試験データを削除する場合も専用の試験キーだけに限定する。
+
+事前確認ではGetLifecycleConfiguration・GetEncryptionConfiguration・GetBucketVersioningも参照する。許可できない項目は客先の設定情報で確認する。書込時のKMSキー指定等がバケットポリシーで要求される場合は、実設定を確認して転送コマンドを調整する。共有バケットへのsync --deleteやバケット全体の設定変更は行わない。
+
 ## 接続・保存先の設定例
 
-以下はリポジトリのルートで実行する。`customer-validation` は実際のプロファイル名に置き換える。パスは例であり、保存先を作業者が選ぶ。
+以下はリポジトリのルートで実行する。共用EC2ではAWS_PROFILEの指定は不要。別端末でプロファイルを使う場合だけ、確認した客先用の名前を指定する。パスは例であり、保存先を作業者が選ぶ。
 
 ```bash
 export BASELINE_PYTHON="$PWD/.venv/bin/python"
-export AWS_PROFILE=customer-validation
+# EC2のインスタンスロールを使う場合、AWS_PROFILEは指定しない。
 export BASELINE_ROOT="$HOME/validation-backups"
 mkdir -p "$BASELINE_ROOT"
 chmod 700 "$BASELINE_ROOT"
@@ -104,15 +143,19 @@ SSMの場合は接続用引数も追加する。既存ディレクトリへの�
 
 検証は全ファイルのSHA-256を照合する（AWS接続不要）。これは破損検査であり、実際の復元リハーサルの代わりではない。
 
-保存ディレクトリ一式を客先管理のバックアップ専用領域へ複製する。専用S3に置く場合の例：
+保存ディレクトリ一式を合意済みの共用バックアップバケット内の専用prefixへ複製する。以下の取得日時・ローカルディレクトリは実際の保存セットに合わせる。同じprefixを再利用しない。先に全データを転送し、最後にmanifest.jsonを転送する。
 
 ```bash
 aws s3 cp "$BASELINE_ROOT/baseline-20260917/" \
-  's3://<客先で用意したバックアップ専用バケット>/validation/baseline-20260917/' \
-  --recursive --only-show-errors
+  's3://gakupita.backup/ai-chatbot/stg01-demo/20260917T000000Z/' \
+  --recursive --exclude 'manifest.json' --only-show-errors
+# 上の転送が成功したことを確認してから実行する。
+aws s3 cp "$BASELINE_ROOT/baseline-20260917/manifest.json" \
+  's3://gakupita.backup/ai-chatbot/stg01-demo/20260917T000000Z/manifest.json' \
+  --only-show-errors
 ```
 
-**DocumentsBucketNameバケットへは保管しない。** バックアップを検索対象に含めたり、復元時に一緒に消したりしないため。専用保存先には検証終了まで消えない保持設定とアクセス制限を付ける。ダウンロードしたコピーも `verify` で確認する。取得完了を担当者が記録し、元の保存セットを書き換えない。
+**DocumentsBucketNameバケットへは保管しない。** バックアップを検索対象に含めたり、復元時に一緒に消したりしないため。保存先は既存の183日保持を使用する。183日を超えて必要な場合は事前に運用を調整する。共用バケットのライフサイクルを無断で変更しない。ダウンロードしたコピーも `verify` で確認する。取得完了を担当者が記録し、元の保存セットを書き換えない。
 
 ### 3. 検証を再開
 
@@ -185,7 +228,7 @@ SSMの場合は接続用引数も追加する。復元は次の順で進む。
 
 ## 検証状況と制限
 
-ローカルの自動テストで、破損検出、環境違いの拒否、直前退避失敗時の停止、追加S3キーの削除、同期失敗時の停止、Scheduler設定の保持を確認済み。さらにローカルPostgreSQL 16の使い捨てDBで実際にダンプ・復元を行い、更新行の復旧、後から追加した行・テーブルの除去、シーケンスの復元を確認済み。AWS部分は模擬しており、ローカルの既存アプリDBは変更していない。実環境のIAM・KMS・RDS経路・Bedrock検索反映・所要時間は客先での復元リハーサルが必要。スクリプトの提供はバックアップ取得／AWSでの復元完了を意味しない。
+ローカルの自動テストで、破損検出、環境違いの拒否、直前退避失敗時の停止、追加S3キーの削除、同期失敗時の停止、Scheduler設定の保持を確認済み。さらにローカルPostgreSQL 16の使い捨てDBで実際にダンプ・復元を行い、更新行の復旧、後から追加した行・テーブルの除去、シーケンスの復元を確認済み。AWS部分は模擬しており、ローカルの既存アプリDBは変更していない。2026-09-25には自社AWSの隔離環境でも実RDS・S3・Bedrockの保存／復元試験を実施した（下記参照）。客先固有のIAM・KMS・RDS経路・実データ量での所要時間は客先での確認が必要。スクリプトの提供はバックアップ取得／AWSでの復元完了を意味しない。
 
 参考：
 
@@ -193,3 +236,25 @@ SSMの場合は接続用引数も追加する。復元は次の順で進む。
 - [PostgreSQL pg_restore](https://www.postgresql.org/docs/16/app-pgrestore.html)
 - [Bedrock S3データソースの同期](https://docs.aws.amazon.com/bedrock/latest/userguide/s3-data-source-connector.html)
 - [Scheduler UpdateSchedule：省略すると既定値になるため既存設定を保持](https://docs.aws.amazon.com/scheduler/latest/APIReference/API_UpdateSchedule.html)
+
+### 2026-09-25 事前確認ツールの追加検証
+
+既存の保存・復元の安全性テストと追加した事前確認テストは計15件成功。事前確認のS3操作が読取のみであること、設定取得権限不足を確認済みにしないこと、退避先を保存元として使わないこと、PostgreSQLクライアントの版不一致を拒否することを模擬環境で確認した。CLIのヘルプ表示も確認済み。客先EC2接続、実IAM権限、実DB接続、実S3への転送、バックアップ取得は未実施。接続準備と保守時間の調整を待つ。
+
+### 2026-09-25 自社AWSでの隔離試験
+
+自社の稼働中開発環境とは別に、一時スタック `ScholarshipChatbot-backup-rehearsal` を作成し、実際のRDS PostgreSQL 16・S3・Bedrock Knowledge Base／OpenSearch Serverlessで試験した。稼働中の開発環境のDB・S3・サービスは変更していない。
+
+- アプリのマイグレーションで初期化した22テーブルを対象に、FAQ、カテゴリ、種別、ファイル／Webデータソース、利用者・認証情報、チャット履歴、評価、ログのテストデータを使用。
+- 保存後に行の更新・削除・追加とテーブル追加を行い、復元後の全テーブルの内容・件数・シーケンス値が保存時点と一致することを確認。
+- 原本、学習用本文、メタデータの計4 S3オブジェクトを保存し、別のバックアップ用S3バケットへ転送・再取得してハッシュを照合。
+- S3の上書き・削除・追加を復元し、内容、メタデータ、Content-Type、Cache-Control、タグを照合。
+- Bedrockの同期後、保存時点の本文が検索され、保存後に変更・追加した本文が検索されないことを実際のRetrieve APIで確認。
+- 破損したDBダンプは復元開始前に拒否。正常な復元では直前退避も取得。
+- テスト用ECSサービスの停止・再開、元の無効状態へのScheduler復帰、再開後のバックエンド `/api/v1/health`（DB接続あり）を確認。
+
+実AWSでS3の `StreamingBody` のコンテキスト管理に起因する読取エラーを検出し、SDKのストリームを保持したまま確実に閉じる方式に修正した。実SDKクラスを使った回帰試験を追加し、ローカルの実PostgreSQL復元を含む18テストが成功した。
+
+自社試験専用の引数は `--target self-test`。アカウント、スタック名、Purposeタグ、DB・S3・KB・ECSの所有関係を確認する。任意のスタックや稼働中の開発環境への切替用引数ではない。**客先での通常作業ではこの引数を指定しない**（既定の客先固定対象を使用する）。
+
+詳細は [AWS保存・復元試験結果](validation-baseline-aws-rehearsal-20260925.md) を参照。客先バックアップ取得、客先IAMでの実行、実際のチャット画面による受入確認は未実施。

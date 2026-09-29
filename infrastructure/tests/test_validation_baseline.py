@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from botocore.response import StreamingBody
 
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -101,13 +102,8 @@ def test_restore_removes_extras_and_syncs_without_recrawl(tmp_path, monkeypatch,
     snapshots = iter([{wanted: {}, "added-after-baseline": {}}, {wanted: {}}])
     monkeypatch.setattr(baseline, "inventory", lambda *_: next(snapshots))
     env.s3.delete_objects.return_value = {}
-    env.s3.get_object.return_value = {"Body": io.BytesIO(b"old content")}
-    # StreamingBody exposes iter_chunks, unlike BytesIO.
-    class Body(io.BytesIO):
-        def iter_chunks(self, chunk_size):
-            while chunk := self.read(chunk_size):
-                yield chunk
-    env.s3.get_object.return_value = {"Body": Body(b"old content")}
+    body = StreamingBody(io.BytesIO(b"old content"), len(b"old content"))
+    env.s3.get_object.return_value = {"Body": body}
     env.bedrock.get_ingestion_job.return_value["ingestionJob"]["statistics"]["numberOfDocumentsFailed"] = failed_docs
     if failed_docs:
         with pytest.raises(RuntimeError, match="failed documents"):
@@ -171,3 +167,58 @@ def test_s3_change_during_save_leaves_no_complete_manifest(tmp_path, monkeypatch
         env.save(directory)
     assert not (directory / "manifest.json").exists()
     assert (directory / "incomplete.json").exists()
+
+
+def test_self_test_target_cannot_select_development_or_arbitrary_stack():
+    assert baseline.selected_target(SimpleNamespace(target='self-test')) == ('180162572038', 'ScholarshipChatbot-backup-rehearsal')
+    assert baseline.selected_target(SimpleNamespace()) == (baseline.ACCOUNT, baseline.STACK)
+    with pytest.raises(RuntimeError, match='Unsupported'):
+        baseline.selected_target(SimpleNamespace(target='development'))
+    for stack in [
+        {'StackName': 'ScholarshipChatbot-development', 'Tags': [{'Key': 'Purpose', 'Value': 'backup-restore-test'}]},
+        {'StackName': baseline.SELF_TEST_STACK, 'Tags': []},
+    ]:
+        with pytest.raises(RuntimeError, match='isolated'):
+            baseline.verify_test_stack(stack, baseline.SELF_TEST_ACCOUNT)
+    baseline.verify_test_stack({'StackName': baseline.SELF_TEST_STACK, 'Tags': [{'Key': 'Purpose', 'Value': 'backup-restore-test'}]}, baseline.SELF_TEST_ACCOUNT)
+
+
+def test_save_reads_real_sdk_stream_and_closes_it(tmp_path, monkeypatch):
+    env = environment({"identity": {}, "database_summary": {"counts": {}}})
+    prepare_restore(monkeypatch)
+    def dump(command, **kwargs):
+        Path(command[command.index("--file") + 1]).write_bytes(b"dump")
+    monkeypatch.setattr(baseline.subprocess, "run", dump)
+    monkeypatch.setattr(baseline, "inventory", lambda *_: {"file.txt": {"ETag": "etag"}})
+    raw = io.BytesIO(b"real SDK body")
+    env.s3.get_object.return_value = {"Body": StreamingBody(raw, len(b"real SDK body"))}
+    env.s3.get_object_tagging.return_value = {"TagSet": []}
+    directory = tmp_path / "saved"
+    baseline.Environment.save(env, directory)
+    assert raw.closed
+    manifest = baseline.verify_bundle(directory)
+    assert (directory / manifest["objects"][0]["file"]).read_bytes() == b"real SDK body"
+
+
+def test_pause_waits_for_actual_stop_after_desired_stop(monkeypatch):
+    import validation_maintenance as maintenance
+    ecs = Mock()
+    monkeypatch.setattr(maintenance, "pages", lambda *a, **k: [])
+    sleep = Mock()
+    monkeypatch.setattr(maintenance.time, "sleep", sleep)
+    ecs.describe_tasks.side_effect = [
+        {"tasks": [{"taskArn": "task1", "lastStatus": status}]}
+        for status in ["DEACTIVATING", "STOPPING", "STOPPED"]
+    ]
+    maintenance.wait_until_tasks_stopped(ecs, "cluster", ["task1"])
+    assert sleep.call_count == 2
+    assert ecs.describe_tasks.call_count == 3
+
+
+def test_pause_refuses_unverifiable_task_state(monkeypatch):
+    import validation_maintenance as maintenance
+    ecs = Mock()
+    monkeypatch.setattr(maintenance, "pages", lambda *a, **k: [])
+    ecs.describe_tasks.return_value = {"tasks": [], "failures": [{"arn": "task1"}]}
+    with pytest.raises(RuntimeError, match="Cannot verify task termination"):
+        maintenance.wait_until_tasks_stopped(ecs, "cluster", ["task1"])

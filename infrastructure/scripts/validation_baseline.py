@@ -4,6 +4,7 @@
 No credentials or AWS mutations occur at import time. See the operator runbook.
 """
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -20,6 +21,23 @@ from psycopg import sql
 
 ACCOUNT = "796575284584"
 STACK = "ScholarshipChatbot-stg01-demo"
+SELF_TEST_ACCOUNT = "180162572038"
+SELF_TEST_STACK = "ScholarshipChatbot-backup-rehearsal"
+
+
+def selected_target(args):
+    target = getattr(args, "target", "customer-validation")
+    require(target in {"customer-validation", "self-test"}, "Unsupported backup target")
+    return (SELF_TEST_ACCOUNT, SELF_TEST_STACK) if target == "self-test" else (ACCOUNT, STACK)
+
+
+def verify_test_stack(stack, account):
+    if account == SELF_TEST_ACCOUNT:
+        require(stack.get("StackName") == SELF_TEST_STACK and
+                any(t.get("Key") == "Purpose" and t.get("Value") == "backup-restore-test"
+                    for t in stack.get("Tags", [])), "Not an isolated backup rehearsal stack")
+
+
 ACTIVE_JOBS = {"STARTING", "IN_PROGRESS", "STOPPING"}
 
 
@@ -77,17 +95,19 @@ def verify_bundle(directory):
 class Environment:
     def __init__(self, args):
         self.args = args
+        self.account, self.stack_name = selected_target(args)
         self.session = boto3.Session(profile_name=args.profile, region_name="ap-northeast-1")
         self.sts = self.session.client("sts")
-        require(self.sts.get_caller_identity()["Account"] == ACCOUNT,
-                "Wrong AWS account: this tool is restricted to customer validation")
+        require(self.sts.get_caller_identity()["Account"] == self.account,
+                "Wrong AWS account for selected backup target")
         self.cf = self.session.client("cloudformation")
-        stack = self.cf.describe_stacks(StackName=STACK)["Stacks"][0]
+        stack = self.cf.describe_stacks(StackName=self.stack_name)["Stacks"][0]
+        verify_test_stack(stack, self.account)
         require(stack["StackStatus"] in {"CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"},
                 "Stack is not stable")
         self.outputs = {o["OutputKey"]: o["OutputValue"] for o in stack["Outputs"]}
         self.bucket = self.outputs["DocumentsBucketName"]
-        resources = list(pages(self.cf, "list_stack_resources", "StackResourceSummaries", StackName=STACK))
+        resources = list(pages(self.cf, "list_stack_resources", "StackResourceSummaries", StackName=self.stack_name))
         require(any(r["ResourceType"] == "AWS::S3::Bucket" and
                     r["PhysicalResourceId"] == self.bucket for r in resources),
                 "Only a dedicated bucket owned by this validation stack is supported")
@@ -116,7 +136,18 @@ class Environment:
                     "Knowledge Base uses a different bucket")
             configs.append({"kb": kb, "ds": ds, "source": conf,
                             "ingestion": data.get("vectorIngestionConfiguration", {})})
-        self.identity = {"account": ACCOUNT, "region": "ap-northeast-1", "stack": stack["StackId"],
+        if self.account == SELF_TEST_ACCOUNT:
+            owned = {(r["ResourceType"], r.get("PhysicalResourceId")) for r in resources}
+            require(all(("AWS::Bedrock::KnowledgeBase", kb) in owned for kb, _ in self.targets),
+                    "Test Knowledge Base must belong to test stack")
+            require(("AWS::ECS::Cluster", self.cluster) in owned or any(
+                kind == "AWS::ECS::Cluster" and value.endswith("/" + self.cluster)
+                for kind, value in owned), "Test cluster must belong to test stack")
+            db_ids = [value for kind, value in owned if kind == "AWS::RDS::DBInstance"]
+            require(len(db_ids) == 1, "Test stack must own exactly one DB")
+            db = self.session.client("rds").describe_db_instances(DBInstanceIdentifier=db_ids[0])["DBInstances"][0]
+            require(env["DB_HOST"] == db["Endpoint"]["Address"], "Test DB must belong to test stack")
+        self.identity = {"account": self.account, "region": "ap-northeast-1", "stack": stack["StackId"],
                          "bucket": self.bucket, "cluster": self.cluster, "search": configs,
                          "task_definitions": sorted(s["taskDefinition"] for s in services),
                          "db_host": env["DB_HOST"], "db_name": env["DB_NAME"]}
@@ -177,7 +208,9 @@ class Environment:
         for index, (key, before) in enumerate(sorted(initial.items())):
             response = self.s3.get_object(Bucket=self.bucket, Key=key, IfMatch=before["ETag"])
             path = directory / f"object-{index:08d}.bin"
-            with response["Body"] as body, path.open("wb") as output:
+            # StreamingBody.__enter__ returns the raw HTTP response, which lacks
+            # iter_chunks. closing retains the SDK wrapper and still closes it.
+            with closing(response["Body"]) as body, path.open("wb") as output:
                 for chunk in body.iter_chunks(chunk_size=1024 * 1024):
                     output.write(chunk)
             attrs = {k: response[k] for k in ["ContentType", "ContentLanguage", "ContentEncoding",
@@ -204,7 +237,7 @@ class Environment:
     def restore(self, directory, emergency, confirmation):
         manifest = verify_bundle(directory)
         require(manifest["identity"] == self.identity, "Environment/configuration differs from baseline; do not restore")
-        require(confirmation == f"{ACCOUNT}/{STACK}", "Explicit --confirm account/stack is required")
+        require(confirmation == f"{getattr(self, 'account', ACCOUNT)}/{getattr(self, 'stack_name', STACK)}", "Explicit --confirm account/stack is required")
         require(shutil.which("pg_restore"), "Install PostgreSQL client tools first")
         archive = subprocess.run(["pg_restore", "--list", str(directory / manifest["database"]["file"])],
                                  capture_output=True, text=True, check=True).stdout
@@ -232,7 +265,7 @@ class Environment:
             require(not result.get("Errors"), "Some extra S3 objects could not be deleted")
         require(set(inventory(self.s3, self.bucket)) == wanted, "Restored S3 key list differs")
         for obj in manifest["objects"]:
-            with self.s3.get_object(Bucket=self.bucket, Key=obj["key"])["Body"] as body:
+            with closing(self.s3.get_object(Bucket=self.bucket, Key=obj["key"])["Body"]) as body:
                 sha = hashlib.sha256()
                 for chunk in body.iter_chunks(chunk_size=1024 * 1024):
                     sha.update(chunk)
@@ -262,6 +295,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["inspect", "save", "verify", "restore"])
     parser.add_argument("--profile")
+    parser.add_argument("--target", choices=["customer-validation", "self-test"], default="customer-validation")
     parser.add_argument("--directory", type=Path)
     parser.add_argument("--emergency-directory", type=Path)
     parser.add_argument("--confirm")

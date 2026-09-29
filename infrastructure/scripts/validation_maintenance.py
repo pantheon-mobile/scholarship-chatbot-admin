@@ -8,7 +8,7 @@ import time
 
 import boto3
 
-from validation_baseline import ACCOUNT, STACK, pages, require, write_json
+from validation_baseline import ACCOUNT, STACK, pages, require, write_json, selected_target, verify_test_stack
 
 
 def set_schedule(client, name, state):
@@ -20,16 +20,42 @@ def set_schedule(client, name, state):
     client.update_schedule(**payload)
 
 
+def wait_until_tasks_stopped(ecs, cluster, observed_tasks, timeout=7200):
+    # desiredStatus=STOPPED can still mean DEACTIVATING/STOPPING. Keep tracking
+    # observed tasks until their actual status is STOPPED, including late workers.
+    pending = set(observed_tasks)
+    deadline = time.monotonic() + timeout
+    while True:
+        pending.update(pages(ecs, "list_tasks", "taskArns", cluster=cluster, desiredStatus="RUNNING"))
+        active = set()
+        task_ids = sorted(pending)
+        for start in range(0, len(task_ids), 100):
+            batch = task_ids[start:start + 100]
+            result = ecs.describe_tasks(cluster=cluster, tasks=batch)
+            require(not result.get("failures") and len(result.get("tasks", [])) == len(batch),
+                    "Cannot verify task termination; leave services stopped and investigate")
+            active.update(task["taskArn"] for task in result["tasks"] if task["lastStatus"] != "STOPPED")
+        if not active:
+            return
+        pending = active
+        require(time.monotonic() < deadline, "Tasks did not finish; leave services stopped and investigate")
+        print("Waiting for actual service/worker termination (tasks are NOT forcibly terminated)...", flush=True)
+        time.sleep(20)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["pause", "start-app", "resume-schedule"])
     parser.add_argument("--profile")
+    parser.add_argument("--target", choices=["customer-validation", "self-test"], default="customer-validation")
     parser.add_argument("--state", required=True, type=Path)
     args = parser.parse_args()
+    account, stack_name = selected_target(args)
     os.umask(0o077)
     session = boto3.Session(profile_name=args.profile, region_name="ap-northeast-1")
-    require(session.client("sts").get_caller_identity()["Account"] == ACCOUNT, "Wrong AWS account")
-    stack = session.client("cloudformation").describe_stacks(StackName=STACK)["Stacks"][0]
+    require(session.client("sts").get_caller_identity()["Account"] == account, "Wrong AWS account")
+    stack = session.client("cloudformation").describe_stacks(StackName=stack_name)["Stacks"][0]
+    verify_test_stack(stack, account)
     outputs = {o["OutputKey"]: o["OutputValue"] for o in stack["Outputs"]}
     cluster, schedule = outputs["ClusterName"], outputs["NightlyIngestionScheduleName"]
     ecs, scheduler = session.client("ecs"), session.client("scheduler")
@@ -44,14 +70,12 @@ def main():
                                "task_definition": s["taskDefinition"]} for s in response["services"]]}
         args.state.parent.mkdir(parents=True, exist_ok=True)
         write_json(args.state, state)  # Save BEFORE any mutation; never auto-resume on failure.
+        observed_tasks = set(pages(ecs, "list_tasks", "taskArns", cluster=cluster, desiredStatus="RUNNING"))
+        observed_tasks.update(pages(ecs, "list_tasks", "taskArns", cluster=cluster, desiredStatus="STOPPED"))
         set_schedule(scheduler, schedule, "DISABLED")
         for service in state["services"]:
             ecs.update_service(cluster=cluster, service=service["name"], desiredCount=0)
-        deadline = time.monotonic() + 7200
-        while list(pages(ecs, "list_tasks", "taskArns", cluster=cluster, desiredStatus="RUNNING")):
-            require(time.monotonic() < deadline, "Tasks did not finish; leave services stopped and investigate")
-            print("Waiting for services/workers to stop (workers are NOT forcibly terminated)...", flush=True)
-            time.sleep(20)
+        wait_until_tasks_stopped(ecs, cluster, observed_tasks)
         print("Paused. Check Scheduler retry window, DB jobs and Bedrock jobs per runbook before saving.")
         return
     state = json.loads(args.state.read_text())
