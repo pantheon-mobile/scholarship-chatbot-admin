@@ -2,56 +2,159 @@
   "environment": "stg01-demo",
   "source": "infrastructure/config/customer-validation.json",
   "notes": [
-    "この一覧は客先検証環境のアプリケーション設定です。値を変更した場合はCDKによる再デプロイが必要です。",
-    "headerIconUrlとchatBotIconUrlは、HTTPSで参照できる画像URLを指定します。空欄時は標準アイコンを表示します。"
+    "この一覧はH+検証環境のアプリケーション設定を説明する参照資料です。currentValueはinfrastructure/config/customer-validation.jsonの値と対応します。この一覧を編集しても稼働設定は変わりません。",
+    "設定変更はinfrastructure/config/customer-validation.jsonを編集し、H+さんのリポジトリ（technical-innovation/bpaas-aichatbot）のmainへコミット・Pushします。Deploy customer validationの成功後に反映されます。開いている画面は再読み込みしてください。",
+    "この一覧はアプリケーションの運用設定を掲載しています。AWSリソースの接続先・構成設定や秘密情報の一覧ではありません。",
+    "headerIconUrlとchatBotIconUrlは、HTTPSで参照できる画像URLを指定します。空欄時は標準アイコンを表示します。",
+    "ダッシュボードは各項目のvisibleを1（表示）または0（非表示）にします。nameは設定時の説明用です。画面の項目名や表示順は変更しません。",
+    "利用上限の数値は正の整数です。0による無効化はできません。"
   ],
   "settings": [
-    { "key": "chatUiTitle", "name": "チャット画面タイトル", "description": "チャット画面のヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット" },
-    { "key": "adminUiTitle", "name": "管理サイトタイトル", "description": "管理サイトのヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット　管理サイト" },
-    { "key": "headerIconUrl", "name": "共通ヘッダーアイコンURL", "description": "チャット画面と管理サイトのタイトル左に表示する画像URLです。空欄時は標準の大学アイコンを表示します。", "currentValue": "" },
-    { "key": "chatBotIconUrl", "name": "チャットボットアイコンURL", "description": "チャット回答者を表す画像URLです。共通ヘッダーアイコンとは別設定です。", "currentValue": "" },
-    { "key": "chatInitialMessage", "name": "初期案内文", "description": "新しいチャットを開いた際の案内文です。", "currentValue": "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。" },
-    { "key": "chatInputPlaceholder", "name": "質問入力欄の案内", "description": "質問入力欄が空のときに表示する文言です。", "currentValue": "質問を入力してください" },
-    { "key": "chatQuestionMaxLength", "name": "質問最大文字数", "description": "1回の質問で入力できる最大文字数です。", "currentValue": 2000 },
-    { "key": "chatFrameColor", "name": "チャット画面基調色", "description": "チャット画面の枠やナビゲーションに使用する色です。", "currentValue": "#171a1d" },
-    { "key": "chatHistoryEnabled", "name": "チャット履歴", "description": "利用者のチャット履歴表示を有効にします。", "currentValue": true },
-    { "key": "chatMaintenanceEnabled", "name": "メンテナンスモード", "description": "有効時は質問送信を停止し、メンテナンス案内を表示します。", "currentValue": false },
-    { "key": "chatMaintenanceMessage", "name": "メンテナンス案内", "description": "メンテナンスモード中に表示する文言です。", "currentValue": "現在メンテナンス中です。時間をおいて再度お試しください。" },
-    { "key": "chatGoodFeedbackMessage", "name": "Good評価案内", "description": "Good選択後の理由入力画面に表示する文言です。", "currentValue": "ご評価ありがとうございます。よろしければ理由をお聞かせください。" },
-    { "key": "chatBadFeedbackMessage", "name": "Bad評価案内", "description": "Bad選択後の理由入力画面に表示する文言です。", "currentValue": "改善のため、回答が役に立たなかった理由をお聞かせください。" },
-    { "key": "chatGoodFeedbackOptions", "name": "Good評価理由", "description": "Good評価で選択できる理由です。縦線で区切ります。", "currentValue": "知りたい内容だった|分かりやすかった|参照資料が役立った" },
-    { "key": "chatBadFeedbackOptions", "name": "Bad評価理由", "description": "Bad評価で選択できる理由です。縦線で区切ります。", "currentValue": "回答が違う|情報が不足している|分かりにくい|参照資料が適切でない" },
-    { "key": "chatSearchType", "name": "検索方式", "description": "Knowledge Baseの検索方式です。", "currentValue": "HYBRID" },
-    { "key": "chatNumberOfResults", "name": "回答生成用検索件数", "description": "回答生成へ渡す検索結果件数です。", "currentValue": 5 },
-    { "key": "chatPriorityCandidateCount", "name": "優先度判定候補件数", "description": "データソース優先度を考慮する前に取得する候補件数です。", "currentValue": 20 },
-    { "key": "chatPriorityScoreTolerance", "name": "優先度判定スコア許容差", "description": "近い検索スコアの候補間で優先度を適用する許容差です。", "currentValue": 0.05 },
-    { "key": "chatMaxTokens", "name": "回答最大トークン数", "description": "生成AI回答の最大トークン数です。", "currentValue": 1200 },
-    { "key": "chatFaqMatchThreshold", "name": "FAQ一致閾値", "description": "FAQ回答を採用する質問類似度の下限です。未満の場合はRAG回答を生成します。", "currentValue": 0.85 },
-    { "key": "chatCurrentAcademicYear", "name": "現在年度", "description": "古い年度のFAQを回答するときの注意表示判定に使用します。", "currentValue": "2026" },
-    { "key": "chatSystemPrompt", "name": "システムプロンプト", "description": "生成AI回答へ追加する共通指示です。空欄時はアプリ標準値を使用します。", "currentValue": "" },
-    { "key": "cpfJwtIssuer", "name": "CPF JWT発行者", "description": "CPFから受信するJWTのiss検証値です。", "currentValue": "cpf" },
-    { "key": "cpfJwtAudience", "name": "CPF JWT対象", "description": "CPFから受信するJWTのaud検証値です。", "currentValue": "chatbot" },
-    { "key": "cpfAcceptedRoles", "name": "受付権限", "description": "ログインを許可するCPF roleの一覧です。", "currentValue": "admin,staff" },
-    { "key": "cpfJwtLeewaySeconds", "name": "JWT時刻許容秒数", "description": "JWTの発行・失効時刻検証で許容する時刻差です。", "currentValue": 30 },
-    { "key": "cpfJwtMaxTtlSeconds", "name": "JWT最大有効秒数", "description": "CPF JWT自体に許容する最大有効期間です。", "currentValue": 360 },
-    { "key": "authSessionTtlSeconds", "name": "ログインセッション有効秒数", "description": "SSO成功後のチャットボット側セッション有効期間です。", "currentValue": 28800 },
-    { "key": "enableDevelopmentCpfMock", "name": "CPF疑似ログイン", "description": "開発・検証用のCPF疑似ログイン画面を有効にします。実運用時はfalseにします。", "currentValue": true },
-    { "key": "ingestionProcessorTimeoutSeconds", "name": "変換処理タイムアウト", "description": "1件のデータ変換処理を打ち切る秒数です。", "currentValue": 1800 },
-    { "key": "ingestionWorkerMaxJobs", "name": "ワーカー最大処理件数", "description": "1回の取り込みワーカーで処理する最大ジョブ件数です。", "currentValue": 1000 },
-    { "key": "knowledgeBaseSyncTimeoutSeconds", "name": "KB同期タイムアウト", "description": "Knowledge Base同期完了を待つ最大秒数です。", "currentValue": 1800 },
-    { "key": "pdfVisionMinCharsPerPage", "name": "PDF文字量判定値", "description": "PDF変換方式の自動選択に使用する1ページ当たり文字数です。", "currentValue": 100 },
-    { "key": "pdfVisionImagePageRatio", "name": "PDF画像ページ比率", "description": "Vision方式を選ぶ画像中心ページ比率の判定値です。", "currentValue": 0.5 },
-    { "key": "pdfVisionMinTables", "name": "PDF表数判定値", "description": "Vision方式を選ぶ表数の判定値です。", "currentValue": 3 },
-    { "key": "webCrawlMaxDepth", "name": "Webクロール最大階層", "description": "登録URLから辿るリンク階層の上限です。", "currentValue": 5 },
-    { "key": "webCrawlMaxPages", "name": "Webクロール最大ページ数", "description": "1回のクロールで取得するページ数の上限です。", "currentValue": 500 },
-    { "key": "webCrawlTimeoutSeconds", "name": "Web取得タイムアウト", "description": "Webページ1件の取得を待つ最大秒数です。", "currentValue": 20 },
-    { "key": "webCrawlIntervalSeconds", "name": "Web取得間隔", "description": "Webサイトへの連続アクセス間隔（秒）です。", "currentValue": 0.5 },
-    { "key": "webCrawlRespectRobots", "name": "robots.txt遵守", "description": "Webクロール時にrobots.txtの制約を適用します。", "currentValue": true },
-    { "key": "webCrawlUserAgent", "name": "クローラUser-Agent", "description": "Web取得時に送信するUser-Agentです。", "currentValue": "ScholarshipChatbotCrawler/1.0" },
-    { "key": "webAutoRecrawlEnabled", "name": "Web自動再クロール", "description": "登録済みWebサイトの定期再取得を有効にします。", "currentValue": true },
-    { "key": "webAutoRecrawlIntervalHours", "name": "Web再クロール間隔", "description": "自動再クロールの最短間隔（時間）です。", "currentValue": 24 },
-    { "key": "nightlyIngestionHourJst", "name": "夜間処理開始時", "description": "取り込みワーカーを起動する日本時間の時です。", "currentValue": 1 },
-    { "key": "nightlyIngestionMinuteJst", "name": "夜間処理開始分", "description": "取り込みワーカーを起動する分です。", "currentValue": 0 },
-    { "key": "logLevel", "name": "ログレベル", "description": "バックエンドとワーカーのログ出力レベルです。", "currentValue": "INFO" }
+    {"key": "chatUiTitle", "name": "チャット画面タイトル", "description": "チャット画面のヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット"},
+    {"key": "adminUiTitle", "name": "管理サイトタイトル", "description": "管理サイトのヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット　管理サイト"},
+    {"key": "headerIconUrl", "name": "共通ヘッダーアイコンURL", "description": "チャット画面と管理サイトのタイトル左に表示する画像URLです。空欄時は標準の大学アイコンを表示します。", "currentValue": ""},
+    {"key": "chatBotIconUrl", "name": "チャットボットアイコンURL", "description": "チャット回答者を表す画像URLです。共通ヘッダーアイコンとは別設定です。", "currentValue": ""},
+    {"key": "chatInitialMessage", "name": "初期案内文", "description": "新しいチャットを開いた際の案内文です。", "currentValue": "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。"},
+    {"key": "chatInputPlaceholder", "name": "質問入力欄の案内", "description": "質問入力欄が空のときに表示する文言です。", "currentValue": "質問を入力してください"},
+    {"key": "chatQuestionMaxLength", "name": "質問最大文字数", "description": "1回の質問で入力できる最大文字数です。", "currentValue": 2000},
+    {"key": "chatRequestsPerMinute", "name": "チャット送信回数上限", "description": "同じ利用者の直近60秒間の受付回数です。複数タブ・再ログインでも合算し、処理失敗も受付回数に含めます。超過時は送信を拒否して再操作を案内します。", "currentValue": 10},
+    {"key": "chatMaxConcurrentRequests", "name": "チャット同時処理上限", "description": "同じ利用者の回答待ち要求数の上限です。複数タブも合算し、上限を超える要求は受け付けません。", "currentValue": 1},
+    {"key": "reportExportMaxRows", "name": "履歴・ログ出力件数上限", "description": "チャット履歴（質問・回答1組で1件）・アクセスログ・操作ログの1回の出力上限です。検索条件適用後に超過した場合は出力せず、条件の絞込みを案内します。FAQ等のマスタ一覧には適用しません。", "currentValue": 10000},
+    {"key": "bulkDeleteMaxItems", "name": "一括削除指定件数上限", "description": "1回の一括削除で指定できる対象件数です。カテゴリの子孫の連動削除数とは別です。超過時は変更前に拒否し、途中まで削除しません。", "currentValue": 1000},
+    {"key": "reorderMaxItems", "name": "並び替え件数上限", "description": "カテゴリ・種別値・FAQ区分値の並び替え1回の件数上限です。一覧全体が超過する場合は並び替えを拒否して設定変更を案内します。", "currentValue": 1000},
+    {"key": "excelExpandedMaxMb", "name": "Excel展開後容量上限", "description": "FAQ・データソース一覧・Webサイト一覧の取込、およびExcel文書の追加・変換に適用します。Excel内部の展開後合計サイズをMiB単位（1MiB＝1024×1024バイト）で制限します。ファイル自体の容量・既存件数の制限も継続します。", "currentValue": 100},
+    {"key": "chatFrameColor", "name": "チャット画面基調色", "description": "チャット画面の枠やナビゲーションに使用する色です。", "currentValue": "#171a1d"},
+    {"key": "chatHistoryEnabled", "name": "チャット履歴", "description": "利用者のチャット履歴表示を有効にします。", "currentValue": true},
+    {"key": "chatCrossSessionMemoryEnabled", "name": "別チャットの会話参照", "description": "本人の直近30日・最大20チャットを候補として、過去の話題を指す質問の文脈を補います。削除済みのチャットは除外します。falseでも現在のチャット内の会話の引継ぎは継続します。画面に切替UIはありません。", "currentValue": true},
+    {"key": "chatMaintenanceEnabled", "name": "メンテナンスモード", "description": "有効時は質問送信を停止し、メンテナンス案内を表示します。", "currentValue": false},
+    {"key": "chatMaintenanceMessage", "name": "メンテナンス案内", "description": "メンテナンスモード中に表示する文言です。", "currentValue": "現在メンテナンス中です。時間をおいて再度お試しください。"},
+    {"key": "chatGoodFeedbackMessage", "name": "Good評価案内", "description": "Good選択後の理由入力画面に表示する文言です。", "currentValue": "ご評価ありがとうございます。よろしければ理由をお聞かせください。"},
+    {"key": "chatBadFeedbackMessage", "name": "Bad評価案内", "description": "Bad選択後の理由入力画面に表示する文言です。", "currentValue": "改善のため、回答が役に立たなかった理由をお聞かせください。"},
+    {"key": "chatGoodFeedbackOptions", "name": "Good評価理由", "description": "Good評価で選択できる理由です。縦線で区切ります。", "currentValue": "知りたい内容だった|分かりやすかった|参照資料が役立った"},
+    {"key": "chatBadFeedbackOptions", "name": "Bad評価理由", "description": "Bad評価で選択できる理由です。縦線で区切ります。", "currentValue": "回答が違う|情報が不足している|分かりにくい|参照資料が適切でない"},
+    {"key": "chatSearchType", "name": "検索方式", "description": "Knowledge Baseの検索方式です。", "currentValue": "HYBRID"},
+    {"key": "chatNumberOfResults", "name": "回答生成用検索件数", "description": "回答生成へ渡す検索結果件数です。", "currentValue": 10},
+    {"key": "chatPriorityCandidateCount", "name": "優先度判定候補件数", "description": "データソース優先度を考慮する前に取得する候補件数です。", "currentValue": 20},
+    {"key": "chatPriorityScoreTolerance", "name": "優先度判定スコア許容差", "description": "近い検索スコアの候補間で優先度を適用する許容差です。", "currentValue": 0.05},
+    {"key": "chatMaxTokens", "name": "回答最大トークン数", "description": "生成AI回答の最大トークン数です。", "currentValue": 1200},
+    {"key": "chatFaqMatchThreshold", "name": "FAQ一致閾値", "description": "FAQ回答を採用する質問類似度の下限です。未満の場合はRAG回答を生成します。", "currentValue": 0.85},
+    {"key": "chatCurrentAcademicYear", "name": "現在年度", "description": "古い年度のFAQを回答するときの注意表示判定に使用します。", "currentValue": "2026"},
+    {"key": "chatSystemPrompt", "name": "システムプロンプト", "description": "生成AI回答へ追加する共通指示です。空欄時はアプリ標準値を使用します。", "currentValue": ""},
+    {
+      "key": "dashboardBasicMetrics",
+      "name": "ダッシュボード基本指標の表示",
+      "description": "全21項目を日本語名付きで指定します。visibleは数値の1が表示、0が非表示です。未指定の項目は表示します。表示する項目を固定順で左上から詰め、全項目を0にすると基本指標パネルを非表示にします。表示の切替で集計式や下部の集計パネルは変わりません。",
+      "currentValue": {
+        "access_count": {
+          "name": "アクセス数",
+          "visible": 1
+        },
+        "access_user_count": {
+          "name": "アクセスユーザ数",
+          "visible": 1
+        },
+        "chat_count": {
+          "name": "チャット数",
+          "visible": 1
+        },
+        "chat_user_count": {
+          "name": "チャットユーザ数",
+          "visible": 1
+        },
+        "average_chats_per_day": {
+          "name": "1日平均チャット数",
+          "visible": 1
+        },
+        "average_chats_per_user": {
+          "name": "1人あたりチャット数",
+          "visible": 1
+        },
+        "response_count": {
+          "name": "応答数",
+          "visible": 1
+        },
+        "average_responses_per_chat": {
+          "name": "1チャットあたり平均応答数",
+          "visible": 1
+        },
+        "average_responses_per_user": {
+          "name": "1人あたり平均応答数",
+          "visible": 1
+        },
+        "response_time_average": {
+          "name": "応答時間（平均／秒）",
+          "visible": 1
+        },
+        "response_time_range": {
+          "name": "応答時間（最短 - 最長／秒）",
+          "visible": 1
+        },
+        "valid_answer_count": {
+          "name": "有効回答数",
+          "visible": 1
+        },
+        "no_answer_count": {
+          "name": "回答NG数",
+          "visible": 1
+        },
+        "answer_rate": {
+          "name": "回答率",
+          "visible": 1
+        },
+        "good_count": {
+          "name": "Good数",
+          "visible": 1
+        },
+        "bad_count": {
+          "name": "Bad数",
+          "visible": 1
+        },
+        "unrated_count": {
+          "name": "評価なし",
+          "visible": 1
+        },
+        "satisfaction_rate": {
+          "name": "満足度",
+          "visible": 1
+        },
+        "comment_count": {
+          "name": "コメント総数",
+          "visible": 1
+        },
+        "good_comment_count": {
+          "name": "コメント数（Good）",
+          "visible": 1
+        },
+        "bad_comment_count": {
+          "name": "コメント数（Bad）",
+          "visible": 1
+        }
+      }
+    },
+    {"key": "cpfJwtIssuer", "name": "CPF JWT発行者", "description": "CPFから受信するJWTのiss検証値です。", "currentValue": "cpf"},
+    {"key": "cpfJwtAudience", "name": "CPF JWT対象", "description": "CPFから受信するJWTのaud検証値です。", "currentValue": "chatbot"},
+    {"key": "cpfAcceptedRoles", "name": "受付権限", "description": "ログインを許可するCPF roleの一覧です。", "currentValue": "admin,staff"},
+    {"key": "cpfJwtLeewaySeconds", "name": "JWT時刻許容秒数", "description": "JWTの発行・失効時刻検証で許容する時刻差です。", "currentValue": 30},
+    {"key": "cpfJwtMaxTtlSeconds", "name": "JWT最大有効秒数", "description": "CPF JWT自体に許容する最大有効期間です。", "currentValue": 360},
+    {"key": "authSessionTtlSeconds", "name": "ログインセッション有効秒数", "description": "SSO成功後のチャットボット側セッション有効期間です。", "currentValue": 28800},
+    {"key": "corsAllowedOrigins", "name": "許可する画面オリジン", "description": "APIへの接続を許可する画面のオリジンです。複数指定はカンマ区切りです。Cookie認証の更新要求でもOriginを検査します。任意の外部オリジンやワイルドカードを追加しないでください。", "currentValue": "https://ai-chatbot-stg01-demo.gakupita.com"},
+    {"key": "enableDevelopmentCpfMock", "name": "補助認証経路（無効）", "description": "H+検証環境ではfalseを維持します。ログインはCPF連携を使用します。", "currentValue": false},
+    {"key": "ingestionProcessorTimeoutSeconds", "name": "変換処理タイムアウト", "description": "1件のデータ変換処理を打ち切る秒数です。", "currentValue": 1800},
+    {"key": "ingestionWorkerMaxJobs", "name": "ワーカー最大処理件数", "description": "1回の取り込みワーカーで処理する最大ジョブ件数です。", "currentValue": 1000},
+    {"key": "knowledgeBaseSyncTimeoutSeconds", "name": "KB同期タイムアウト", "description": "Knowledge Base同期完了を待つ最大秒数です。", "currentValue": 1800},
+    {"key": "pdfVisionMinCharsPerPage", "name": "PDF文字量判定値", "description": "PDF変換方式の自動選択に使用する1ページ当たり文字数です。", "currentValue": 100},
+    {"key": "pdfVisionImagePageRatio", "name": "PDF画像ページ比率", "description": "Vision方式を選ぶ画像中心ページ比率の判定値です。", "currentValue": 0.5},
+    {"key": "pdfVisionMinTables", "name": "PDF表数判定値", "description": "Vision方式を選ぶ表数の判定値です。", "currentValue": 3},
+    {"key": "webCrawlMaxDepth", "name": "Webクロール最大階層", "description": "登録URLから辿るリンク階層の上限です。", "currentValue": 5},
+    {"key": "webCrawlMaxPages", "name": "Webクロール最大ページ数", "description": "1回のクロールで取得するページ数の上限です。", "currentValue": 500},
+    {"key": "webCrawlTimeoutSeconds", "name": "Web取得タイムアウト", "description": "Webページ1件の取得を待つ最大秒数です。", "currentValue": 20},
+    {"key": "webCrawlIntervalSeconds", "name": "Web取得間隔", "description": "Webサイトへの連続アクセス間隔（秒）です。", "currentValue": 0.5},
+    {"key": "webCrawlRespectRobots", "name": "robots.txt遵守", "description": "Webクロール時にrobots.txtの制約を適用します。", "currentValue": true},
+    {"key": "webCrawlUserAgent", "name": "クローラUser-Agent", "description": "Web取得時に送信するUser-Agentです。", "currentValue": "ScholarshipChatbotCrawler/1.0"},
+    {"key": "webAutoRecrawlEnabled", "name": "Web自動再クロール", "description": "登録済みWebサイトの定期再取得を有効にします。", "currentValue": true},
+    {"key": "webAutoRecrawlIntervalHours", "name": "Web再クロール間隔", "description": "自動再クロールの最短間隔（時間）です。", "currentValue": 24},
+    {"key": "nightlyIngestionHourJst", "name": "夜間処理開始時", "description": "取り込みワーカーを起動する日本時間の時です。", "currentValue": 1},
+    {"key": "nightlyIngestionMinuteJst", "name": "夜間処理開始分", "description": "取り込みワーカーを起動する分です。", "currentValue": 0},
+    {"key": "logLevel", "name": "ログレベル", "description": "バックエンドとワーカーのログ出力レベルです。", "currentValue": "INFO"}
   ]
 }
