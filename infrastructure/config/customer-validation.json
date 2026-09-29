@@ -84,7 +84,7 @@
     "sg-049c964102a3c0f9a"
   ],
   "appPermissionsBoundaryArn": "arn:aws:iam::796575284584:policy/ScholarshipChatbotAppBoundary",
-  "existingListenerCertificateManagement": "retain",
+  "existingListenerCertificateManagement": "external",
   "dashboardBasicMetrics": {
     "access_count": {
       "name": "アクセス数",
