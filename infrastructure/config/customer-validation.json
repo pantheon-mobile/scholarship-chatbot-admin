@@ -26,6 +26,8 @@
   "chatRequestsPerMinute": 10,
   "chatMaxConcurrentRequests": 1,
   "reportExportMaxRows": 10000,
+  "bulkDeleteMaxItems": 1000,
+  "reorderMaxItems": 1000,
   "excelExpandedMaxMb": 100,
   "chatHistoryEnabled": true,
   "chatCrossSessionMemoryEnabled": true,
@@ -81,6 +83,8 @@
   "databaseClientSecurityGroupIds": [
     "sg-049c964102a3c0f9a"
   ],
+  "appPermissionsBoundaryArn": "arn:aws:iam::796575284584:policy/ScholarshipChatbotAppBoundary",
+  "existingListenerCertificateManagement": "retain",
   "dashboardBasicMetrics": {
     "access_count": {
       "name": "アクセス数",
@@ -166,7 +170,5 @@
       "name": "コメント数（Bad）",
       "visible": 1
     }
-  },
-  "appPermissionsBoundaryArn": "arn:aws:iam::796575284584:policy/ScholarshipChatbotAppBoundary",
-  "existingListenerCertificateManagement": "retain"
+  }
 }

@@ -1,11 +1,9 @@
-from app.services.excel_format import append_safe_row
+from app.services.excel_export import render_excel
+from starlette.concurrency import run_in_threadpool
 from collections import defaultdict
-from io import BytesIO
 
-from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
-from app.services.excel_format import apply_download_format
 from app.models.category import Category
 from app.core.category_limits import CATEGORY_NAME_MAX_LENGTH
 from app.repositories.category import CategoryRepository
@@ -292,13 +290,8 @@ class CategoryService:
 
         visit(None, [])
         max_depth = max((len(path) for _, path in flattened), default=1)
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "カテゴリ一覧"
-        append_safe_row(worksheet, ["ID", *[f"カテゴリ{depth}" for depth in range(1, max_depth + 1)]])
+        excel_rows: list[list[object]] = []
+        excel_rows.append(["ID", *[f"カテゴリ{depth}" for depth in range(1, max_depth + 1)]])
         for category, path in flattened:
-            append_safe_row(worksheet, [category.id, *path, *([""] * (max_depth - len(path)))])
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+            excel_rows.append([category.id, *path, *([""] * (max_depth - len(path)))])
+        return await run_in_threadpool(render_excel, "カテゴリ一覧", excel_rows)

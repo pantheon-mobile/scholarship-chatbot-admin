@@ -1,7 +1,6 @@
 from __future__ import annotations
+from app.services.excel_export import render_excel
 from starlette.concurrency import run_in_threadpool
-from app.services.excel_format import append_safe_row
-from app.services.excel_format import apply_download_format
 
 import logging
 
@@ -13,7 +12,7 @@ from app.services.excel_security import validate_excel_expansion
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 from app.models.data_source import DataSource
@@ -552,25 +551,20 @@ class DataSourceService:
             *[type_labels.get(f"TYPE_{index}", f"種別{index}") for index in range(1, 4)],
             *DATA_SOURCE_IMPORT_HEADERS[10:],
         ]
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "データソース一覧"
-        append_safe_row(worksheet, headers)
+        excel_rows: list[list[object]] = []
+        excel_rows.append(headers)
         for row in all_rows:
             values = {item.type_code: item.value_name for item in row.classifications}
             location = row.file.file_name if row.file else row.website.url if row.website else ""
             updated = row.updated_at.astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M")
-            append_safe_row(worksheet, [
+            excel_rows.append([
                 row.id, source_labels[row.source_type], row.title, location, row.format,
                 status_labels[row.status], row.category_name or "", values.get("TYPE_1", ""),
                 values.get("TYPE_2", ""), values.get("TYPE_3", ""), row.size_bytes,
                 row.character_count, "有効" if row.answer_source_enabled else "無効",
                 priority_labels[row.priority], "表示" if row.reference_link_visible else "非表示", updated,
             ])
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+        return await run_in_threadpool(render_excel, "データソース一覧", excel_rows)
 
     @staticmethod
     def _import_text(value: object) -> str:
@@ -588,13 +582,8 @@ class DataSourceService:
             return int(value.strip())
         raise ValueError
 
-    async def import_excel(self, upload: UploadFile) -> DataSourceImportResponse:
-        filename = upload.filename or ""
-        if Path(filename).suffix.lower() != ".xlsx":
-            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "xlsx形式のファイルを選択してください。")
-        content = await upload.read(DATA_SOURCE_IMPORT_MAX_BYTES + 1)
-        if len(content) > DATA_SOURCE_IMPORT_MAX_BYTES:
-            raise DataSourceImportError("DATA_SOURCE_IMPORT_FILE_TOO_LARGE", "ファイルサイズは10MB以下にしてください。")
+    @staticmethod
+    def _validate_import_archive(content: bytes) -> None:
         if not content or not is_zipfile(BytesIO(content)):
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。")
         try:
@@ -603,46 +592,61 @@ class DataSourceService:
                 names = {name.lower() for name in archive.namelist()}
                 if any(name.endswith("vbaproject.bin") for name in names):
                     raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "マクロを含むExcelファイルは使用できません。")
+        except (BadZipFile, KeyError, OSError, ValueError):
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
+
+    def _parse_import(self, content: bytes, type_labels: dict[str, str]) -> tuple:
+        try:
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=False, keep_links=False)
         except (BadZipFile, InvalidFileException, KeyError, OSError, ValueError):
             raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
-        worksheet = workbook.active
+        try:
+            worksheet = workbook.active
+            expected_headers = [
+                *DATA_SOURCE_IMPORT_HEADERS[:7],
+                *[type_labels.get(f"TYPE_{index}", f"種別{index}") for index in range(1, 4)],
+                *DATA_SOURCE_IMPORT_HEADERS[10:],
+            ]
+            if worksheet.max_column != len(DATA_SOURCE_IMPORT_HEADERS):
+                raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+            header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=len(DATA_SOURCE_IMPORT_HEADERS)))
+            headers = [self._import_text(cell.value) for cell in header_cells]
+            if headers != expected_headers or any(cell.data_type == "f" for cell in header_cells):
+                raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+            if worksheet.max_row - 1 > DATA_SOURCE_IMPORT_MAX_ROWS:
+                raise DataSourceImportError("DATA_SOURCE_IMPORT_TOO_MANY_ROWS", "データ行は1000行以内にしてください。")
+
+            raw_rows: list[tuple[int, list[object]]] = []
+            errors: list[DataSourceImportRowError] = []
+            ids: list[int] = []
+            for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=len(headers)), start=2):
+                if all(self._import_text(cell.value) == "" for cell in cells):
+                    continue
+                for index, cell in enumerate(cells):
+                    if cell.data_type == "f":
+                        errors.append(DataSourceImportRowError(row=row_number, column=headers[index], code="FORMULA_NOT_ALLOWED", message="数式は入力できません。"))
+                values = [cell.value for cell in cells]
+                try:
+                    data_source_id = self._import_id(values[0])
+                    ids.append(data_source_id)
+                except ValueError:
+                    errors.append(DataSourceImportRowError(row=row_number, column="ID", code="ID_INVALID", message="IDは必須の正の整数です。行の追加はできません。"))
+                raw_rows.append((row_number, values))
+            return raw_rows, errors, ids, headers
+        finally:
+            workbook.close()
+
+    async def import_excel(self, upload: UploadFile) -> DataSourceImportResponse:
+        filename = upload.filename or ""
+        if Path(filename).suffix.lower() != ".xlsx":
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_FORMAT", "xlsx形式のファイルを選択してください。")
+        content = await upload.read(DATA_SOURCE_IMPORT_MAX_BYTES + 1)
+        if len(content) > DATA_SOURCE_IMPORT_MAX_BYTES:
+            raise DataSourceImportError("DATA_SOURCE_IMPORT_FILE_TOO_LARGE", "ファイルサイズは10MB以下にしてください。")
+        await run_in_threadpool(self._validate_import_archive, content)
         type_definitions = await self.repository.list_import_classifications()
         type_labels = {item.type_code: item.display_label for item in type_definitions}
-        expected_headers = [
-            *DATA_SOURCE_IMPORT_HEADERS[:7],
-            *[type_labels.get(f"TYPE_{index}", f"種別{index}") for index in range(1, 4)],
-            *DATA_SOURCE_IMPORT_HEADERS[10:],
-        ]
-        if worksheet.max_column != len(DATA_SOURCE_IMPORT_HEADERS):
-            workbook.close()
-            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
-        header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=len(DATA_SOURCE_IMPORT_HEADERS)))
-        headers = [self._import_text(cell.value) for cell in header_cells]
-        if headers != expected_headers or any(cell.data_type == "f" for cell in header_cells):
-            workbook.close()
-            raise DataSourceImportError("DATA_SOURCE_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
-        if worksheet.max_row - 1 > DATA_SOURCE_IMPORT_MAX_ROWS:
-            workbook.close()
-            raise DataSourceImportError("DATA_SOURCE_IMPORT_TOO_MANY_ROWS", "データ行は1000行以内にしてください。")
-
-        raw_rows: list[tuple[int, list[object]]] = []
-        errors: list[DataSourceImportRowError] = []
-        ids: list[int] = []
-        for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=len(headers)), start=2):
-            if all(self._import_text(cell.value) == "" for cell in cells):
-                continue
-            for index, cell in enumerate(cells):
-                if cell.data_type == "f":
-                    errors.append(DataSourceImportRowError(row=row_number, column=headers[index], code="FORMULA_NOT_ALLOWED", message="数式は入力できません。"))
-            values = [cell.value for cell in cells]
-            try:
-                data_source_id = self._import_id(values[0])
-                ids.append(data_source_id)
-            except ValueError:
-                errors.append(DataSourceImportRowError(row=row_number, column="ID", code="ID_INVALID", message="IDは必須の正の整数です。行の追加はできません。"))
-            raw_rows.append((row_number, values))
-        workbook.close()
+        raw_rows, errors, ids, headers = await run_in_threadpool(self._parse_import, content, type_labels)
         if not raw_rows:
             raise DataSourceImportError("DATA_SOURCE_IMPORT_EMPTY", "更新するデータがありません。")
         duplicates = {value for value in ids if ids.count(value) > 1}

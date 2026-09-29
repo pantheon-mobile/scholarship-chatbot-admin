@@ -1,3 +1,6 @@
+from typing import Annotated
+from pydantic import BeforeValidator
+from app.services.resource_limits import validate_bulk_delete_items, validate_reorder_items
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -33,7 +36,7 @@ class CategoryDeleteTarget(BaseModel):
 
 
 class CategoryBulkDeleteRequest(BaseModel):
-    items: list[CategoryDeleteTarget]
+    items: Annotated[list[CategoryDeleteTarget], BeforeValidator(validate_bulk_delete_items)]
 
 
 class CategoryBulkDeleteResponse(BaseModel):
@@ -42,4 +45,4 @@ class CategoryBulkDeleteResponse(BaseModel):
 
 class CategoryOrderRequest(BaseModel):
     parent_id: int | None = None
-    items: list[CategoryDeleteTarget]
+    items: Annotated[list[CategoryDeleteTarget], BeforeValidator(validate_reorder_items)]

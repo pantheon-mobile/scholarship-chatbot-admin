@@ -1,10 +1,8 @@
-from app.services.excel_format import append_safe_row
-from io import BytesIO
+from app.services.excel_export import render_excel
+from starlette.concurrency import run_in_threadpool
 
-from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
-from app.services.excel_format import apply_download_format
 from app.models.faq_classification import FaqClassificationType, FaqClassificationValue
 from app.repositories.faq_classification import FaqClassificationRepository
 from app.schemas.faq_classification import (
@@ -136,16 +134,11 @@ class FaqClassificationService:
 
     async def export_excel(self) -> bytes:
         types = await self.repository.list_types()
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "区分"
-        append_safe_row(worksheet, ["区分", "区分ラベル名", "区分値"])
+        excel_rows: list[list[object]] = []
+        excel_rows.append(["区分", "区分ラベル名", "区分値"])
         for classification_type in types:
             if not classification_type.values:
-                append_safe_row(worksheet, [classification_type.fixed_name, classification_type.display_label, ""])
+                excel_rows.append([classification_type.fixed_name, classification_type.display_label, ""])
             for value in classification_type.values:
-                append_safe_row(worksheet, [classification_type.fixed_name, classification_type.display_label, value.value_name])
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+                excel_rows.append([classification_type.fixed_name, classification_type.display_label, value.value_name])
+        return await run_in_threadpool(render_excel, "区分", excel_rows)

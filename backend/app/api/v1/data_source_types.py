@@ -1,3 +1,4 @@
+from app.services.resource_limits import validate_reorder_items
 from io import BytesIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -115,6 +116,7 @@ async def reorder_data_source_values(
     ordered_ids: list[int] = Body(...),
     service: ClassificationService = Depends(get_service),
 ):
+    validate_reorder_items(ordered_ids)
     try:
         await service.reorder_values(type_id, ordered_ids)
         return Response(status_code=204)

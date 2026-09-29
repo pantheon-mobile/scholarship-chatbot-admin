@@ -1,3 +1,6 @@
+from typing import Annotated
+from pydantic import BeforeValidator
+from app.services.resource_limits import validate_bulk_delete_items
 from datetime import datetime
 from typing import Literal
 
@@ -94,7 +97,7 @@ class FaqDeleteTarget(BaseModel):
 
 
 class FaqBulkDeleteRequest(BaseModel):
-    items: list[FaqDeleteTarget] = Field(min_length=1)
+    items: Annotated[list[FaqDeleteTarget], BeforeValidator(validate_bulk_delete_items)] = Field(min_length=1)
 
 
 class FaqBulkDeleteResponse(BaseModel):

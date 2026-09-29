@@ -171,7 +171,7 @@ class AnalyticsService:
             row.answer_displayed_at = payload.answer_displayed_at
             row.faq_id = payload.faq_id
             row.answer_text = payload.answer_text
-            row.citations = payload.citations
+            row.citations = [] if payload.processing_status == "FAILED" else payload.citations
             row.updated_at = datetime.now(timezone.utc)
             await self.repository.commit()
             return row

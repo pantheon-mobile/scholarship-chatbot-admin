@@ -1,11 +1,9 @@
-from app.services.excel_format import append_safe_row
-from io import BytesIO
+from app.services.excel_export import render_excel
+from starlette.concurrency import run_in_threadpool
 from typing import List
 
-from openpyxl import Workbook
 from sqlalchemy.exc import IntegrityError
 
-from app.services.excel_format import apply_download_format
 from app.models.classification import ClassificationType
 from app.repositories.classification import ClassificationRepository
 from app.schemas.classification import (
@@ -110,18 +108,13 @@ class ClassificationService:
 
     async def export_excel(self) -> bytes:
         types = await self.repository.list_types()
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "種別"
-        append_safe_row(worksheet, ["種別", "種別ラベル名", "種別値"])
+        excel_rows: list[list[object]] = []
+        excel_rows.append(["種別", "種別ラベル名", "種別値"])
         for classification_type in types:
             for value in classification_type.values:
-                append_safe_row(worksheet, [
+                excel_rows.append([
                     classification_type.fixed_name,
                     classification_type.display_label,
                     value.value_name,
                 ])
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+        return await run_in_threadpool(render_excel, "種別", excel_rows)

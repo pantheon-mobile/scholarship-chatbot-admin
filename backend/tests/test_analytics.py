@@ -239,3 +239,29 @@ def test_feedback_combined_length_remains_1000():
     with pytest.raises(ValueError):
         FeedbackUpsertRequest(rating="GOOD", reason="a", comment="b" * 999)
     assert FeedbackUpsertRequest(rating="GOOD", reason="a", comment="b" * 998)
+
+
+def test_failed_completion_rejects_client_citations():
+    with pytest.raises(ValidationError, match="参照元"):
+        InteractionCompletionRequest(
+            processing_status="FAILED",
+            citations=[{"title": "クライアント指定", "uri": "https://example.com/doc"}],
+        )
+    assert InteractionCompletionRequest(processing_status="FAILED", citations=[]).citations == []
+
+
+@pytest.mark.anyio
+async def test_failed_completion_never_persists_citations_even_if_validation_bypassed():
+    repo = repository()
+    row = SimpleNamespace(id=uuid4(), processing_status="PROCESSING", question_submitted_at=NOW)
+    repo.get_owned_interaction.return_value = row
+    payload = InteractionCompletionRequest.model_construct(
+        processing_status="FAILED", citations=[{"title": "untrusted"}],
+    )
+    await AnalyticsService(repo, identity_secret="secret").complete_interaction(
+        row.id, payload, visitor_key="owned",
+    )
+    assert row.processing_status == "FAILED"
+    assert row.citations == []
+    assert row.answer_text is None
+    repo.commit.assert_awaited_once()

@@ -125,8 +125,8 @@ class InteractionCompletionRequest(BaseModel):
     @model_validator(mode="after")
     def validate_state(self):
         if self.processing_status == "FAILED":
-            if self.answer_type is not None or self.answer_displayed_at is not None or self.faq_id is not None or self.answer_text is not None:
-                raise ValueError("FAILEDでは回答種別、表示完了日時、FAQ IDを指定できません。")
+            if self.answer_type is not None or self.answer_displayed_at is not None or self.faq_id is not None or self.answer_text is not None or self.citations:
+                raise ValueError("FAILEDでは回答種別、表示完了日時、FAQ ID、回答本文、参照元を指定できません。")
             return self
         if self.answer_type is None or self.answer_displayed_at is None:
             raise ValueError("COMPLETEDでは回答種別と回答表示完了日時が必要です。")

@@ -69,7 +69,7 @@ function SortableValueRow({ value, editingValue, busy, onEdit, onChange, onSave,
       {editing ? <FormField
         compact
         inputClassName={styles.valueInput}
-        aria-label={`${value.value_name}の区分値`}
+        aria-label={`${value.value_name}の区分値`} maxLength={200}
         value={editingValue}
         onChange={(event) => onChange(event.target.value)}
       /> : value.value_name}
@@ -252,7 +252,7 @@ export default function FaqClassificationsPage() {
                     compact
                     wrapperClassName={styles.labelField}
                     inputClassName={styles.labelInput}
-                    aria-label={`${type.fixed_name}の区分ラベル名`}
+                    aria-label={`${type.fixed_name}の区分ラベル名`} maxLength={100}
                     value={editingLabels[type.id]}
                     onChange={(event) => setEditingLabels((current) => ({ ...current, [type.id]: event.target.value }))}
                   /> : type.display_label}
@@ -284,7 +284,7 @@ export default function FaqClassificationsPage() {
                     <TableCell className={styles.handleCell} />
                     <TableCell className={styles.valueCell}><FormField
                       compact autoFocus wrapperClassName={styles.valueField} inputClassName={styles.valueInput}
-                      aria-label={`${type.fixed_name}の追加区分値`}
+                      aria-label={`${type.fixed_name}の追加区分値`} maxLength={200}
                       value={value}
                       onChange={(event) => changeAddRow(type.id, index, event.target.value)}
                     /></TableCell>

@@ -34,6 +34,8 @@
   "chatRequestsPerMinute": 10,
   "chatMaxConcurrentRequests": 1,
   "reportExportMaxRows": 10000,
+  "bulkDeleteMaxItems": 1000,
+  "reorderMaxItems": 1000,
   "excelExpandedMaxMb": 100,
   "chatFrameColor": "#171a1d",
   "chatBotIconUrl": "",

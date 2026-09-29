@@ -61,8 +61,9 @@ async def data_source_mutation_error(request: Request, exc: DataSourceMutationEr
     }})
 
 
-from app.services.resource_limits import ExportLimitExceeded, ExcelExpansionLimitExceeded
+from app.services.resource_limits import ExportLimitExceeded, ExcelExpansionLimitExceeded, InputLimitExceeded
 
+@app.exception_handler(InputLimitExceeded)
 @app.exception_handler(ExportLimitExceeded)
 @app.exception_handler(ExcelExpansionLimitExceeded)
 async def resource_limit_error(request: Request, exc):

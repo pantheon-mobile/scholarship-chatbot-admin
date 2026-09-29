@@ -78,6 +78,8 @@ export interface ScholarshipEnvironmentConfig {
   readonly chatRequestsPerMinute?: number;
   readonly chatMaxConcurrentRequests?: number;
   readonly reportExportMaxRows?: number;
+  readonly bulkDeleteMaxItems?: number;
+  readonly reorderMaxItems?: number;
   readonly excelExpandedMaxMb?: number;
   readonly chatFrameColor?: string;
   readonly chatBotIconUrl?: string;
@@ -116,6 +118,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ScholarshipDevelopmentStackProps) {
     super(scope, id, props);
     const config = props.config;
+    const dashboardMetrics = dashboardMetricsEnvironment(config.dashboardBasicMetrics);
     if (config.appPermissionsBoundaryArn) {
       iam.PermissionsBoundary.of(this).apply(
         iam.ManagedPolicy.fromManagedPolicyArn(this, "AppPermissionsBoundary", config.appPermissionsBoundaryArn),
@@ -128,8 +131,7 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     if (certificateManagement !== "managed" && !config.existingHttpsListenerArn) {
       throw new Error("Certificate management transfer requires an existing HTTPS listener");
     }
-    const dashboardMetrics = dashboardMetricsEnvironment(config.dashboardBasicMetrics);
-    for (const name of ["chatRequestsPerMinute", "chatMaxConcurrentRequests", "reportExportMaxRows", "excelExpandedMaxMb"] as const) {
+    for (const name of ["chatRequestsPerMinute", "chatMaxConcurrentRequests", "reportExportMaxRows", "excelExpandedMaxMb", "bulkDeleteMaxItems", "reorderMaxItems"] as const) {
       const configured = config[name];
       if (configured !== undefined && (!Number.isSafeInteger(configured) || configured < 1)) {
         throw new Error(`${name} must be a positive integer`);
@@ -443,13 +445,15 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
         CHAT_UI_TITLE: config.chatUiTitle ?? "東京理科大学奨学金問合せチャット",
         ADMIN_UI_TITLE: config.adminUiTitle ?? "東京理科大学奨学金問合せチャット　管理サイト",
         HEADER_ICON_URL: config.headerIconUrl ?? "",
-        DASHBOARD_BASIC_METRICS: dashboardMetrics,
         CHAT_INITIAL_MESSAGE: config.chatInitialMessage ?? "奨学金について知りたいことを入力してください。登録されている資料をもとに回答します。",
         CHAT_INPUT_PLACEHOLDER: config.chatInputPlaceholder ?? "質問を入力してください",
         CHAT_QUESTION_MAX_LENGTH: value(config.chatQuestionMaxLength, 2000),
+        DASHBOARD_BASIC_METRICS: dashboardMetrics,
         CHAT_REQUESTS_PER_MINUTE: value(config.chatRequestsPerMinute, 10),
         CHAT_MAX_CONCURRENT_REQUESTS: value(config.chatMaxConcurrentRequests, 1),
         REPORT_EXPORT_MAX_ROWS: value(config.reportExportMaxRows, 10000),
+        BULK_DELETE_MAX_ITEMS: value(config.bulkDeleteMaxItems, 1000),
+        REORDER_MAX_ITEMS: value(config.reorderMaxItems, 1000),
         CHAT_FRAME_COLOR: config.chatFrameColor ?? "#171a1d",
         CHAT_BOT_ICON_URL: config.chatBotIconUrl ?? "",
         CHAT_HISTORY_ENABLED: value(config.chatHistoryEnabled, true),

@@ -1,4 +1,6 @@
-from app.services.excel_format import append_safe_row
+from __future__ import annotations
+from app.services.excel_export import render_excel
+from starlette.concurrency import run_in_threadpool
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -7,10 +9,9 @@ from app.services.excel_security import validate_excel_expansion
 from zoneinfo import ZoneInfo
 
 from fastapi import UploadFile
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
-from app.services.excel_format import apply_download_format
 from app.models.faq import Faq
 from app.repositories.faq import FaqRepository
 from app.schemas.faq import (
@@ -227,10 +228,8 @@ class FaqService:
     async def export_excel(self, filters: FaqFilters, labels: dict[str, str]) -> bytes:
         type_ids = await self.validate_filters(filters)
         rows, _, _ = await self.repository.list(filters, type_ids, paginate=False)
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "FAQ一覧"
-        append_safe_row(worksheet, [
+        excel_rows: list[list[object]] = []
+        excel_rows.append([
             *FAQ_IMPORT_FIXED_HEADERS,
             *[labels.get(f"FAQ_TYPE_{i}", f"区分{i}") for i in range(1, 5)],
             "チャット利用", "更新日時",
@@ -241,16 +240,13 @@ class FaqService:
             similar_questions = [
                 item.question for item in sorted(row.similar_questions, key=lambda item: item.display_order)
             ][:FAQ_IMPORT_SIMILAR_COUNT]
-            append_safe_row(worksheet, [
+            excel_rows.append([
                 row.id, row.question, row.answer,
                 *similar_questions, *([""] * (FAQ_IMPORT_SIMILAR_COUNT - len(similar_questions))),
                 *[values.get(f"FAQ_TYPE_{i}", "") for i in range(1, 5)],
                 "公開" if row.chat_enabled else "非公開", row.updated_at.astimezone(jst).strftime("%Y/%m/%d %H:%M"),
             ])
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+        return await run_in_threadpool(render_excel, "FAQ一覧", excel_rows)
 
     async def create_import_template(self) -> bytes:
         labels = await self.repository.list_type_labels()
@@ -259,14 +255,9 @@ class FaqService:
             *[labels.get(f"FAQ_TYPE_{index}", f"区分{index}") for index in range(1, 5)],
             "チャット利用",
         ]
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "FAQ一括登録更新"
-        append_safe_row(worksheet, headers)
-        output = BytesIO()
-        apply_download_format(worksheet)
-        workbook.save(output)
-        return output.getvalue()
+        excel_rows: list[list[object]] = []
+        excel_rows.append(headers)
+        return await run_in_threadpool(render_excel, "FAQ一括登録更新", excel_rows)
 
     @staticmethod
     async def _read_import_file(upload: UploadFile) -> bytes:
@@ -276,6 +267,11 @@ class FaqService:
         content = await upload.read(FAQ_IMPORT_MAX_BYTES + 1)
         if len(content) > FAQ_IMPORT_MAX_BYTES:
             raise FaqError("FAQ_IMPORT_FILE_TOO_LARGE", "ファイルサイズは10MB以下にしてください。")
+        await run_in_threadpool(FaqService._validate_import_archive, content)
+        return content
+
+    @staticmethod
+    def _validate_import_archive(content: bytes) -> None:
         if not content or not is_zipfile(BytesIO(content)):
             raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。")
         try:
@@ -287,7 +283,6 @@ class FaqService:
                     raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "マクロを含むExcelファイルは使用できません。")
         except (BadZipFile, KeyError):
             raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
-        return content
 
     @staticmethod
     def _error(row: int, column: str, code: str, message: str) -> FaqImportRowError:
@@ -311,110 +306,114 @@ class FaqService:
             return int(value.strip())
         raise ValueError
 
-    async def import_excel(self, upload: UploadFile) -> FaqImportResponse:
-        content = await self._read_import_file(upload)
+    def _parse_import(self, content: bytes, type_maps: dict) -> tuple[list[FaqImportEntry], list[FaqImportRowError]]:
         try:
             workbook = load_workbook(BytesIO(content), read_only=True, data_only=False, keep_links=False)
         except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError):
             raise FaqError("FAQ_IMPORT_INVALID_FORMAT", "有効なxlsxファイルを選択してください。") from None
 
-        worksheet = workbook.active
-        import_column_count = len(FAQ_IMPORT_FIXED_HEADERS) + 5
-        has_updated_at = worksheet.max_column == import_column_count + 1
-        expected_column_count = import_column_count + (1 if has_updated_at else 0)
-        if worksheet.max_column != expected_column_count:
-            workbook.close()
-            raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
-        header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=expected_column_count))
-        headers = [self._text(cell.value) for cell in header_cells]
-        if (
-            any(cell.data_type == "f" for cell in header_cells)
-            or headers[:len(FAQ_IMPORT_FIXED_HEADERS)] != FAQ_IMPORT_FIXED_HEADERS
-            or any(not value for value in headers[len(FAQ_IMPORT_FIXED_HEADERS):len(FAQ_IMPORT_FIXED_HEADERS) + 4])
-            or headers[import_column_count - 1] != "チャット利用"
-            or (has_updated_at and headers[-1] != "更新日時")
-        ):
-            workbook.close()
-            raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
-        if worksheet.max_row - 1 > FAQ_IMPORT_MAX_ROWS:
-            workbook.close()
-            raise FaqError("FAQ_IMPORT_TOO_MANY_ROWS", "データ行は1000行以内にしてください。")
+        try:
+            worksheet = workbook.active
+            import_column_count = len(FAQ_IMPORT_FIXED_HEADERS) + 5
+            has_updated_at = worksheet.max_column == import_column_count + 1
+            expected_column_count = import_column_count + (1 if has_updated_at else 0)
+            if worksheet.max_column != expected_column_count:
+                raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+            header_cells = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=expected_column_count))
+            headers = [self._text(cell.value) for cell in header_cells]
+            if (
+                any(cell.data_type == "f" for cell in header_cells)
+                or headers[:len(FAQ_IMPORT_FIXED_HEADERS)] != FAQ_IMPORT_FIXED_HEADERS
+                or any(not value for value in headers[len(FAQ_IMPORT_FIXED_HEADERS):len(FAQ_IMPORT_FIXED_HEADERS) + 4])
+                or headers[import_column_count - 1] != "チャット利用"
+                or (has_updated_at and headers[-1] != "更新日時")
+            ):
+                raise FaqError("FAQ_IMPORT_INVALID_COLUMNS", "Excelの列数または列順が正しくありません。")
+            if worksheet.max_row - 1 > FAQ_IMPORT_MAX_ROWS:
+                raise FaqError("FAQ_IMPORT_TOO_MANY_ROWS", "データ行は1000行以内にしてください。")
 
+            errors: list[FaqImportRowError] = []
+            entries: list[FaqImportEntry] = []
+
+            for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=expected_column_count), start=2):
+                import_cells = cells[:import_column_count]
+                if all(self._text(cell.value) == "" for cell in import_cells):
+                    continue
+                # 一覧ダウンロード由来の「更新日時」は表示情報であり、取込処理では常に無視する。
+                formula_columns = {index for index, cell in enumerate(import_cells) if cell.data_type == "f"}
+                for index in sorted(formula_columns):
+                    errors.append(self._error(row_number, headers[index], "FAQ_IMPORT_FORMULA_NOT_ALLOWED", "数式は入力できません。"))
+
+                faq_id = None
+                if 0 not in formula_columns:
+                    try:
+                        faq_id = self._parse_id(cells[0].value)
+                    except ValueError:
+                        errors.append(self._error(row_number, "ID", "FAQ_ID_INVALID", "IDは正の整数で入力してください。"))
+
+                question = self._text(cells[1].value) if 1 not in formula_columns else ""
+                answer = self._text(cells[2].value) if 2 not in formula_columns else ""
+                for value, column, required_code, required_message, limit, long_code, long_message in [
+                    (question, "質問", "FAQ_QUESTION_REQUIRED", "質問を入力してください。", 1500, "FAQ_QUESTION_TOO_LONG", "質問は1500文字以内で入力してください。"),
+                    (answer, "回答", "FAQ_ANSWER_REQUIRED", "回答を入力してください。", 4000, "FAQ_ANSWER_TOO_LONG", "回答は4000文字以内で入力してください。"),
+                ]:
+                    if not value and headers.index(column) not in formula_columns:
+                        errors.append(self._error(row_number, column, required_code, required_message))
+                    elif len(value) > limit:
+                        errors.append(self._error(row_number, column, long_code, long_message))
+
+                similar_questions: list[str] = []
+                for offset in range(FAQ_IMPORT_SIMILAR_COUNT):
+                    index = 3 + offset
+                    if index in formula_columns:
+                        continue
+                    value = self._text(cells[index].value)
+                    if not value:
+                        continue
+                    if len(value) > 1500:
+                        errors.append(self._error(row_number, headers[index], "FAQ_SIMILAR_QUESTION_TOO_LONG", "類似質問は1500文字以内で入力してください。"))
+                    else:
+                        similar_questions.append(value)
+
+                classifications: list[tuple[int, int]] = []
+                for offset in range(4):
+                    index = len(FAQ_IMPORT_FIXED_HEADERS) + offset
+                    if index in formula_columns:
+                        continue
+                    value_name = self._text(cells[index].value)
+                    if not value_name:
+                        continue
+                    type_code = f"FAQ_TYPE_{offset + 1}"
+                    type_definition = type_maps.get(type_code)
+                    value_id = type_definition[1].get(value_name) if type_definition else None
+                    if value_id is None:
+                        errors.append(self._error(row_number, headers[index], "FAQ_CLASSIFICATION_NOT_FOUND", "指定された区分値が存在しません。"))
+                    else:
+                        classifications.append((int(type_definition[0]), int(value_id)))
+
+                chat_index = import_column_count - 1
+                chat_text = self._text(cells[chat_index].value) if chat_index not in formula_columns else ""
+                if chat_index not in formula_columns and chat_text not in ("公開", "非公開"):
+                    errors.append(self._error(row_number, "チャット利用", "FAQ_CHAT_ENABLED_INVALID", "チャット利用は「公開」または「非公開」で入力してください。"))
+
+                entries.append(FaqImportEntry(
+                    row_number=row_number, faq_id=faq_id, question=question, answer=answer,
+                    similar_questions=similar_questions, classifications=classifications,
+                    chat_enabled=chat_text == "公開",
+                ))
+
+            return entries, errors
+        finally:
+            workbook.close()
+
+    async def import_excel(self, upload: UploadFile) -> FaqImportResponse:
+        content = await self._read_import_file(upload)
         classification_types = await self.repository.list_import_classifications()
         type_maps = {
             item.type_code: (item.id, {value.value_name: value.id for value in item.values})
             for item in classification_types
         }
-        errors: list[FaqImportRowError] = []
-        entries: list[FaqImportEntry] = []
-
-        for row_number, cells in enumerate(worksheet.iter_rows(min_row=2, max_col=expected_column_count), start=2):
-            import_cells = cells[:import_column_count]
-            if all(self._text(cell.value) == "" for cell in import_cells):
-                continue
-            # 一覧ダウンロード由来の「更新日時」は表示情報であり、取込処理では常に無視する。
-            formula_columns = {index for index, cell in enumerate(import_cells) if cell.data_type == "f"}
-            for index in sorted(formula_columns):
-                errors.append(self._error(row_number, headers[index], "FAQ_IMPORT_FORMULA_NOT_ALLOWED", "数式は入力できません。"))
-
-            faq_id = None
-            if 0 not in formula_columns:
-                try:
-                    faq_id = self._parse_id(cells[0].value)
-                except ValueError:
-                    errors.append(self._error(row_number, "ID", "FAQ_ID_INVALID", "IDは正の整数で入力してください。"))
-
-            question = self._text(cells[1].value) if 1 not in formula_columns else ""
-            answer = self._text(cells[2].value) if 2 not in formula_columns else ""
-            for value, column, required_code, required_message, limit, long_code, long_message in [
-                (question, "質問", "FAQ_QUESTION_REQUIRED", "質問を入力してください。", 1500, "FAQ_QUESTION_TOO_LONG", "質問は1500文字以内で入力してください。"),
-                (answer, "回答", "FAQ_ANSWER_REQUIRED", "回答を入力してください。", 4000, "FAQ_ANSWER_TOO_LONG", "回答は4000文字以内で入力してください。"),
-            ]:
-                if not value and headers.index(column) not in formula_columns:
-                    errors.append(self._error(row_number, column, required_code, required_message))
-                elif len(value) > limit:
-                    errors.append(self._error(row_number, column, long_code, long_message))
-
-            similar_questions: list[str] = []
-            for offset in range(FAQ_IMPORT_SIMILAR_COUNT):
-                index = 3 + offset
-                if index in formula_columns:
-                    continue
-                value = self._text(cells[index].value)
-                if not value:
-                    continue
-                if len(value) > 1500:
-                    errors.append(self._error(row_number, headers[index], "FAQ_SIMILAR_QUESTION_TOO_LONG", "類似質問は1500文字以内で入力してください。"))
-                else:
-                    similar_questions.append(value)
-
-            classifications: list[tuple[int, int]] = []
-            for offset in range(4):
-                index = len(FAQ_IMPORT_FIXED_HEADERS) + offset
-                if index in formula_columns:
-                    continue
-                value_name = self._text(cells[index].value)
-                if not value_name:
-                    continue
-                type_code = f"FAQ_TYPE_{offset + 1}"
-                type_definition = type_maps.get(type_code)
-                value_id = type_definition[1].get(value_name) if type_definition else None
-                if value_id is None:
-                    errors.append(self._error(row_number, headers[index], "FAQ_CLASSIFICATION_NOT_FOUND", "指定された区分値が存在しません。"))
-                else:
-                    classifications.append((int(type_definition[0]), int(value_id)))
-
-            chat_index = import_column_count - 1
-            chat_text = self._text(cells[chat_index].value) if chat_index not in formula_columns else ""
-            if chat_index not in formula_columns and chat_text not in ("公開", "非公開"):
-                errors.append(self._error(row_number, "チャット利用", "FAQ_CHAT_ENABLED_INVALID", "チャット利用は「公開」または「非公開」で入力してください。"))
-
-            entries.append(FaqImportEntry(
-                row_number=row_number, faq_id=faq_id, question=question, answer=answer,
-                similar_questions=similar_questions, classifications=classifications,
-                chat_enabled=chat_text == "公開",
-            ))
-        workbook.close()
+        entries, errors = await run_in_threadpool(self._parse_import, content, type_maps)
 
         if not entries:
             await self.repository.rollback()
