@@ -1,11 +1,13 @@
-import type { Metadata } from "next";
+import { connection } from "next/server";
+import { siteMetadata } from "@/lib/siteMetadata";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
-export const metadata: Metadata = {
-  title: "Scholarship Chatbot Admin",
-  description: "Admin frontend for the scholarship chatbot",
-};
+export async function generateMetadata() {
+  // Read the deployed container's settings, not the image build environment.
+  await connection();
+  return siteMetadata();
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

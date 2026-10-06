@@ -85,7 +85,7 @@ class DashboardService:
         no_answer = int(interactions["no_answer_count"] or 0)
         good = int(interactions["good_count"] or 0)
         bad = int(interactions["bad_count"] or 0)
-        unrated = valid - good - bad
+        unrated = response_count - good - bad
         days = (to_date - from_date).days + 1
 
         return DashboardResponse(

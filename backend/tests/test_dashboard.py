@@ -45,7 +45,7 @@ async def test_all_metrics_formulas_jst_bounds_and_zero_bucket_completion():
     assert (basic.average_chats_per_day, basic.average_chats_per_user) == (0.3, 1.5)
     assert (basic.response_count, basic.average_responses_per_chat, basic.average_responses_per_user) == (4, 1.3, 2.0)
     assert (basic.valid_answer_count, basic.no_answer_count, basic.answer_rate) == (3, 1, 75.0)
-    assert (basic.good_count, basic.bad_count, basic.unrated_count, basic.satisfaction_rate) == (1, 1, 1, 50.0)
+    assert (basic.good_count, basic.bad_count, basic.unrated_count, basic.satisfaction_rate) == (1, 1, 2, 50.0)
     assert (basic.comment_count, basic.good_comment_count, basic.bad_comment_count) == (2, 1, 1)
     assert (basic.response_time.average_seconds, basic.response_time.minimum_seconds, basic.response_time.maximum_seconds) == (2.3, 1.0, 4.0)
     assert len(result.time_buckets) == 8 and len(result.weekday_buckets) == 7

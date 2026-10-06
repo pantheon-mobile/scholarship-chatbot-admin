@@ -109,6 +109,11 @@ class FaqClassificationService:
         except FaqClassificationError:
             await self.repository.rollback()
             raise
+        except IntegrityError as exc:
+            await self.repository.rollback()
+            if getattr(exc.orig, "sqlstate", None) == "23503" or getattr(exc.orig, "pgcode", None) == "23503":
+                raise FaqClassificationError("FAQ_CLASSIFICATION_VALUE_IN_USE", "この区分値はFAQで使用中のため削除できません。該当FAQの区分を変更・解除してから、再度削除してください。") from None
+            raise
         except Exception:
             await self.repository.rollback()
             raise

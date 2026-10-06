@@ -60,8 +60,8 @@ describe("AdminLayout", () => {
     expect(userMenuButton).not.toBeNull();
     expect(screen.queryByRole("button", { name: "ログアウト" })).toBeNull();
     fireEvent.click(userMenuButton);
-    expect(screen.getByText("ID：-")).not.toBeNull();
-    expect(screen.getByRole("menuitem", { name: "閉じる" })).not.toBeNull();
+    expect(screen.queryByText("ID：-")).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "閉じる" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "ログアウト" })).not.toBeNull();
     expect(container.querySelector(`.${styles.menuIcon}`)).toBeNull();
   });

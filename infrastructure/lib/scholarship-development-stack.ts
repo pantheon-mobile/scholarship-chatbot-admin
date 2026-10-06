@@ -70,6 +70,8 @@ export interface ScholarshipEnvironmentConfig {
   readonly chatCurrentAcademicYear?: string;
   readonly chatSystemPrompt?: string;
   readonly chatUiTitle?: string;
+  readonly siteBrowserTitle?: string;
+  readonly siteFaviconUrl?: string;
   readonly adminUiTitle?: string;
   readonly headerIconUrl?: string;
   readonly chatInitialMessage?: string;
@@ -493,6 +495,8 @@ export class ScholarshipDevelopmentStack extends cdk.Stack {
     frontendContainer.addSecret("ACCESS_LOG_SIGNING_SECRET", ecs.Secret.fromSecretsManager(accessLogSecret));
     frontendContainer.addEnvironment("ACCESS_LOG_API_URL", `https://${config.domainName}/api/v1/analytics/accesses`);
     frontendContainer.addEnvironment("ACCESS_LOG_ORIGIN", `https://${config.domainName}`);
+    frontendContainer.addEnvironment("SITE_BROWSER_TITLE", config.siteBrowserTitle?.trim() || "Scholarship Chatbot");
+    frontendContainer.addEnvironment("SITE_FAVICON_URL", config.siteFaviconUrl?.trim() || "");
     frontendContainer.addEnvironment("ENABLE_DEVELOPMENT_CPF_MOCK", String(config.enableDevelopmentCpfMock ?? false));
     new cdk.CfnOutput(this, "DevelopmentCpfMockEnabled", { value: String(config.enableDevelopmentCpfMock ?? false) });
     frontendContainer.addPortMappings({ containerPort: 3000 });

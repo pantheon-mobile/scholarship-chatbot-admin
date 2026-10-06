@@ -50,7 +50,7 @@ export function FaqReferenceModal({
       <div className={styles.row}><div className={styles.label}>ID</div><div className={styles.value}>{detail.id}</div></div>
       <div className={styles.row}><div className={styles.label}>質問</div><div className={`${styles.value} ${styles.preWrap}`}>{detail.question}</div></div>
       <div className={styles.row}><div className={styles.label}>回答</div><div className={`${styles.value} ${styles.preWrap}`}><LinkedPlainText text={detail.answer} /></div></div>
-      <div className={styles.row}><div className={styles.label}>同じ回答の類似質問</div><div className={`${styles.value} ${styles.similarList}`}>{similarQuestions.map((item) => <div className={styles.preWrap} key={item.id}>{item.question}</div>)}</div></div>
+      <div className={styles.row}><div className={styles.label}>類似質問</div><div className={`${styles.value} ${styles.similarList}`}>{similarQuestions.map((item) => <div className={styles.preWrap} key={item.id}>{item.question}</div>)}</div></div>
       {[1,2,3,4].map((index) => <div className={styles.row} key={index}>
         <div className={styles.label}>{typeMap[`FAQ_TYPE_${index}`] ?? `区分${index}`}</div>
         <div className={styles.value}>{selected[`FAQ_TYPE_${index}`] ?? ""}</div>

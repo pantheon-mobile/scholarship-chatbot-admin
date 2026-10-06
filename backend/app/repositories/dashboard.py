@@ -34,10 +34,10 @@ class DashboardRepository:
                 COUNT(*) FILTER (WHERE i.answer_type = 'GENERATED_AI')::bigint AS generated_ai_count,
                 COUNT(*) FILTER (WHERE i.answer_type = 'NO_ANSWER')::bigint AS no_answer_count,
                 COUNT(*) FILTER (
-                    WHERE i.answer_type IN ('FAQ', 'GENERATED_AI') AND f.rating = 'GOOD'
+                    WHERE f.rating = 'GOOD'
                 )::bigint AS good_count,
                 COUNT(*) FILTER (
-                    WHERE i.answer_type IN ('FAQ', 'GENERATED_AI') AND f.rating = 'BAD'
+                    WHERE f.rating = 'BAD'
                 )::bigint AS bad_count,
                 COUNT(*) FILTER (WHERE f.comment IS NOT NULL)::bigint AS comment_count,
                 COUNT(*) FILTER (WHERE f.rating = 'GOOD' AND f.comment IS NOT NULL)::bigint AS good_comment_count,

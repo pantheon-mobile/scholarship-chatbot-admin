@@ -193,5 +193,7 @@
       "name": "コメント数（Bad）",
       "visible": 1
     }
-  }
+  },
+  "siteBrowserTitle": "Scholarship Chatbot",
+  "siteFaviconUrl": ""
 }

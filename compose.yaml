@@ -9,6 +9,8 @@ services:
       - backend
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - SITE_BROWSER_TITLE=${SITE_BROWSER_TITLE:-Scholarship Chatbot}
+      - SITE_FAVICON_URL=${SITE_FAVICON_URL:-}
       - ACCESS_LOG_API_URL=http://backend:8000/api/v1/analytics/accesses
       - ACCESS_LOG_ORIGIN=http://localhost:3000
       - ACCESS_LOG_SIGNING_SECRET=${ACCESS_LOG_SIGNING_SECRET:?Set ACCESS_LOG_SIGNING_SECRET in .env}

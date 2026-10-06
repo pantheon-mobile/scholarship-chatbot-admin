@@ -89,8 +89,19 @@ async def test_staff_download_gets_original_bytes_and_japanese_filename(download
         response = await client.get("/api/v1/chat/sources/7/download")
     assert response.status_code == 200
     assert response.content == b"%PDF-1.7 original bytes"
-    assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''" + quote("返還案内.pdf", safe="")
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"] == "inline; filename*=UTF-8''" + quote("返還案内.pdf", safe="")
     assert response.headers["cache-control"] == "private, no-store"
+
+
+@pytest.mark.anyio
+async def test_non_pdf_citation_still_downloads(download_setup):
+    app.dependency_overrides[get_db] = lambda: db_for(source(
+        file=SimpleNamespace(storage_key="original.pdf", file_name="案内.docx")))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/chat/sources/7/download")
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.headers["content-disposition"].startswith("attachment;")
 
 
 @pytest.mark.anyio
@@ -164,6 +175,7 @@ async def test_admin_original_download_independent_of_chat_flags(download_setup,
         response = await client.get("/api/v1/data-sources/7/download")
     assert response.status_code == 200
     assert response.content == b"%PDF-1.7 original bytes"
+    assert response.headers["content-type"] == "application/octet-stream"
     assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''" + quote("返還案内.pdf", safe="")
 
 

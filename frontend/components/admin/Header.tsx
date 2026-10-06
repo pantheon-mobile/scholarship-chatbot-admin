@@ -17,7 +17,6 @@ type HeaderProps = {
 
 export function Header({
   userName = "東京太郎",
-  userId,
   siteName = "東京理科大学奨学金問合せチャット　管理サイト",
   headerIconUrl,
   variant = "default",
@@ -37,8 +36,6 @@ export function Header({
         <div className={styles.headerUserWrap}>
           <button type="button" className={styles.userMenuButton} aria-haspopup="menu" aria-expanded={userMenuOpen} onClick={() => setUserMenuOpen((current) => !current)}>{userName} ▾</button>
           {userMenuOpen && <div className={styles.headerUserMenu} role="menu">
-            <span>ID：{userId || "-"}</span>
-            <button type="button" role="menuitem" onClick={() => setUserMenuOpen(false)}>閉じる</button>
             <button type="button" role="menuitem" onClick={onLogout}>ログアウト</button>
           </div>}
         </div>

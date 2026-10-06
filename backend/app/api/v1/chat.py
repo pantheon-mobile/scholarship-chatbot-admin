@@ -254,17 +254,21 @@ async def _generate_message(payload, _current_user, service, session):
         return result
 
     try:
+        faqs = list((await session.execute(
+            select(Faq)
+            .where(Faq.chat_enabled.is_(True))
+            .options(selectinload(Faq.similar_questions))
+        )).scalars().unique().all())
+        # Preserve an explicit FAQ question before interpreting conversation context.
+        exact_answer = await asyncio.to_thread(ChatService.answer_from_faq, payload.question, faqs, exact_only=True)
+        if exact_answer is not None:
+            return await save_answer(exact_answer)
         context = await ChatContextService(session, _visitor_key(_current_user)).resolve(
             payload.question, payload.chat_session_id,
             _flag("CHAT_CROSS_SESSION_MEMORY_ENABLED", "true") and _flag("CHAT_HISTORY_ENABLED", "true"),
         )
         if context.clarification:
             return await save_answer(ChatMessageResponse(answer=context.clarification, answer_type="GENERATED_AI", citations=[]))
-        faqs = list((await session.execute(
-            select(Faq)
-            .where(Faq.chat_enabled.is_(True))
-            .options(selectinload(Faq.similar_questions))
-        )).scalars().unique().all())
         faq_answer = await asyncio.to_thread(service.answer_from_faq, context.question, faqs)
         if faq_answer is not None:
             faq_answer.context_reference = context.reference
@@ -306,11 +310,12 @@ async def download_chat_source(
         exists = False
     if not exists:
         raise HTTPException(status_code=404, detail="参照元ファイルが見つかりません。")
+    is_pdf = row.file.file_name.lower().endswith(".pdf")
     return StreamingResponse(
         storage.iter_read(row.file.storage_key),
-        media_type="application/octet-stream",
+        media_type="application/pdf" if is_pdf else "application/octet-stream",
         headers={
-            "Content-Disposition": "attachment; filename*=UTF-8''" + quote(row.file.file_name, safe=""),
+            "Content-Disposition": ("inline" if is_pdf else "attachment") + "; filename*=UTF-8''" + quote(row.file.file_name, safe=""),
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
         },

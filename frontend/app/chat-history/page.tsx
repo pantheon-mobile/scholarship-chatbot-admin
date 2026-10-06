@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { downloadChatHistory } from "@/lib/reportingApi";
 import styles from "./page.module.css";
 
-function initialPeriod() { const today = new Date(); const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1); const from = new Date(yesterday.getFullYear(), yesterday.getMonth(), 1); const local = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; return { from: local(from), to: local(yesterday) }; }
+function initialPeriod() { const today = new Date(); const from = new Date(today.getFullYear(), today.getMonth(), 1); const local = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; return { from: local(from), to: local(today) }; }
 
 export default function ChatHistoryPage() {
   const router = useRouter(); const [initial] = useState(initialPeriod);

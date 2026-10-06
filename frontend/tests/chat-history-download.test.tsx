@@ -33,6 +33,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CB-216 チャット履歴ダウンロード", () => {
+  it("月初でも当月1日から当日までを初期表示する", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 1, 12));
+    try {
+      render(<ChatHistoryPage />);
+      expect((screen.getByLabelText("From") as HTMLInputElement).value).toBe("2026-10-01");
+      expect((screen.getByLabelText("To") as HTMLInputElement).value).toBe("2026-10-01");
+    } finally { cleanup(); vi.useRealTimers(); }
+  });
   it("回答種別の末尾に回答NGを表示し、選択した条件でダウンロードする", async () => {
     render(<ChatHistoryPage />);
     const select = screen.getByRole("combobox", { name: "チャット回答種別：" });

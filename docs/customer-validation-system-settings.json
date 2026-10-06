@@ -10,6 +10,8 @@
     "利用上限の数値は正の整数です。0による無効化はできません。"
   ],
   "settings": [
+    {"key": "siteBrowserTitle", "name": "ブラウザのタブタイトル", "description": "管理画面とチャット画面に共通のタブタイトルです。空欄時はScholarship Chatbotです。画面内のヘッダータイトルとは別設定です。", "currentValue": "Scholarship Chatbot"},
+    {"key": "siteFaviconUrl", "name": "favicon URL", "description": "管理画面とチャット画面に共通のブラウザアイコンです。HTTPSの画像URLまたは同一サイト内の絶対パスを指定します。空欄時はカスタムアイコンを指定しません。", "currentValue": ""},
     {"key": "chatUiTitle", "name": "チャット画面タイトル", "description": "チャット画面のヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット"},
     {"key": "adminUiTitle", "name": "管理サイトタイトル", "description": "管理サイトのヘッダーに表示する名称です。", "currentValue": "東京理科大学奨学金問合せチャット　管理サイト"},
     {"key": "headerIconUrl", "name": "共通ヘッダーアイコンURL", "description": "チャット画面と管理サイトのタイトル左に表示する画像URLです。空欄時は標準の大学アイコンを表示します。", "currentValue": ""},

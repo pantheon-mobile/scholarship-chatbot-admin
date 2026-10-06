@@ -80,16 +80,17 @@ class ChatService:
             return datetime.now(ZoneInfo("Asia/Tokyo")).year
 
     @classmethod
-    def answer_from_faq(cls, question: str, faqs: list) -> ChatMessageResponse | None:
+    def answer_from_faq(cls, question: str, faqs: list, *, exact_only: bool = False) -> ChatMessageResponse | None:
         best_faq = None
         best_score = 0.0
         for faq in faqs:
             candidate_questions = [faq.question, *(item.question for item in faq.similar_questions)]
-            score = max((cls._similarity(question, candidate) for candidate in candidate_questions), default=0.0)
+            score = (float(any(question == candidate for candidate in candidate_questions)) if exact_only
+                     else max((cls._similarity(question, candidate) for candidate in candidate_questions), default=0.0))
             if score > best_score:
                 best_faq = faq
                 best_score = score
-        if best_faq is None or best_score < cls._faq_threshold():
+        if best_faq is None or best_score < (1.0 if exact_only else cls._faq_threshold()):
             return None
 
         answer = str(best_faq.answer).strip()
