@@ -246,9 +246,9 @@ export default function FaqsPage() {
     <div className={styles.page}>
       <PageHeader title="FAQ一覧" actions={<div className={styles.topActions}>
         {isSystemAdmin(auth.user?.role ?? "admin") && <Button variant="secondary" icon={<AdminIcon name="list" size={18} />} onClick={() => router.push("/faq-classifications")}>区分を設定する</Button>}
+        <Button variant="text" onClick={downloadTemplate} disabled={templateBusy}>{templateBusy ? "ダウンロード中..." : "フォーマットをダウンロード"}</Button>
         <Button variant="download" icon={<AdminIcon name="download" size={18} />} onClick={download} disabled={busy}>一覧をダウンロード</Button>
         <Button variant="secondary" icon={<AdminIcon name="upload" size={18} />} onClick={() => setImportOpen(true)} disabled={importBusy}>FAQを一括登録／更新</Button>
-        <Button variant="text" onClick={downloadTemplate} disabled={templateBusy}>{templateBusy ? "ダウンロード中..." : "フォーマットをダウンロード"}</Button>
       </div>} />
       <div className={styles.summary}>FAQ数　{result?.total_count ?? 0}件</div>
       <Button ref={safeFocusRef} className={styles.addButton} variant="primary" icon={<AdminIcon name="plus" size={18} />} onClick={() => router.push("/faqs/new")}>FAQ新規追加</Button>
