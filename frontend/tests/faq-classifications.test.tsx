@@ -154,3 +154,50 @@ describe("CB-212 FAQ classifications", () => {
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
   });
 });
+
+
+describe("区分設定の入力欄別エラー", () => {
+  it("空のラベルのエラーは入力欄直下に表示しキャンセルで消去する", async () => {
+    await renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
+    const input = screen.getByLabelText("区分1の区分ラベル名");
+    fireEvent.change(input, { target: { value: " " } });
+    fireEvent.click(screen.getAllByRole("button", { name: "更新" })[0]);
+    expect(within(input.parentElement!).getByText("区分ラベル名を入力してください。")).not.toBeNull();
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(api.updateFaqClassificationLabel).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByText("区分ラベル名を入力してください。")).toBeNull();
+  });
+
+  it("更新失敗を対象の値の近くに表示し再送信成功で消去する", async () => {
+    api.updateFaqClassificationValue.mockRejectedValueOnce(new Error("同じ区分値が存在します。"));
+    await renderPage();
+    const row = screen.getByText("A").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: "編集" }));
+    fireEvent.click(within(row).getByRole("button", { name: "更新" }));
+    expect(await within(row).findByText("同じ区分値が存在します。")).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Aの区分値"), { target: { value: "更新値" } });
+    fireEvent.click(within(row).getByRole("button", { name: "更新" }));
+    await screen.findByText("更新値");
+    expect(screen.queryByText("同じ区分値が存在します。")).toBeNull();
+  });
+
+  it("追加行のキャンセルで後続行のエラーがずれない", async () => {
+    await renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: "追加" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "追加" })[0]);
+    const inputs = screen.getAllByLabelText("区分1の追加区分値");
+    fireEvent.click(within(inputs[1].closest("tr")!).getByRole("button", { name: "登録" }));
+    expect(within(inputs[1].parentElement!).getByText("区分値を入力してください。")).not.toBeNull();
+    fireEvent.click(within(inputs[0].closest("tr")!).getByRole("button", { name: "キャンセル" }));
+    const remaining = screen.getByLabelText("区分1の追加区分値");
+    expect(within(remaining.parentElement!).getByText("区分値を入力してください。")).not.toBeNull();
+    fireEvent.change(remaining, { target: { value: "追加値" } });
+    fireEvent.click(screen.getByRole("button", { name: "登録" }));
+    await waitFor(() => expect(screen.queryByLabelText("区分1の追加区分値")).toBeNull());
+    expect(screen.queryByText("区分値を入力してください。")).toBeNull();
+  });
+});

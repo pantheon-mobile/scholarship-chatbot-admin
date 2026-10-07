@@ -37,6 +37,7 @@ type DeleteTarget = { typeId: number; value: FaqClassificationValue };
 type SortableValueRowProps = {
   value: FaqClassificationValue;
   editingValue?: string;
+  error?: string;
   busy: boolean;
   onEdit: () => void;
   onChange: (value: string) => void;
@@ -45,7 +46,7 @@ type SortableValueRowProps = {
   onDelete: () => void;
 };
 
-function SortableValueRow({ value, editingValue, busy, onEdit, onChange, onSave, onCancel, onDelete }: SortableValueRowProps) {
+function SortableValueRow({ value, editingValue, error, busy, onEdit, onChange, onSave, onCancel, onDelete }: SortableValueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: value.id });
   const editing = editingValue !== undefined;
   return <TableRow
@@ -70,6 +71,7 @@ function SortableValueRow({ value, editingValue, busy, onEdit, onChange, onSave,
         compact
         inputClassName={styles.valueInput}
         aria-label={`${value.value_name}の区分値`} maxLength={200}
+        error={error}
         value={editingValue}
         onChange={(event) => onChange(event.target.value)}
       /> : value.value_name}
@@ -94,6 +96,12 @@ export default function FaqClassificationsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const setFieldError = (key: string, message?: string) => setFieldErrors((current) => {
+    const next = { ...current };
+    if (message) next[key] = message; else delete next[key];
+    return next;
+  });
   const [editingLabels, setEditingLabels] = useState<Record<number, string>>({});
   const [editingValues, setEditingValues] = useState<Record<number, string>>({});
   const [addingRows, setAddingRows] = useState<Record<number, string[]>>({});
@@ -124,58 +132,73 @@ export default function FaqClassificationsPage() {
 
   const saveLabel = async (type: FaqClassificationType) => {
     const label = editingLabels[type.id]?.trim() ?? "";
-    if (!label) { setError("区分ラベル名を入力してください。"); return; }
+    if (!label) { setFieldError(`label:${type.id}`, "区分ラベル名を入力してください。"); return; }
     try {
       setBusy(true);
       replaceType(await updateFaqClassificationLabel(type.id, label, type.version));
       setEditingLabels((current) => { const next = { ...current }; delete next[type.id]; return next; });
-      setError(null);
+      setFieldError(`label:${type.id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setFieldError(`label:${type.id}`, reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
   };
 
-  const cancelLabel = (typeId: number) => setEditingLabels((current) => {
-    const next = { ...current }; delete next[typeId]; return next;
-  });
+  const cancelLabel = (typeId: number) => {
+    setFieldError(`label:${typeId}`);
+    setEditingLabels((current) => { const next = { ...current }; delete next[typeId]; return next; });
+  };
 
   const addRow = (typeId: number) => setAddingRows((current) => ({ ...current, [typeId]: [...(current[typeId] ?? []), ""] }));
   const changeAddRow = (typeId: number, index: number, value: string) => setAddingRows((current) => ({
     ...current, [typeId]: current[typeId].map((item, itemIndex) => itemIndex === index ? value : item),
   }));
-  const cancelAddRow = (typeId: number, index: number) => setAddingRows((current) => ({
-    ...current, [typeId]: current[typeId].filter((_, itemIndex) => itemIndex !== index),
-  }));
+  const cancelAddRow = (typeId: number, index: number) => {
+    setAddingRows((current) => ({
+      ...current, [typeId]: current[typeId].filter((_, itemIndex) => itemIndex !== index),
+    }));
+    setFieldErrors((current) => {
+      const next: Record<string, string> = {};
+      const prefix = `add:${typeId}:`;
+      for (const [key, message] of Object.entries(current)) {
+        if (!key.startsWith(prefix)) next[key] = message;
+        else {
+          const rowIndex = Number(key.slice(prefix.length));
+          if (rowIndex !== index) next[`${prefix}${rowIndex > index ? rowIndex - 1 : rowIndex}`] = message;
+        }
+      }
+      return next;
+    });
+  };
 
   const registerValue = async (typeId: number, index: number) => {
     const value = addingRows[typeId]?.[index]?.trim() ?? "";
-    if (!value) { setError("区分値を入力してください。"); return; }
+    if (!value) { setFieldError(`add:${typeId}:${index}`, "区分値を入力してください。"); return; }
     try {
       setBusy(true);
       replaceType(await addFaqClassificationValue(typeId, value));
       cancelAddRow(typeId, index);
-      setError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setFieldError(`add:${typeId}:${index}`, reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
   };
 
   const saveValue = async (typeId: number, value: FaqClassificationValue) => {
     const name = editingValues[value.id]?.trim() ?? "";
-    if (!name) { setError("区分値を入力してください。"); return; }
+    if (!name) { setFieldError(`value:${value.id}`, "区分値を入力してください。"); return; }
     try {
       setBusy(true);
       replaceType(await updateFaqClassificationValue(typeId, value.id, name, value.version));
       setEditingValues((current) => { const next = { ...current }; delete next[value.id]; return next; });
-      setError(null);
+      setFieldError(`value:${value.id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setFieldError(`value:${value.id}`, reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
   };
 
-  const cancelValue = (valueId: number) => setEditingValues((current) => {
-    const next = { ...current }; delete next[valueId]; return next;
-  });
+  const cancelValue = (valueId: number) => {
+    setFieldError(`value:${valueId}`);
+    setEditingValues((current) => { const next = { ...current }; delete next[valueId]; return next; });
+  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -253,6 +276,7 @@ export default function FaqClassificationsPage() {
                     wrapperClassName={styles.labelField}
                     inputClassName={styles.labelInput}
                     aria-label={`${type.fixed_name}の区分ラベル名`} maxLength={100}
+                    error={fieldErrors[`label:${type.id}`]}
                     value={editingLabels[type.id]}
                     onChange={(event) => setEditingLabels((current) => ({ ...current, [type.id]: event.target.value }))}
                   /> : type.display_label}
@@ -273,6 +297,7 @@ export default function FaqClassificationsPage() {
                     key={value.id}
                     value={value}
                     editingValue={editingValues[value.id]}
+                    error={fieldErrors[`value:${value.id}`]}
                     busy={busy}
                     onEdit={() => setEditingValues((current) => ({ ...current, [value.id]: value.value_name }))}
                     onChange={(next) => setEditingValues((current) => ({ ...current, [value.id]: next }))}
@@ -285,6 +310,7 @@ export default function FaqClassificationsPage() {
                     <TableCell className={styles.valueCell}><FormField
                       compact autoFocus wrapperClassName={styles.valueField} inputClassName={styles.valueInput}
                       aria-label={`${type.fixed_name}の追加区分値`} maxLength={200}
+                      error={fieldErrors[`add:${type.id}:${index}`]}
                       value={value}
                       onChange={(event) => changeAddRow(type.id, index, event.target.value)}
                     /></TableCell>
