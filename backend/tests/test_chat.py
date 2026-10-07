@@ -388,3 +388,29 @@ async def test_generation_prompt_preserves_range_conditions(monkeypatch):
     assert "未満・以下・以上・超える" in prompt
     assert "範囲を境界値そのものや代表値に置き換え" in prompt
     assert "冒頭・説明・結論" in prompt
+
+
+@pytest.mark.anyio
+async def test_generation_uses_request_date_without_changing_search_question(monkeypatch):
+    monkeypatch.delenv("CHAT_SYSTEM_PROMPT", raising=False)
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    monkeypatch.setenv("CHAT_MODEL_ARN", "test-model")
+    clock = Mock()
+    monkeypatch.setattr("app.services.chat_service.datetime", clock)
+    client = Mock()
+    client.retrieve.return_value = {"retrievalResults": []}
+    client.retrieve_and_generate.return_value = {"output": {"text": "回答"}, "citations": []}
+    service = ChatService(client)
+    question = "その提出期間を過ぎた場合、学校側は何をすればよいですか？"
+    for date in (datetime(2026, 10, 7), datetime(2026, 10, 8)):
+        clock.now.return_value = date
+        await service.answer(question)
+        request = client.retrieve_and_generate.call_args.kwargs
+        prompt = request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
+        assert date.strftime("%Y年%m月%d日") in prompt
+        assert "$current_date$" not in prompt
+        assert str(clock.now.call_args.args[0]) == "Asia/Tokyo"
+        assert request["input"]["text"] == question
+        assert client.retrieve.call_args.kwargs["retrievalQuery"]["text"] == question
+        assert "公開済み・開始済みと断定しない" in prompt
+        assert "未提出者への対応を先に" in prompt
