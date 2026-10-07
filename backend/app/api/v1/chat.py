@@ -19,7 +19,7 @@ from app.api.v1.data_sources import get_storage
 from app.storage.base import StorageAdapter
 from app.services.chat_citation_service import resolve_chat_citations
 from app.models.analytics import AnalyticsVisitor, ChatInteraction, ChatSession
-from app.models.faq import Faq
+from app.models.faq import Faq, FaqClassificationAssignment
 from app.models.auth import AuthSession
 from app.schemas.chat import (
     ChatHistoryDetail, ChatHistoryMessage, ChatHistorySummary, ChatHistoryTitleUpdate, ChatMessageRequest,
@@ -257,7 +257,11 @@ async def _generate_message(payload, _current_user, service, session):
         faqs = list((await session.execute(
             select(Faq)
             .where(Faq.chat_enabled.is_(True))
-            .options(selectinload(Faq.similar_questions))
+            .options(
+                selectinload(Faq.similar_questions),
+                selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_type),
+                selectinload(Faq.classification_assignments).selectinload(FaqClassificationAssignment.classification_value),
+            )
         )).scalars().unique().all())
         # Preserve an explicit FAQ question before interpreting conversation context.
         exact_answer = await asyncio.to_thread(ChatService.answer_from_faq, payload.question, faqs, exact_only=True)

@@ -22,7 +22,10 @@ async def test_original_exact_faq_bypasses_context_and_model(monkeypatch, simila
     monkeypatch.setenv("ANALYTICS_IDENTITY_SECRET", "test")
     question = "長万部に送らないとダメですか？この窓口への提出ではダメですか？"
     faq = SimpleNamespace(id=13, question="別の質問" if similar else question,
-                          similar_questions=[SimpleNamespace(question=question)] if similar else [], answer="FAQの回答")
+                          similar_questions=[SimpleNamespace(question=question)] if similar else [], answer="FAQの回答",
+                          classification_assignments=[SimpleNamespace(
+                              classification_type=SimpleNamespace(type_code="FAQ_TYPE_3"),
+                              classification_value=SimpleNamespace(value_name="2021"))])
     session = AsyncMock()
     result = Mock()
     result.scalars.return_value.unique.return_value.all.return_value = [faq]
@@ -38,7 +41,8 @@ async def test_original_exact_faq_bypasses_context_and_model(monkeypatch, simila
         SimpleNamespace(site="faculty", subject="test"), service, session,
     )
     assert response.answer_type == "FAQ" and response.faq_id == 13
-    assert row.answer_text == "FAQの回答" and row.processing_status == "COMPLETED"
+    assert row.answer_text == "FAQの回答\n\n【FAQ回答】登録年度：2021"
+    assert row.answer_text == response.answer and row.processing_status == "COMPLETED"
     context.assert_not_awaited()
     service.answer.assert_not_called()
     session.commit.assert_awaited_once()

@@ -28,6 +28,11 @@ DEFAULT_CHAT_PROMPT = (
     "根拠が不足する場合は推測せず、『登録情報から確認できませんでした』と簡潔に伝えてください。"
     "その場合、質問への回答にならない断片的な関連情報、根拠のない連絡先、学生向けの案内を付け加えないでください。"
     "検索結果にない制度、期限、金額、手続き、連絡先を補完・創作しないでください。"
+    "質問の数値・単位・否定・範囲条件（未満・以下・以上・超える、<・<=・>・>=）を回答全体で保持してください。"
+    "範囲を境界値そのものや代表値に置き換えて結論を出さないでください。"
+    "例えば『380万円未満』を『年収380万円』とみなして判定してはいけません。"
+    "提示された条件だけで判断できない場合は断定せず、不足する条件を説明してください。"
+    "回答を出す前に、冒頭・説明・結論で条件の解釈や判定が矛盾していないか確認してください。"
     "検索結果:\n$search_results$\n\n質問:$query$\n\n$output_format_instructions$"
 )
 
@@ -101,6 +106,12 @@ class ChatService:
                 f"※この回答は{max(years)}年度以前の情報です。"
                 f"{current_year}年度の最新情報ではない可能性があります。\n\n{answer}"
             )
+        registered_year = next((
+            str(item.classification_value.value_name).strip()
+            for item in getattr(best_faq, "classification_assignments", [])
+            if item.classification_type.type_code == "FAQ_TYPE_3"
+        ), "") or "未設定"
+        answer += f"\n\n【FAQ回答】登録年度：{registered_year}"
         return ChatMessageResponse(
             answer=answer,
             answer_type="FAQ",

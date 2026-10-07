@@ -156,7 +156,7 @@ def test_chat_uses_best_enabled_faq_when_similarity_reaches_threshold(monkeypatc
     assert result is not None
     assert result.answer_type == "FAQ"
     assert result.faq_id == 12
-    assert result.answer == "2026年度は進学後に提出します。"
+    assert result.answer == "2026年度は進学後に提出します。\n\n【FAQ回答】登録年度：未設定"
 
 
 def test_chat_falls_back_when_faq_similarity_is_below_threshold(monkeypatch):
@@ -348,3 +348,43 @@ async def test_history_restores_feedback_without_guessing_legacy_split(monkeypat
     detail = await get_chat_session_history(row.id, current_user=SimpleNamespace(site="faculty", subject="staff-001"), session=session)
     assert detail.messages[-1].feedback_reason == reason
     assert detail.messages[-1].feedback_comment == expected
+
+
+@pytest.mark.parametrize("exact_only", [True, False])
+@pytest.mark.parametrize("registered_year", ["2021", "2026", None])
+def test_faq_displays_registered_year_without_excluding_old_faq(monkeypatch, exact_only, registered_year):
+    monkeypatch.setenv("CHAT_CURRENT_ACADEMIC_YEAR", "2026")
+    assignments = [SimpleNamespace(
+        classification_type=SimpleNamespace(type_code="FAQ_TYPE_1"),
+        classification_value=SimpleNamespace(value_name="2024"),
+    )]
+    if registered_year is not None:
+        assignments.append(SimpleNamespace(
+            classification_type=SimpleNamespace(type_code="FAQ_TYPE_3"),
+            classification_value=SimpleNamespace(value_name=registered_year),
+        ))
+    faq = SimpleNamespace(id=14, question="必着とは？", answer="この日までに届くことです。",
+        similar_questions=[], classification_assignments=assignments)
+    result = ChatService.answer_from_faq(faq.question, [faq], exact_only=exact_only)
+    assert result is not None
+    assert result.answer_type == "FAQ" and result.faq_id == 14
+    assert result.answer == f"この日までに届くことです。\n\n【FAQ回答】登録年度：{registered_year or '未設定'}"
+    assert result.citations == []
+
+
+@pytest.mark.anyio
+async def test_generation_prompt_preserves_range_conditions(monkeypatch):
+    monkeypatch.delenv("CHAT_SYSTEM_PROMPT", raising=False)
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    monkeypatch.setenv("CHAT_MODEL_ARN", "test-model")
+    client = Mock()
+    client.retrieve.return_value = {"retrievalResults": []}
+    client.retrieve_and_generate.return_value = {"output": {"text": "条件の確認が必要です。"}, "citations": []}
+    question = "世帯年収<380万円 の場合、第Ⅰ区分になりますか？"
+    await ChatService(client).answer(question)
+    request = client.retrieve_and_generate.call_args.kwargs
+    assert request["input"]["text"] == question
+    prompt = request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
+    assert "未満・以下・以上・超える" in prompt
+    assert "範囲を境界値そのものや代表値に置き換え" in prompt
+    assert "冒頭・説明・結論" in prompt
