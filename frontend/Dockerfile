@@ -11,6 +11,7 @@ COPY next-env.d.ts ./
 COPY proxy.ts ./
 COPY vitest.config.mts ./
 COPY app ./app
+COPY public ./public
 COPY components ./components
 COPY lib ./lib
 COPY tests ./tests
@@ -31,6 +32,7 @@ COPY --from=builder /app/vitest.config.mts ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/app ./app
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/components ./components
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/tests ./tests
