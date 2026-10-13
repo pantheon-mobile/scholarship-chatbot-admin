@@ -1,5 +1,7 @@
 import { ChatAnswer, ChatHistoryDetail, ChatHistorySummary, ChatUiConfig } from "@/types/chat";
 
+import { questionResponseError } from "@/lib/chatErrors";
+
 const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function detail(response: Response) {
@@ -9,17 +11,19 @@ async function detail(response: Response) {
 
 export async function sendChatMessage(question: string, chatSessionId: string, interactionId: string): Promise<ChatAnswer> {
   const response = await fetch(`${apiBase}/api/v1/chat/messages`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, chat_session_id: chatSessionId, interaction_id: interactionId }) });
-  if (!response.ok) throw new Error(await detail(response));
+  if (!response.ok) throw new Error(await questionResponseError(response, "回答を取得できませんでした。"));
   return response.json();
 }
 
-async function analytics(path: string, method: string, body: unknown) {
+async function analytics(path: string, method: string, body: unknown, questionSubmission = false) {
   const response = await fetch(`${apiBase}/api/v1/analytics/${path}`, { method, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!response.ok) throw new Error("利用状況を記録できませんでした。");
+  if (!response.ok) throw new Error(questionSubmission
+    ? await questionResponseError(response, "質問を送信できませんでした。時間をおいて再度お試しください。")
+    : "利用状況を記録できませんでした。");
 }
 
 export const startTrackedChat = (id: string, identifier: string, at: string) => analytics("chat-sessions", "POST", { id, identity: { identity_kind: "AUTHENTICATED", identifier }, started_at: at });
-export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string, question: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at, question_text: question });
+export const startTrackedInteraction = (sessionId: string, id: string, sequence: number, at: string, question: string) => analytics(`chat-sessions/${sessionId}/interactions`, "POST", { id, sequence_number: sequence, question_submitted_at: at, question_text: question }, true);
 export const completeTrackedInteraction = (id: string, answerType: string | null, at?: string, answer?: string, citations?: unknown[], faqId?: number | null) => analytics(`interactions/${id}/completion`, "PATCH", answerType ? { processing_status: "COMPLETED", answer_type: answerType, answer_displayed_at: at, answer_text: answer, citations: citations ?? [], faq_id: faqId ?? null } : { processing_status: "FAILED" });
 export const submitFeedback = (id: string, rating: "GOOD" | "BAD", comment?: string, reason?: string) => analytics(`interactions/${id}/feedback`, "PUT", { rating, comment: comment || null, reason: reason || null });
 

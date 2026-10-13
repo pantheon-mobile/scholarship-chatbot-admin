@@ -7,3 +7,16 @@ export function questionErrorMessage(reason: unknown): string {
   }
   return reason instanceof Error ? reason.message : "回答を取得できませんでした。";
 }
+
+
+export const QUESTION_REJECTED_MESSAGE = "質問を送信できませんでした。解消しない場合は、システム管理者にお問い合わせください。";
+
+export async function questionResponseError(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body.detail === "string" && body.detail.trim()) return body.detail;
+  } catch { /* Do not expose a proxy's HTML error page. */ }
+  if (response.status === 401) return "認証が必要です。CPFのメニューからログインし直してください。";
+  if (response.status === 403) return QUESTION_REJECTED_MESSAGE;
+  return fallback;
+}

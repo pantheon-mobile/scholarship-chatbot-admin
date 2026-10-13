@@ -325,3 +325,18 @@ it("同じ評価で空欄送信すると保存内容を消去する", async () =
   expect(api.submitFeedback).toHaveBeenCalledWith("saved-interaction", "GOOD", "", "");
   clickButton("Good"); expect(valueOf("理由（任意）")).toBe(""); expect(valueOf("コメント（任意）")).toBe("");
 });
+
+it("質問の遮断時に案内を表示し通常の文章で再送信できる", async () => {
+  const { QUESTION_REJECTED_MESSAGE } = await import("../lib/chatErrors");
+  api.startTrackedInteraction.mockRejectedValueOnce(new Error(QUESTION_REJECTED_MESSAGE));
+  render(<ChatPage />);
+  const input = screen.getByLabelText("質問");
+  fireEvent.change(input, { target: { value: '<img src=x onerror="console.log(1)"> テスト' } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  expect(await screen.findByRole("alert")).toHaveProperty("textContent", QUESTION_REJECTED_MESSAGE);
+  expect(api.sendChatMessage).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: "在籍報告について教えてください" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  await screen.findByText("回答です");
+  expect(screen.queryByText(QUESTION_REJECTED_MESSAGE)).toBeNull();
+});
