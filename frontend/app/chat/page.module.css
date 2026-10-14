@@ -77,3 +77,5 @@
 @media (max-width: 760px) { .main { --header-height: 58px; } }
 
 .contextNotice { font-size: 12px; color: #667085; margin: 0 0 8px; }
+
+.historyEdit .historyEditError { margin: 0; padding: 6px 8px; border-radius: 4px; background: #fff0ef; color: #b42318; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
