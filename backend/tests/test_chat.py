@@ -414,3 +414,30 @@ async def test_generation_uses_request_date_without_changing_search_question(mon
         assert client.retrieve.call_args.kwargs["retrievalQuery"]["text"] == question
         assert "公開済み・開始済みと断定しない" in prompt
         assert "未提出者への対応を先に" in prompt
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("question", [
+    "在籍報告",
+    "在籍報告の時期を教えてください。",
+    "給付奨学金の在籍報告は年に何回、いつ実施しますか？2026年度の提出期間も教えてください。",
+    "2024年度の在籍報告の時期を教えてください。",
+    "在籍報告の学内での督促手順を教えてください。",
+])
+async def test_enrollment_report_keeps_policy_and_campus_sources_eligible(monkeypatch, question):
+    monkeypatch.setenv("CHAT_KNOWLEDGE_BASE_ID", "KB123")
+    monkeypatch.setenv("CHAT_MODEL_ARN", "test-model")
+    client = Mock()
+    client.retrieve_and_generate.return_value = {"output": {"text": "回答"}, "citations": []}
+    await ChatService(client).answer(question)
+    request = client.retrieve_and_generate.call_args.kwargs
+    configuration = request["retrieveAndGenerateConfiguration"]["knowledgeBaseConfiguration"]
+    assert configuration["retrievalConfiguration"]["vectorSearchConfiguration"]["filter"] == {
+        "equals": {"key": "answer_source_enabled", "value": True}
+    }
+    client.retrieve.assert_not_called()
+    assert request["input"]["text"].startswith(question + "\n")
+    assert "JASSO" in request["input"]["text"]
+    prompt = configuration["generationConfiguration"]["promptTemplate"]["textPromptTemplate"]
+    assert f"利用者の元の質問：{question}" in prompt
+    assert "対象制度・年度を勝手に変更しない" in prompt

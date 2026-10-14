@@ -174,14 +174,33 @@ class ChatService:
 
     def _retrieve_and_generate(self, question: str, bedrock_session_id: str | None):
         client = self.client or boto3.client("bedrock-agent-runtime", region_name=self.region)
-        selected_priority = self._select_priority(client, question)
+        # Include policy and campus sources even when their priorities differ.
+        enrollment_report = "在籍報告" in unicodedata.normalize("NFKC", question)
+        selected_priority = None if enrollment_report else self._select_priority(client, question)
+        retrieval_question = question
+        prompt = self.prompt
+        if enrollment_report:
+            retrieval_question += (
+                "\n関連資料：JASSO 給付奨学生の在籍報告 奨学事務の手引 第6 "
+                "奨学金業務研修資料 JSASマニュアル。"
+                "制度上の回数・実施時期は質問の対象時期に適用される公式資料で確認し、"
+                "対象時期の指定がない場合は現行の制度資料を確認する。"
+                "学内の周知・督促・確認手順は学内資料も確認する。"
+            )
+            prompt += (
+                "\n検索用に付加された関連資料名は回答項目の追加要求ではありません。"
+                "次の元の質問の範囲に答え、対象制度・年度を勝手に変更しないでください。"
+                "現行制度の根拠を確認できないときは、学内資料の記述だけで"
+                "現在の提出回数・時期を断定しないでください。"
+                f"\n利用者の元の質問：{question}"
+            )
         vector_config: dict = {
             "numberOfResults": int(os.getenv("CHAT_NUMBER_OF_RESULTS", "10")),
             "overrideSearchType": os.getenv("CHAT_SEARCH_TYPE", "HYBRID"),
             "filter": self._answer_source_filter(selected_priority),
         }
         request = {
-            "input": {"text": question},
+            "input": {"text": retrieval_question},
             "retrieveAndGenerateConfiguration": {
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
@@ -198,7 +217,7 @@ class ChatService:
                             }
                         },
                         "promptTemplate": {
-                            "textPromptTemplate": self.prompt.replace(
+                            "textPromptTemplate": prompt.replace(
                                 "$current_date$", datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y年%m月%d日")
                             )
                         },
