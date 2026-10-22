@@ -21,22 +21,22 @@ COPY types ./types
 RUN npm ci --no-audit
 RUN npm run build
 
+FROM builder AS production-dependencies
+RUN npm prune --omit=dev --ignore-scripts --no-audit
+
 FROM node:24.22.1-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/package-lock.json ./
 COPY --from=builder /app/tsconfig.json ./
-COPY --from=builder /app/eslint.config.mjs ./
 COPY --from=builder /app/next-env.d.ts ./
 COPY --from=builder /app/proxy.ts ./
-COPY --from=builder /app/vitest.config.mts ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/components ./components
 COPY --from=builder /app/lib ./lib
-COPY --from=builder /app/tests ./tests
 COPY --from=builder /app/types ./types
 
 EXPOSE 3000

@@ -9,12 +9,12 @@
     "smoke-test": "./scripts/smoke-test.sh"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.266.0",
+    "aws-cdk-lib": "2.274.0",
     "constructs": "^10.4.2"
   },
   "devDependencies": {
-    "aws-cdk": "2.1139.0",
     "@types/node": "^22.15.3",
+    "aws-cdk": "2.1146.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
