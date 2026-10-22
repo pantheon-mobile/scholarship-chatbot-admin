@@ -1,4 +1,4 @@
-FROM node:24-alpine AS builder
+FROM node:24.22.1-alpine AS builder
 WORKDIR /app
 
 ARG NEXT_PUBLIC_API_URL=""
@@ -17,10 +17,11 @@ COPY lib ./lib
 COPY tests ./tests
 COPY types ./types
 
-RUN npm ci
+# Dependency auditing is separate from image construction.
+RUN npm ci --no-audit
 RUN npm run build
 
-FROM node:24-alpine AS runner
+FROM node:24.22.1-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/package-lock.json ./
@@ -39,4 +40,4 @@ COPY --from=builder /app/tests ./tests
 COPY --from=builder /app/types ./types
 
 EXPOSE 3000
-CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["sh", "-c", "node --version && exec npm run start -- --hostname 0.0.0.0 --port 3000"]
