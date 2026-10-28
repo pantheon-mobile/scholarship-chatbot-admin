@@ -413,6 +413,15 @@ def _web_element_markdown(element: Tag, base_url: str) -> str:
         )
     if name == "table":
         return _web_table_markdown(element)
+    if name == "dl":
+        # Definition-list terms often identify the rule applying to the
+        # following conditions. Keep the whole list in document order.
+        return "\n\n".join(
+            f"**{child.get_text(' ', strip=True)}**"
+            if child.name == "dt" else child.get_text("\n", strip=True)
+            for child in element.find_all(["dt", "dd"], recursive=False)
+            if child.get_text(strip=True)
+        )
     return ""
 
 
@@ -508,8 +517,8 @@ def crawl_website(root_url: str, report: dict | None = None) -> list[ConvertedDo
         if len(text) >= 20:
             page_id = hashlib.sha256(url.encode()).hexdigest()[:20]
             blocks = [f"# {title}", f"元URL: {url}"]
-            for element in main.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "table"]):
-                if element.find_parent(["ul", "ol", "table"]):
+            for element in main.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "table", "dl"]):
+                if element.find_parent(["ul", "ol", "table", "dl"]):
                     continue
                 block = _web_element_markdown(element, url)
                 if block:

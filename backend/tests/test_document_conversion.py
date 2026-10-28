@@ -163,3 +163,26 @@ def test_pdf_complex_tables_select_vision_and_falls_back_to_text(monkeypatch):
     assert "complex_tables" in document.metadata["selection_reason"]
     assert document.metadata["table_count"] == 3
     assert document.metadata["vision_fallback_page_count"] == 1
+
+
+def test_web_definition_list_keeps_rule_labels_and_unwrapped_conditions(monkeypatch):
+    html = '''<html><body><main><h2>認定基準</h2><dl>
+    <dt><span>(1)区分A</span></dt><dd>以下の場合に適用します。
+    <ul><li>条件A。ただし例外Aを除く。</li></ul><div>例外Aの説明です。</div></dd>
+    <dt>(2)区分B</dt><dd>こちらは別の区分です。<p>条件Bの説明です。</p>
+    <dl><dt>例外B</dt><dd>例外Bの対象条件です。</dd></dl></dd></dl></main></body></html>'''
+
+    class FakeSession:
+        def __init__(self):
+            self.headers = {}
+
+        def get(self, url, timeout):
+            return FakeWebResponse(html)
+
+    monkeypatch.setenv("WEB_CRAWL_RESPECT_ROBOTS", "false")
+    monkeypatch.setenv("WEB_CRAWL_INTERVAL_SECONDS", "0")
+    monkeypatch.setattr("app.services.document_conversion.public_session", FakeSession)
+    markdown = crawl_website("https://www.jasso.go.jp/guide/")[0].markdown
+    assert markdown.index("**(1)区分A**") < markdown.index("条件A") < markdown.index("**(2)区分B**") < markdown.index("条件B")
+    for text in ("以下の場合に適用します。", "条件A。ただし例外Aを除く。", "例外Aの説明です。", "条件Bの説明です。", "例外Bの対象条件です。"):
+        assert markdown.count(text) == 1
