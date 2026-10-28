@@ -1,4 +1,5 @@
 from io import BytesIO
+from bs4 import BeautifulSoup
 
 from docx import Document
 from openpyxl import Workbook
@@ -7,6 +8,7 @@ from pptx.util import Inches
 import requests
 
 from app.services.document_conversion import crawl_website, convert_docx, convert_pdf, convert_pptx, convert_xlsx
+from app.services.document_conversion import _web_element_markdown
 
 
 def test_xlsx_is_split_into_visible_markdown_sheets():
@@ -186,3 +188,15 @@ def test_web_definition_list_keeps_rule_labels_and_unwrapped_conditions(monkeypa
     assert markdown.index("**(1)区分A**") < markdown.index("条件A") < markdown.index("**(2)区分B**") < markdown.index("条件B")
     for text in ("以下の場合に適用します。", "条件A。ただし例外Aを除く。", "例外Aの説明です。", "条件Bの説明です。", "例外Bの対象条件です。"):
         assert markdown.count(text) == 1
+
+
+def test_web_definition_list_preserves_div_wrapped_qa_and_nested_terms():
+    html = '''<dl><div class="qa"><dt><a><span>対象者は？</span></a></dt>
+    <dd><div><p>学部生が対象です。</p>
+    <dl><div><dt>例外</dt><dd>例外の条件です。</dd></div></dl></div></dd></div>
+    <div><dt>申請方法は？</dt><dd><div><p>給付奨学金を申請してください。</p></div></dd></div></dl>'''
+    output = _web_element_markdown(BeautifulSoup(html, "lxml").dl, "https://example.com/")
+    assert output.index("**対象者は？**") < output.index("学部生が対象です。")
+    assert output.index("学部生が対象です。") < output.index("**申請方法は？**")
+    for value in ("対象者は？", "学部生が対象です。", "例外の条件です。", "給付奨学金を申請してください。"):
+        assert output.count(value) == 1

@@ -419,8 +419,10 @@ def _web_element_markdown(element: Tag, base_url: str) -> str:
         return "\n\n".join(
             f"**{child.get_text(' ', strip=True)}**"
             if child.name == "dt" else child.get_text("\n", strip=True)
-            for child in element.find_all(["dt", "dd"], recursive=False)
-            if child.get_text(strip=True)
+            for child in element.find_all(["dt", "dd"])
+            # HTML allows each term/definition pair to be wrapped in a div.
+            # Nested lists are already included in their containing definition.
+            if child.find_parent("dl") is element and child.get_text(strip=True)
         )
     return ""
 
